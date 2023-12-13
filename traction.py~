@@ -1,0 +1,106 @@
+# traction.py gives commonly used getters (and setters?) for centraxx db
+
+# functions:
+
+# smpl(sampleid)
+# smplbyloc(locationpath)
+
+from dbquery import *
+
+# smpl gets sample with sampleid
+# could this method be superseeded by a more general sample method? it would need to be adjusted in fhirproof, elsewhere?
+# or is this a moment to introduce multiple traction versions, that future method changes don't result in clashes with existing calls?
+# maybe we could use one method just returning from the sample table and another method pulling in sample type, location etc with joins?
+# or you could pull in joins dynamically depending on whether you search for that value, e.g joining in samplelocation when filtering by location, and then maybe add another option whether to broadly join the rest or to narrowly not join the rest
+# def smpl(sampleid):
+#     query = "select * from centraxx_sample s inner join centraxx_sampleidcontainer as c on c.sample = s.oid where c.psn = ? and c.idcontainertype = 6"
+#     result = qfad(query, sampleid)
+#     if len(result) > 0:
+#         return result[0]
+
+#     return None
+
+# smpl gives sample with psn or location
+# maybe pass arguments as dicts, to be able to specify equal or like matching, e.g. locationpath = {value:'<my locationpath>',like=True}
+def smpl(samplepsn = None, locationpath = None, like=False):
+    # we would like to be able to return the column names prefixed by the table names, to avoid clashes when column names appear in more than one table. unfortunately there seems to be no standard sql way of doing this, see https://stackoverflow.com/a/57832920
+    # so for now say: select <table short>.<column name> as '<table name>.<column name>'
+    query = """
+     select s.*,
+    sidc.psn as 'sampleidcontainer.psn',
+    samplelocation.locationid as 'samplelocation.locationid', samplelocation.locationpath as 'samplelocation.locationpath',
+    sampletype.code as 'sampletype.code',
+    stockprocessing.code as 'stockprocessing.code',
+    secondprocessing.code as 'secondprocessing.code',
+    project.code as 'project.code',
+    receptable.code as 'receptable.code',
+    orgunit.code as 'orgunit.code',
+    flexistudy.code as 'flexistudy.code'
+    from centraxx_sample s
+    inner join centraxx_sampleidcontainer as sidc on sidc.sample = s.oid
+    inner join centraxx_samplelocation samplelocation on samplelocation.oid = s.samplelocation
+    inner join centraxx_sampletype as sampletype on sampletype.oid = s.sampletype
+    inner join centraxx_stockprocessing as stockprocessing on stockprocessing.oid = s.stockprocessing
+    left join centraxx_stockprocessing as secondprocessing on secondprocessing.oid = s.secondprocessing
+    inner join centraxx_project as project on project.oid = s.project
+    inner join centraxx_samplereceptable as receptable on receptable.oid = s.receptable
+    inner join centraxx_organisationunit as orgunit on orgunit.oid = s.orgunit
+    inner join centraxx_flexistudy as flexistudy on flexistudy.oid = s.flexistudy
+
+    where sidc.idcontainertype = 6
+    """
+    args = []
+
+    if samplepsn != None:
+        query = query + " and " + _wherestring("sidc.psn", like)
+        args.append(samplepsn)
+    if locationpath != None:
+        query = query + " and " + _wherestring("samplelocation.locationpath", like)
+        args.append(locationpath)
+
+    #print(query)
+        
+    return qfad(query, *args)
+
+# _wherestring gives a ?-parameterized sql where expression for name equal or like parameter for use in queries
+def _wherestring(name, like):
+    if not like:
+        return name + " = ?"
+    else:
+        return name + " like '%' + ? + '%'"
+
+# smplbyloc gives samples on locationpath (rack)
+# not needed anymore?
+def smplbyloc(locationpath, like=False):
+    query = """
+    select s.*, 
+    sidc.psn as 'sampleidcontainer.psn', 
+    sl.locationid as 'samplelocation.locationid', sl.locationpath as 'samplelocation.locationpath', 
+    st.code as 'sampletype.code'
+
+    inner join centraxx_sampleidcontainer as sidc on sidc.sample = s.oid 
+    inner join centraxx_samplelocation sl on s.samplelocation = sl.oid
+    inner join centraxx_sampletype as st on st.oid = s.sampletype
+
+    where sidc.idcontainertype = 6 and sl.locationpath"""
+    
+    if not like:
+        query = query + " = ?"
+    else:
+        query = query + " like '%' + ? + '%'"
+        
+    return qfad(query, locationpath)
+    
+# patient gives the patient of sample
+def patient(sampleid):
+    # get from sample to patient: sample to patientcontainer, patientcontainer to idcontainer.
+    query = """
+    select idc.*, pc.* from centraxx_idcontainer idc
+    inner join centraxx_patientcontainer pc on idc.patientcontainer = pc.oid
+    inner join centraxx_sample s on s.patientcontainer = pc.oid
+    where idc.idcontainertype = 8 and s.oid = ?
+    """
+    result = qfad(query, sampleid)
+    if len(result) == 0:
+        return None
+    return result[0]
