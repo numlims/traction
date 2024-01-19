@@ -5,12 +5,12 @@
 # smpl(?samplepsn, ?locationpath, ?like)
 # patient(sampleid)
 
-from dbquery import *
+from dbcq import *
 
 class traction:
 
-    def __init__(self, target="num_test"):
-        self.target = target
+    def __init__(self, target):
+        self.db = dbcq(target)
 
     # smpl gives sample with psn or location
     # maybe pass arguments as dicts, to be able to specify equal or like matching, e.g. locationpath = {value:'<my locationpath>',like=True}
@@ -52,7 +52,7 @@ class traction:
 
         #print(query)
             
-        return qfad(query, *args, target=self.target)    
+        return self.db.qfad(query, *args)
 
     # _wherestring gives a ?-parameterized sql where expression for name equal or like parameter for use in queries
     def _wherestring(self, name, like):
@@ -70,7 +70,7 @@ class traction:
         inner join centraxx_sample s on s.patientcontainer = pc.oid
         where idc.idcontainertype = 8 and s.oid = ?
         """
-        result = qfad(query, sampleid, target=self.target)
+        result = self.db.qfad(query, sampleid)
         if len(result) == 0:
             return None
         return result[0]

@@ -1,1 +1,5 @@
-dump.txt*
+dump.txt
+*~
+__*
+#*
+.#*
