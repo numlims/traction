@@ -17,8 +17,9 @@ dependencies = [
 classifiers = [
   "Programming Language :: Python :: 3"
 ]
-#[project.scripts]
-#traction = "traction:__main__"
+
+[project.scripts]
+traction = "traction:__main__"
 
 [tool.setuptools]
 packages = ["traction"]
