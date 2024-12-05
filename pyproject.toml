@@ -12,7 +12,7 @@ description = "samples and patients in centraxx"
 readme = "readme.md"
 requires-python = ">=3.8"
 dependencies = [
-  # you could pyodbc or sqlite3 here, but maybe keep it out and let the user install what he needs?
+  "tbl @ git+https://github.com/numlims/tbl"
 ]
 classifiers = [
   "Programming Language :: Python :: 3"
