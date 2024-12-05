@@ -22,4 +22,4 @@ classifiers = [
 traction = "traction:__main__"
 
 [tool.setuptools]
-packages = ["traction"]
+packages = ["traction/"]
