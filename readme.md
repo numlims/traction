@@ -9,12 +9,13 @@ pat = tr.patient(sampleid="abc")
 
 ## install
 
-install with pip:
+download traction whl from
+[here](https://github.com/numlims/traction/releases). install with
+pip:
 
 ```
-pip install "git+https://github.com/numlims/traction.git"
+pip install traction-<version>.whl
 ```
 
-see
-[dbcq](https://github.com/numlims/dbcq?tab=readme-ov-file#db-connection)
-for database connection setup.
+for database connection setup see
+[dbcq](https://github.com/numlims/dbcq?tab=readme-ov-file#db-connection).
