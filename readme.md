@@ -7,6 +7,14 @@ tr = new traction("num_test")
 pat = tr.patient(sampleid="abc")
 ```
 
+on the command line:
+
+```
+traction num_test sample 1449330267 --verbose
+```
+
+see `traction -h`.
+
 ## install
 
 download traction whl from
