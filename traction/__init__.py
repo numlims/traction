@@ -1,10 +1,5 @@
 # traction.py gives commonly used getters (and setters?) for centraxx db
 
-# functions:
-
-# smpl(?samplepsn, ?locationpath, ?like)
-# patient(sampleid)
-
 from dbcq import *
 
 class traction:
@@ -38,10 +33,10 @@ class traction:
         
         # set the idcontainer type we search for
         if not sampleids == None:
-            idcontainertype = 6
+            sidcontainertype = 6
             queryids = sampleids
         if not extsampleids == None:
-            idcontainertype = 7
+            sidcontainertype = 7
             queryids = extsampleid
             
         psnwhere = "in " + traction._sqlinplaceholder(len(queryids))
@@ -59,7 +54,7 @@ class traction:
         
         if not verbose:
             # a non-verbose query (quicker)
-            query = f"select s.*, c.psn as 'sampleidcontainer.psn' from centraxx_sample s inner join centraxx_sampleidcontainer as c on c.sample = s.oid where c.idcontainertype = {idcontainertype} and c.psn {psnwhere}"
+            query = f"select s.*, c.psn as 'sampleidcontainer.psn' from centraxx_sample s inner join centraxx_sampleidcontainer as c on c.sample = s.oid where c.idcontainertype = {sidcontainertype} and c.psn {psnwhere}"
             
         else:
             # a verbose query (slower)
@@ -76,6 +71,7 @@ class traction:
             stockprocessing.code as 'stockprocessing.code',
             secondprocessing.code as 'secondprocessing.code',
             project.code as 'project.code',
+            idcontainer.psn as 'patient_psn',
             receptable.code as 'receptable.code',
             orgunit.code as 'orgunit.code',
             flexistudy.code as 'flexistudy.code'
@@ -86,11 +82,14 @@ class traction:
             left join centraxx_stockprocessing as stockprocessing on s.stockprocessing = stockprocessing.oid
             left join centraxx_stockprocessing as secondprocessing on s.secondprocessing = secondprocessing.oid
             left join centraxx_project as project on s.project = project.oid
+            left join centraxx_patientcontainer as patientcontainer on s.patientcontainer = patientcontainer.oid
+            left join centraxx_idcontainer as idcontainer on idcontainer.patientcontainer = patientcontainer.oid
             left join centraxx_samplereceptable as receptable on s.receptable = receptable.oid
             left join centraxx_organisationunit as orgunit on s.orgunit = orgunit.oid
             left join centraxx_flexistudy as flexistudy on s.flexistudy = flexistudy.oid
             
-            where sidc.idcontainertype = {idcontainertype}
+            where sidc.idcontainertype = {sidcontainertype}
+            and idcontainer.idcontainertype = 8 -- for patient_psn
             and sidc.psn {psnwhere}
             """
             
