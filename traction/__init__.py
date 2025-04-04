@@ -69,15 +69,15 @@ class traction:
             # use left joins to return something if a value is null
             query = f"""
             select s.*,
-            sidc.psn as 'sampleidcontainer.psn', --rename to sampleid?
-            parentidc.psn as 'parentid',
+            sidc.psn as 'sampleidcontainer.psn', --rename to samplepsn? or sampleid?
+            parentidc.psn as 'parentpsn',
             samplelocation.locationid as 'samplelocation.locationid', 
             samplelocation.locationpath as 'samplelocation.locationpath',
             sampletype.code as 'sampletype.code',
             stockprocessing.code as 'stockprocessing.code',
             secondprocessing.code as 'secondprocessing.code',
             project.code as 'project.code',
-            idcontainer.psn as 'patientid',
+            idcontainer.psn as 'patientpsn',
             receptable.code as 'receptable.code',
             orgunit.code as 'orgunit.code',
             flexistudy.code as 'flexistudy.code'
