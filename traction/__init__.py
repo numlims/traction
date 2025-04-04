@@ -28,6 +28,11 @@ class traction:
     def sample(self, sampleids=None, extsampleids=None, verbose=False):
         """sample gets sample(s) by sampleid or external id. pass sampleids as array. to join in more information, say verbose=True, this is slower than non-verbose."""
 
+        # es gibt ein sampleid feld.
+        # soll in der ausgabe dann samplepsn, parentpsn, patientpsn heissen?
+        # muesste es in der eingabe dann heissen samplepsns, extsamplepsns?
+        # oder das sampleid feld ueberschreiben, und sampleid, parentid und patientid ausgeben?
+
         # ids used in query
         queryids = []
         
@@ -64,19 +69,21 @@ class traction:
             # use left joins to return something if a value is null
             query = f"""
             select s.*,
-            sidc.psn as 'sampleidcontainer.psn',
+            sidc.psn as 'sampleidcontainer.psn', --rename to sampleid?
+            parentidc.psn as 'parentid',
             samplelocation.locationid as 'samplelocation.locationid', 
             samplelocation.locationpath as 'samplelocation.locationpath',
             sampletype.code as 'sampletype.code',
             stockprocessing.code as 'stockprocessing.code',
             secondprocessing.code as 'secondprocessing.code',
             project.code as 'project.code',
-            idcontainer.psn as 'patient_psn',
+            idcontainer.psn as 'patientid',
             receptable.code as 'receptable.code',
             orgunit.code as 'orgunit.code',
             flexistudy.code as 'flexistudy.code'
             from centraxx_sample s
             inner join centraxx_sampleidcontainer as sidc on sidc.sample = s.oid
+            left join centraxx_sampleidcontainer parentidc on parentidc.sample = s.parent
             left join centraxx_samplelocation samplelocation on samplelocation.oid = s.samplelocation
             left join centraxx_sampletype as sampletype on sampletype.oid = s.sampletype
             left join centraxx_stockprocessing as stockprocessing on s.stockprocessing = stockprocessing.oid
@@ -89,7 +96,7 @@ class traction:
             left join centraxx_flexistudy as flexistudy on s.flexistudy = flexistudy.oid
             
             where sidc.idcontainertype = {sidcontainertype}
-            and idcontainer.idcontainertype = 8 -- for patient_psn
+            and idcontainer.idcontainertype = 8 -- for patient psn
             and sidc.psn {psnwhere}
             """
             
