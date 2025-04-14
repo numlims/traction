@@ -31,8 +31,11 @@ for database connection setup see
 
 ## dev
 
-build and install
+get [codetext](github.com/tnustrings/codetext) for assembling init.ct
+and main.ct.
+
+build and install:
 
 ```
-python -m build --no-isolation; pip install dist/traction-<version>-py3-none-any.whl --no-deps --force-reinstall
+make install
 ```
