@@ -1,0 +1,556 @@
+# traction
+
+commonly used getters (and setters?) for centraxx db
+
+``//__init__.py:
+``import``
+``const``
+class traction:
+  ``vars``
+  ``init``
+
+  ``sample``
+  ``patient``
+  ``finding``
+  ``labval``
+  ``name``
+  ``names_by_codes``
+
+  ``_where``
+  ``_wherebuild``
+  ``_sqlinplaceholder``
+  ``_whereparam``
+  ``_wherelike``
+  ``_wherelikes``
+  
+``
+
+put constants here and rename package to tr so you can say sample(..., verbose=[tr.parentid, tr.locationpath])?
+
+keep them lowercase that they are the same as the keys in the returned json?
+
+``/const:
+extsampleid = "extsampleid"
+method_code = "method_code"
+locationname = "locationname"
+locationpath = "locationpath"
+orgunit_code = "orgunit_code"
+parentid = "parentid"
+patientid = "patientid"
+project_code = "project_code"
+sampleid = "sampleid"
+sampletype_code = "sampletype_code"
+secondprocessing_code = "secondprocessing_code"
+stockprocessing_code = "stockprocessing_code"
+study_code = "study_code"
+receptable_code = "receptable_code"
+``
+
+
+``/vars:
+    external_sampleid_type = "..."
+    sampleid_type = "..."
+``
+
+__init__ takes the db target either as string or dbcq object.
+
+``/init:
+    def __init__(self, target):
+        ``.``
+``
+
+either pass a string argument to dbcq or use dbcq instance directly.
+
+``
+        if isinstance(target, str):
+            self.db = dbcq(target)
+        elif isinstance(target, dbcq): 
+            self.db = target
+        else:
+            raise Exception("target needs to be string or dbcq instance")
+``
+
+import dbcq.
+
+``/import:
+from dbcq import *
+``
+
+sample gets sample(s) by sampleid or external id. pass sampleids as array. to join in more information, say verbose_all=True, this is slower than non-verbose.
+
+the first implementation tried to take the tablenames/colums as keys for the returned json fields, but that doesn't quite work for patientpsn, where the key would be just 'idcontainer.psn'. so maybe rename the joined-in fields to samplepsn, *_code, patientpsn, parentpsn etc.
+
+``/sample:
+    def sample(self, sampleids=None, extsampleids=None, patientids=None, locationpaths=None, verbose=[], verbose_all=False):
+        ``.``
+``
+
+always join in the sampleid for now
+
+``
+        if not sampleid in verbose:
+            verbose.append(sampleid)
+``
+
+put the keys for the given arguments into the verbose array, so that they land in the join, so that the wherestring can access the joined-in fields
+
+``
+        if extsampleids:
+            verbose.append(extsampleid)
+        if patientids:
+            verbose.append(patientid)
+        if locationpaths:
+            verbose.append(locationpath)
+``
+
+these are all possible verbose options (verbose-all-array).
+
+``
+        vaa = [locationname, locationpath, orgunit_code, parentid,
+               patientid, project_code, sampletype_code,
+               secondprocessing_code, stockprocessing_code, study_code,
+               receptable_code, sampleid, extsampleid]
+``
+
+on verbose_all include all constants in the verbose array.
+
+``
+        if verbose_all == True:
+            verbose = vaa
+``
+
+the select statements for optional joins by key.
+
+``
+        selects = {
+            sampleid: [f"sidc.psn as '{sampleid}'"],
+            extsampleid: [f"extsidc.psn as '{extsampleid}'"],
+            parentid: [f"parentidc.psn as '{parentid}'"],
+            locationname: [f"samplelocation.locationid as '{locationname}'"], 
+            locationpath: [f"samplelocation.locationpath as '{locationpath}'"],
+            sampletype_code: [f"sampletype.code as '{sampletype_code}'"],
+            stockprocessing_code: [f"stockprocessing.code as '{stockprocessing_code}'"],
+            secondprocessing_code: [f"secondprocessing.code as '{secondprocessing_code}'"],
+            project_code: [f"project.code as '{project_code}'"],
+            patientid: [f"patidc.psn as '{patientid}'"],
+            receptable_code: [f"receptable.code as '{receptable_code}'"],
+            orgunit_code: [f"orgunit.code as '{orgunit_code}'"],
+            study_code: [f"flexistudy.code as '{study_code}'"]
+        }
+``
+
+the join statements for optional joins by key. what about the same join needed for two different keys (e.g. locationname and locationpath)? filter them out in the end?
+
+``
+        joins = {
+            sampleid: ["inner join centraxx_sampleidcontainer as sidc on sidc.sample = sample.oid"],
+            extsampleid: ["inner join centraxx_sampleidcontainer as extsidc on extsidc.sample = sample.oid"],
+            parentid: ["left join centraxx_sampleidcontainer parentidc on parentidc.sample = sample.parent"],
+            locationname: ["left join centraxx_samplelocation samplelocation on samplelocation.oid = sample.samplelocation"],
+            locationpath: ["left join centraxx_samplelocation samplelocation on samplelocation.oid = sample.samplelocation"],
+            sampletype_code: ["left join centraxx_sampletype as sampletype on sampletype.oid = sample.sampletype"],
+            stockprocessing_code: ["left join centraxx_stockprocessing as stockprocessing on sample.stockprocessing = stockprocessing.oid"],
+            secondprocessing_code: ["left join centraxx_stockprocessing as secondprocessing on sample.secondprocessing = secondprocessing.oid"],
+            project_code: ["left join centraxx_project as project on sample.project = project.oid"],
+            patientid: ["left join centraxx_patientcontainer as patientcontainer on sample.patientcontainer = patientcontainer.oid",
+            "left join centraxx_idcontainer as patidc on patidc.patientcontainer = patientcontainer.oid"], 
+            receptable_code: ["left join centraxx_samplereceptable as receptable on sample.receptable = receptable.oid"],
+            orgunit_code: ["left join centraxx_organisationunit as orgunit on sample.orgunit = orgunit.oid"],
+            study_code: ["left join centraxx_flexistudy as flexistudy on sample.flexistudy = flexistudy.oid"]
+        }
+``
+
+put together the select string and join string for the query
+
+``
+        selecta = ["sample.*"]
+        joina = []
+        for verb in verbose:
+            if not verb in selects: # selects and joins should hold the same keys
+                print(f"error: key {verb} must be in {vaa}.")
+        
+            # put in the select line(s)
+            for s in selects[verb]:
+                selecta.append(s)
+
+            for s in joins[verb]:
+                # both locationpath and locationname join in samplelocation, so check that it's not already in the join array
+                if not s in joina:
+                    joina.append(s)
+``
+
+get the selections and joins as string
+
+``
+        selectstr = ", \n".join(selecta)
+        joinstr = "\n ".join(joina)
+``
+
+get the where string.
+
+``
+        (wherestr, whereargs) = self._where(sampleids=sampleids, extsampleids=extsampleids, patientids=patientids, locationpaths=locationpaths, verbose=verbose)
+``
+
+stick together the query, get the result and return it.
+
+``
+        query = f"select {selectstr} from centraxx_sample sample {joinstr} where {wherestr}"
+        # print(query)
+        res = self.db.qfad(query, whereargs)
+
+        return res
+``
+
+patient gives patients.
+
+``/patient:
+    def patient(self, patientids=None, sampleids=None):
+        ``.``
+``
+
+get from sample to patient psn: sample to patientcontainer, patientcontainer to idcontainer, idcontainer has psn.
+
+``
+        query = f"""
+        select patc.*, patidc.psn as {patientid} from centraxx_idcontainer patidc
+        inner join centraxx_patientcontainer patc on patidc.patientcontainer = patc.oid
+        inner join centraxx_sample sample on sample.patientcontainer = patc.oid
+        join centraxx_sampleidcontainer sidc on sidc.sample = sample.oid
+        where patidc.idcontainertype = 8"""
+``
+
+get the where string for the args and stick together the query.
+
+``
+        (wherestr, whereargs) = self._where(sampleids=sampleids, patientids=patientids)
+
+        query += " and " + wherestr
+``
+
+get the result and return it.
+
+``
+        res = self.db.qfad(query, whereargs)
+
+        return res
+``
+
+finding gets the laborfinding (messbefund / begleitschein) for
+sampleid or messbefund.  (if verbose with its recorded values?)
+
+``/finding:
+    def finding(sampleids=None, methods=None):
+        ``.``
+``
+
+stick together the query.
+
+``
+        query = f"""select laborfinding.*, method.code as {method_code}, sidc.psn as {sampleid}
+        from centraxx_laborfinding as laborfinding
+        left join centraxx_labormethod as method on laborfinding.labormethod = method.oid
+        left join centraxx_labormapping as labormapping on labormapping.finding = laborfinding.oid
+        left join centraxx_sample sample on labormapping.relatedoid = sample.oid
+        left join centraxx_sampleidcontainer sidc on sidc.sample = sample.oid"""
+``
+
+get the where string and append it to the query.
+
+``
+        (wherestr, whereargs) = self._where(sampleids=sampleids, methods=methods)
+
+        query += " where " + wherestr
+``
+
+get the result and return it.
+
+``
+        res = self.db.qfad(query, whereargs)
+
+        return res
+``
+
+labval gets laborvalues (messparameter)
+        
+``/labval:
+    def labval(self, methods=None):
+        ``.``
+``
+
+the query.
+
+``
+        query = f"""select labval.*, method.code
+from centraxx_labormethod method
+inner join centraxx_crftemplate crf_t
+    on method.crf_template=crf_t.oid
+inner join centraxx_crftempsection crf_ts
+    on crf_t.oid=crf_ts.crftemplate
+inner join centraxx_crftempsection_fields crf_tsf
+    on crf_ts.oid=crf_tsf.crftempsection_oid
+inner join centraxx_crftempfield crf_tf
+    on crf_tsf.crftempfield_oid=crf_tf.oid
+inner join centraxx_laborvalue labval
+    on crf_tf.labval=labval.oid"""
+``
+
+add the where string.
+
+``
+        (wherestr, whereargs) = self._where(methods=methods)
+
+        query += " where " + wherestr
+``
+
+return the result.
+
+``
+        res = self.db.qfad(query, whereargs)
+
+        return res
+``
+
+name gives the name for a code or a list of names for all codes in a table in de or en.
+table: the name of the centraxx table without centraxx_ prefix
+code: a specific code, if none given, all code - name mappings for table are given
+lang: de|en
+ml_table: if the name of the table connecting to multilingualentry is not simlpy the queried table name followed by "_ml_name", give the connecting table's name here. eg: name('laborvaluegroup', ... ml_name='labval_grp_ml_name')
+
+
+``/name:
+    def name(self, table:str, code:str=None, lang:str=None, ml_table:str=None):
+        ``.``
+``
+
+interlacing the table name assumes that the referencing pattern for multilingual entries stays the same across table names.
+
+``
+        query = "select [" + table + "].code, multilingual.value as name, multilingual.lang as lang"
+        query += " from [centraxx_" + table + "] as [" + table + "]"
+``
+
+put together the name for the ml_table.
+
+``
+        ml_name = ""
+        if ml_table != None: # the name is different
+            ml_name = "centraxx_" + ml_table
+        else: # the name is the same
+            ml_name = "centraxx_" + table + "_ml_name"
+``
+
+add it to the query.
+
+``
+        query += " inner join [" + ml_name + "] mlname on mlname.related_oid = [" + table + "].oid"
+        query += " inner join centraxx_multilingualentry multilingual on mlname.oid = multilingual.oid"
+``
+
+restrict the query to specific lang or code if given.
+
+``
+        wherestrings = []
+        args = []
+        if code != None:
+            wherestrings.append(self._whereparam("[" + table + "].code"))
+            args.append(code)
+        if lang != None:
+            wherestrings.append(self._whereparam("multilingual.lang"))
+            args.append(lang)
+``
+
+only add sql-where if needed
+
+``
+        if len(wherestrings) > 0:
+            query += " where "
+            # join where clauses by and
+            query += " and ".join(wherestrings)
+
+        # print(query)
+``
+
+query and return result.
+
+``
+        res = self.db.qfad(query, *args)
+        return res
+``
+
+names_by_code returns the multilingual name entries by code for quick access. for params see name()
+      e.g.:
+        names_by_codes("laborvalue", "de") returns:
+        {
+          "NUM_STOOL_LAXATIVE": "Abführmittel",
+          "NUM_NMR_ACETONE_VALUE": "Aceton",
+          ...
+        }
+
+
+``/names_by_codes:
+    def names_by_codes(self, table:str, lang:str, ml_table:str=None):
+        ``.``
+``
+
+get the full result, then return keys by code.
+
+``
+        res = self.name(table, lang=lang, ml_table=ml_table)
+        out = {}
+        for line in res:
+            out[line["code"]] = line["name"]
+            
+        return out
+``
+
+_where returns the wherestring and args array for the provided arguments (that are not None).
+the user needs to make sure that whatever is referenced here is joined into the query before.
+the names are assumed to be the tr constants, like e.g. tr.sampleid.
+like is an array of tr constants of the arguments for which we check likeness. we only check likeness for the first passed string of an argument array. if for example like=[tr.locationpath], we check likeness of locationpaths[0]."""
+
+make sure only one of sampleids or extsampleids is passed?
+
+``/_where:
+    def _where(self, sampleids=None, extsampleids=None, patientids=None, locationpaths=None, methods=None, like=[], verbose=[]): # -> (str, [])
+        ``.``
+``
+
+put the where-info for each field into wheredict along with the passed arguments.
+
+``
+        wheredict = {
+          sampleid: { "arr": sampleids, "field": "sidc.psn", "morewhere": "sidc.idcontainertype = 6" }, # pass the idcontainertype check along
+
+          extsampleid: { "arr": extsampleids, "field": "extsidc.psn", "morewhere": "extsidc.idcontainertype = 7" },
+          patientid: { "arr": patientids, "field": "patidc.psn", "morewhere": "patidc.idcontainertype = 8" },
+          locationpath: { "arr": locationpaths, "field": "samplelocation.locationpath" },
+          method_code: { "arr": methods, "field": "labormethod.code" }
+        }
+``
+
+stick together where clauses and arguments that covers the args that
+are not None and the constants in verbose. return the wherestring and
+args array.
+
+``
+        (wherearr, whereargs) = self._wherebuild(wheredict, like, verbose)
+
+        wherestr = " and ".join(wherearr)
+        return (wherestr, whereargs)
+``
+
+_wherebuild builds wherestrings and fills whereargs.
+
+``/_wherebuild:
+    def _wherebuild(self, wheredict, likearr=[], verbose=[]): # ([]string, [])
+        ``.``
+``
+
+wherearr and whereargs get filled.
+
+``
+        wherearr = []
+        whereargs = []
+``
+
+iterate the passed wheredict. key is one of the tr constant strings, e.g. tr.locationpath.
+
+``
+        for (key, row) in wheredict.items():
+            ``no arr``
+            ``like``
+            ``exact``
+            ``more where``
+``
+
+if no or empty search array, put in the morewhere-clause if the key is
+in verbose, then skip.
+
+``./no arr:
+            if row["arr"] == None or len(row["arr"]) == 0:
+                # the key is in the verbose-output selection
+                if key in verbose and "morewhere" in row:
+                    # we're not searching for specific values, so only add the morewhere clause
+                    wherearr.append(row["morewhere"])
+                continue
+``
+
+should we check for likeness for this key?
+
+``../like:
+            if key in likearr: 
+                # put in an or-chain of like checks over all elements
+                s = self._wherelikes(row["field"], row["arr"]) 
+                wherearr.append(s)
+                whereargs.append(row["arr"])
+``
+
+else we search by exact matching.
+
+``../exact:
+            else:
+                placeholder = traction._sqlinplaceholder(len(row["arr"])) # todo put in package? tr._sqlinplaceholder
+                # fill wherearr and whereargs
+                wherearr.append(row["field"] + " in " + placeholder) # e.g. samplelocation.locationpath in (?, ?, ?)
+                whereargs.extend(row["arr"])
+``
+
+are there additional where clauses passed (e.g. for idcontainertype)? add them.
+
+``../more where:
+            if "morewhere" in row:
+                wherearr.append(row["morewhere"])
+``
+
+out of the loop, return.
+
+``../
+        return (wherearr, whereargs)
+``
+
+    
+_sqlinplaceholder returns a string like (?, ?, ?, ? ...) with n question marks for sql in.
+
+``/_sqlinplaceholder:
+    def _sqlinplaceholder(n):
+
+        # put this in a package sqlutil?
+
+        out = "("
+        for i in range(n):
+            out += "?"
+            if i < n - 1:
+                out += ","
+        out += ")"
+        return out
+``
+
+_whereparam gives a ?-parameterized sql where expression for name
+equal or like parameter for use in queries.
+
+``/_whereparam:
+    def _whereparam(self, name, like:bool=None):
+        if like == None or like == False:
+            return name + " = ?"
+        else:
+            return name + " like '%' + ? + '%'"
+``
+
+_wherelike gives a ?-parameterized sql where like expression.
+
+``/_wherelike:
+    def _wherelike(self, name):
+          return name + " like '%' + ? + '%'"
+
+``
+
+_wherelikes gives a ?-parameterized sql of or-joined where-like expressions.
+
+``/_wherelikes:
+    def _wherelikes(self, fieldarr):
+        a = []
+        for f in fieldarr:
+            a.append(f + " like '%' + ? + '%'") # the sql takes literal plusses like here
+        return " or ".join(a)
+``
