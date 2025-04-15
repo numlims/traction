@@ -15,6 +15,11 @@ install:
 
 doc:
 	pdoc --html "${name} --force
+	ct tr/init.ct --tex --mdtotex "pandoc -f markdown -t latex" -o doc/init.tex
+	ct tr/main.ct --tex --mdtotex "pandoc -f markdown -t latex" -o doc/main.tex
+
+doc-wrap:
+	ct --tex -o doc/traction.tex
 
 publish:
 	gh release create "v${version}" "./dist/${name}-${version}-py3-none-any.whl"

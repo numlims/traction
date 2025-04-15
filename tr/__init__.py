@@ -95,13 +95,15 @@ class traction:
       def patient(self, patientids=None, sampleids=None):
           query = f"""
           select patc.*, patidc.psn as {patientid} from centraxx_idcontainer patidc
-          inner join centraxx_patientcontainer patc on patidc.patientcontainer = patc.oid
-          inner join centraxx_sample sample on sample.patientcontainer = patc.oid
-          join centraxx_sampleidcontainer sidc on sidc.sample = sample.oid
+          left join centraxx_patientcontainer patc on patidc.patientcontainer = patc.oid
+          left join centraxx_sample sample on sample.patientcontainer = patc.oid
+          left join centraxx_sampleidcontainer sidc on sidc.sample = sample.oid
           where patidc.idcontainertype = 8"""
           (wherestr, whereargs) = self._where(sampleids=sampleids, patientids=patientids)
   
           query += " and " + wherestr
+          print(query)
+          print(whereargs)
           res = self.db.qfad(query, whereargs)
   
           return res

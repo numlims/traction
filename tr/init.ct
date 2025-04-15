@@ -81,7 +81,7 @@ sample gets sample(s) by sampleid or external id. pass sampleids as array. to jo
 the first implementation tried to take the tablenames/colums as keys for the returned json fields, but that doesn't quite work for patientpsn, where the key would be just 'idcontainer.psn'. so maybe rename the joined-in fields to samplepsn, *_code, patientpsn, parentpsn etc.
 
 ``/sample:
-    def sample(self, sampleids=None, extsampleids=None, patientids=None, locationpaths=None, verbose=[], verbose_all=False):
+    def sample(self, sampleids=None, extsampleids=None, patientids=None, locationpaths=None, verbose=[], verbose_all=False, missing=False):
         ``.``
 ``
 
@@ -209,14 +209,15 @@ patient gives patients.
         ``.``
 ``
 
-get from sample to patient psn: sample to patientcontainer, patientcontainer to idcontainer, idcontainer has psn.
+get from sample to patient psn: sample to patientcontainer,
+patientcontainer to idcontainer, idcontainer has psn.
 
 ``
         query = f"""
         select patc.*, patidc.psn as {patientid} from centraxx_idcontainer patidc
-        inner join centraxx_patientcontainer patc on patidc.patientcontainer = patc.oid
-        inner join centraxx_sample sample on sample.patientcontainer = patc.oid
-        join centraxx_sampleidcontainer sidc on sidc.sample = sample.oid
+        left join centraxx_patientcontainer patc on patidc.patientcontainer = patc.oid
+        left join centraxx_sample sample on sample.patientcontainer = patc.oid
+        left join centraxx_sampleidcontainer sidc on sidc.sample = sample.oid
         where patidc.idcontainertype = 8"""
 ``
 
@@ -226,6 +227,8 @@ get the where string for the args and stick together the query.
         (wherestr, whereargs) = self._where(sampleids=sampleids, patientids=patientids)
 
         query += " and " + wherestr
+        print(query)
+        print(whereargs)
 ``
 
 get the result and return it.
