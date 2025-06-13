@@ -16,10 +16,10 @@ def main():
     parser.add_argument("--method", required=False, help="for labormethod(s) (messprofil)")
     parser.add_argument("--verbose", nargs=1, help="join in additional info, pass tr constants comma-seperated by comma, e.g. 'patientid,locationpath'") # -v?
     parser.add_argument("--verbose-all", help="join in more info, takes longer", action="store_true") # -a?
+    parser.add_argument("--missing", help="get missing. not yet implemented.", action="store_true") # -m?
     
     # parse all arguments, also for the subparsers
     args = parser.parse_args()
-
 
     # print(args.verbose)
     # print(args)
@@ -46,7 +46,7 @@ def main():
             methods = open(args.method).read().split("\n") # list
         methods = args.method.split(",")
     if args.what == "sample":
-        sample = traction.sample(sampleids=sampleids, extsampleids=extsampleids, patientids=patientids, locationpaths=locationpaths, verbose_all=args.verbose_all) # todo different arguments for string and array
+        sample = traction.sample(sampleids=sampleids, extsampleids=extsampleids, patientids=patientids, locationpaths=locationpaths, verbose_all=args.verbose_all, missing=args.missing) # todo different arguments for string and array
         # print json
         print(json.dumps(sample, default=str))
     if args.what == "patient":
