@@ -15,6 +15,8 @@ traction num_test sample 1449330267 --verbose
 
 see `traction -h`.
 
+for examples, see [calls.md](calls.md).
+
 ## install
 
 download traction whl from

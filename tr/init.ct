@@ -76,23 +76,31 @@ import dbcq.
 from dbcq import *
 ``
 
-sample gets sample(s) by sampleid or external id. pass sampleids as array. to join in more information, say verbose_all=True, this is slower than non-verbose.
+sample gets sample(s) by sampleid or external id. pass sampleids as
+array. to join in more information, say verbose_all=True, this is
+slower than non-verbose.
 
-the first implementation tried to take the tablenames/colums as keys for the returned json fields, but that doesn't quite work for patientpsn, where the key would be just 'idcontainer.psn'. so maybe rename the joined-in fields to samplepsn, *_code, patientpsn, parentpsn etc.
+the first implementation tried to take the tablenames/colums as keys
+for the returned json fields, but that doesn't quite work for
+patientpsn, where the key would be just 'idcontainer.psn'. so maybe
+rename the joined-in fields to samplepsn, *_code, patientpsn,
+parentpsn etc.
 
 ``/sample:
     def sample(self, sampleids=None, extsampleids=None, patientids=None, locationpaths=None, verbose=[], verbose_all=False, missing=False):
         ``.``
 ``
 
-always join in the sampleid for now
+always join in the sampleid for now.
 
 ``
         if not sampleid in verbose:
             verbose.append(sampleid)
 ``
 
-put the keys for the given arguments into the verbose array, so that they land in the join, so that the wherestring can access the joined-in fields
+put the keys for the given arguments into the verbose array, so that
+they land in the join, so that the wherestring can access the
+joined-in fields.
 
 ``
         if extsampleids:
@@ -139,7 +147,9 @@ the select statements for optional joins by key.
         }
 ``
 
-the join statements for optional joins by key. what about the same join needed for two different keys (e.g. locationname and locationpath)? filter them out in the end?
+the join statements for optional joins by key. what about the same
+join needed for two different keys (e.g. locationname and
+locationpath)? filter them out in the end?
 
 ``
         joins = {
@@ -160,7 +170,7 @@ the join statements for optional joins by key. what about the same join needed f
         }
 ``
 
-put together the select string and join string for the query
+put together the select string and join string for the query.
 
 ``
         selecta = ["sample.*"]
@@ -179,7 +189,7 @@ put together the select string and join string for the query
                     joina.append(s)
 ``
 
-get the selections and joins as string
+get the selections and joins as string.
 
 ``
         selectstr = ", \n".join(selecta)
@@ -227,8 +237,8 @@ get the where string for the args and stick together the query.
         (wherestr, whereargs) = self._where(sampleids=sampleids, patientids=patientids)
 
         query += " and " + wherestr
-        print(query)
-        print(whereargs)
+        #print(query)
+        #print(whereargs)
 ``
 
 get the result and return it.

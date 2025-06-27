@@ -102,8 +102,8 @@ class traction:
         (wherestr, whereargs) = self._where(sampleids=sampleids, patientids=patientids)
 
         query += " and " + wherestr
-        print(query)
-        print(whereargs)
+        #print(query)
+        #print(whereargs)
         res = self.db.qfad(query, whereargs)
 
         return res
