@@ -1,5 +1,7 @@
 from dbcq import *
+derivaldate = "derivaldate" # aufteilungsdatum / date of distribution
 extsampleid = "extsampleid"
+first_repositiondate = "first_repositiondate" # datum der ersten einlagerung / date of first storage (not in fhir). is identical to derivaldate.
 method_code = "method_code"
 locationname = "locationname"
 locationpath = "locationpath"
@@ -8,11 +10,15 @@ parentid = "parentid"
 patientid = "patientid"
 project_code = "project_code"
 sampleid = "sampleid"
+collectiondate = "samplingdate" # entnahmedatum / extraction date
 sampletype_code = "sampletype_code"
 secondprocessing_code = "secondprocessing_code"
 stockprocessing_code = "stockprocessing_code"
 study_code = "study_code"
+receiptdate = "receiptdate" # eingangsdatum / date of receipt
 receptable_code = "receptable_code"
+repositiondate = "repositiondate" # einlagerungsdatum / storage date
+values = "values"
 class traction:
     external_sampleid_type = "..."
     sampleid_type = "..."
@@ -24,13 +30,15 @@ class traction:
         else:
             raise Exception("target needs to be string or dbcq instance")
 
-    def sample(self, sampleids=None, extsampleids=None, patientids=None, locationpaths=None, verbose=[], verbose_all=False, missing=False):
+    def sample(self, sampleids=None, extsampleids=None, patientids=None, locationpaths=None, studies=None, verbose=[], verbose_all=False, missing=False):
         if not sampleid in verbose:
             verbose.append(sampleid)
         if extsampleids:
             verbose.append(extsampleid)
         if patientids:
             verbose.append(patientid)
+        if studies:
+            verbose.append(study_code)
         if locationpaths:
             verbose.append(locationpath)
         vaa = [locationname, locationpath, orgunit_code, parentid,
@@ -86,20 +94,20 @@ class traction:
                     joina.append(s)
         selectstr = ", \n".join(selecta)
         joinstr = "\n ".join(joina)
-        (wherestr, whereargs) = self._where(sampleids=sampleids, extsampleids=extsampleids, patientids=patientids, locationpaths=locationpaths, verbose=verbose)
+        (wherestr, whereargs) = self._where(sampleids=sampleids, extsampleids=extsampleids, patientids=patientids, studies=studies, locationpaths=locationpaths, verbose=verbose)
         query = f"select {selectstr} from centraxx_sample sample {joinstr} where {wherestr}"
         # print(query)
         res = self.db.qfad(query, whereargs)
 
         return res
-    def patient(self, patientids=None, sampleids=None):
+    def patient(self, patientids=None, sampleids=None, studies=None):
         query = f"""
         select patc.*, patidc.psn as {patientid} from centraxx_idcontainer patidc
         left join centraxx_patientcontainer patc on patidc.patientcontainer = patc.oid
         left join centraxx_sample sample on sample.patientcontainer = patc.oid
         left join centraxx_sampleidcontainer sidc on sidc.sample = sample.oid
         where patidc.idcontainertype = 8"""
-        (wherestr, whereargs) = self._where(sampleids=sampleids, patientids=patientids)
+        (wherestr, whereargs) = self._where(sampleids=sampleids, patientids=patientids, studies=studies)
 
         query += " and " + wherestr
         #print(query)
@@ -107,19 +115,33 @@ class traction:
         res = self.db.qfad(query, whereargs)
 
         return res
-    def finding(sampleids=None, methods=None):
-        query = f"""select laborfinding.*, method.code as {method_code}, sidc.psn as {sampleid}
+    def finding(self, sampleids=None, methods=None, studies=None):
+        query = f"""select laborfinding.oid as "laborfinding_oid", laborfinding.*, labormethod.code as {method_code}, sidc.psn as {sampleid}
         from centraxx_laborfinding as laborfinding
-        left join centraxx_labormethod as method on laborfinding.labormethod = method.oid
-        left join centraxx_labormapping as labormapping on labormapping.finding = laborfinding.oid
+
+        -- go from laborfinding to sample
+        left join centraxx_labormethod as labormethod on laborfinding.labormethod = labormethod.oid
+        left join centraxx_labormapping as labormapping on labormapping.laborfinding = laborfinding.oid
         left join centraxx_sample sample on labormapping.relatedoid = sample.oid
         left join centraxx_sampleidcontainer sidc on sidc.sample = sample.oid"""
-        (wherestr, whereargs) = self._where(sampleids=sampleids, methods=methods)
+        (wherestr, whereargs) = self._where(sampleids=sampleids, methods=methods, studies=studies)
 
         query += " where " + wherestr
-        res = self.db.qfad(query, whereargs)
+        # print(query)
+        findings = self.db.qfad(query, whereargs)
+        for i, finding in enumerate(findings):
+            query = """select recordedvalue.*
+                from centraxx_laborfinding as laborfinding
 
-        return res
+                -- go from laborfinding to recorded value
+                join centraxx_labfindinglabval as labfindinglabval on labfindinglabval.laborfinding = laborfinding.oid
+                join centraxx_recordedvalue as recordedvalue on labfindinglabval.oid = recordedvalue.oid
+
+                where laborfinding.oid = ?
+            """
+            vals = self.db.qfad(query, finding['laborfinding_oid'])
+            findings[i][values] = vals
+        return findings
     def labval(self, methods=None):
         query = f"""select labval.*, method.code
 from centraxx_labormethod method
@@ -164,7 +186,14 @@ inner join centraxx_laborvalue labval
 
         # print(query)
         res = self.db.qfad(query, *args)
-        return res
+        out = {}
+        for line in res:
+            code = line["code"]
+            lang = line["lang"]
+            if not code in out:
+               out[code] = {}
+            out[code][lang] = line["name"]
+        return out
     def names_by_codes(self, table:str, lang:str, ml_table:str=None):
         res = self.name(table, lang=lang, ml_table=ml_table)
         out = {}
@@ -173,12 +202,13 @@ inner join centraxx_laborvalue labval
             
         return out
 
-    def _where(self, sampleids=None, extsampleids=None, patientids=None, locationpaths=None, methods=None, like=[], verbose=[]): # -> (str, [])
+    def _where(self, sampleids=None, extsampleids=None, patientids=None, studies=None, locationpaths=None, methods=None, like=[], verbose=[]): # -> (str, [])
         wheredict = {
           sampleid: { "arr": sampleids, "field": "sidc.psn", "morewhere": "sidc.idcontainertype = 6" }, # pass the idcontainertype check along
 
           extsampleid: { "arr": extsampleids, "field": "extsidc.psn", "morewhere": "extsidc.idcontainertype = 7" },
           patientid: { "arr": patientids, "field": "patidc.psn", "morewhere": "patidc.idcontainertype = 8" },
+          study_code: { "arr": studies, "field": "flexistudy.code" },
           locationpath: { "arr": locationpaths, "field": "samplelocation.locationpath" },
           method_code: { "arr": methods, "field": "labormethod.code" }
         }

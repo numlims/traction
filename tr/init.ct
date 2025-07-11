@@ -14,7 +14,6 @@ class traction:
   ``finding``
   ``labval``
   ``name``
-  ``names_by_codes``
 
   ``_where``
   ``_wherebuild``
@@ -30,7 +29,9 @@ put constants here and rename package to tr so you can say sample(..., verbose=[
 keep them lowercase that they are the same as the keys in the returned json?
 
 ``/const:
+derivaldate = "derivaldate" # aufteilungsdatum / date of distribution
 extsampleid = "extsampleid"
+first_repositiondate = "first_repositiondate" # datum der ersten einlagerung / date of first storage (not in fhir). is identical to derivaldate.
 method_code = "method_code"
 locationname = "locationname"
 locationpath = "locationpath"
@@ -39,11 +40,15 @@ parentid = "parentid"
 patientid = "patientid"
 project_code = "project_code"
 sampleid = "sampleid"
+collectiondate = "samplingdate" # entnahmedatum / extraction date
 sampletype_code = "sampletype_code"
 secondprocessing_code = "secondprocessing_code"
 stockprocessing_code = "stockprocessing_code"
 study_code = "study_code"
+receiptdate = "receiptdate" # eingangsdatum / date of receipt
 receptable_code = "receptable_code"
+repositiondate = "repositiondate" # einlagerungsdatum / storage date
+values = "values"
 ``
 
 
@@ -83,11 +88,11 @@ slower than non-verbose.
 the first implementation tried to take the tablenames/colums as keys
 for the returned json fields, but that doesn't quite work for
 patientpsn, where the key would be just 'idcontainer.psn'. so maybe
-rename the joined-in fields to samplepsn, *_code, patientpsn,
-parentpsn etc.
+rename the joined-in fields to sampleid, *_code, patientid,
+parentid etc.
 
 ``/sample:
-    def sample(self, sampleids=None, extsampleids=None, patientids=None, locationpaths=None, verbose=[], verbose_all=False, missing=False):
+    def sample(self, sampleids=None, extsampleids=None, patientids=None, locationpaths=None, studies=None, verbose=[], verbose_all=False, missing=False):
         ``.``
 ``
 
@@ -107,6 +112,8 @@ joined-in fields.
             verbose.append(extsampleid)
         if patientids:
             verbose.append(patientid)
+        if studies:
+            verbose.append(study_code)
         if locationpaths:
             verbose.append(locationpath)
 ``
@@ -199,7 +206,7 @@ get the selections and joins as string.
 get the where string.
 
 ``
-        (wherestr, whereargs) = self._where(sampleids=sampleids, extsampleids=extsampleids, patientids=patientids, locationpaths=locationpaths, verbose=verbose)
+        (wherestr, whereargs) = self._where(sampleids=sampleids, extsampleids=extsampleids, patientids=patientids, studies=studies, locationpaths=locationpaths, verbose=verbose)
 ``
 
 stick together the query, get the result and return it.
@@ -215,7 +222,7 @@ stick together the query, get the result and return it.
 patient gives patients.
 
 ``/patient:
-    def patient(self, patientids=None, sampleids=None):
+    def patient(self, patientids=None, sampleids=None, studies=None):
         ``.``
 ``
 
@@ -234,7 +241,7 @@ patientcontainer to idcontainer, idcontainer has psn.
 get the where string for the args and stick together the query.
 
 ``
-        (wherestr, whereargs) = self._where(sampleids=sampleids, patientids=patientids)
+        (wherestr, whereargs) = self._where(sampleids=sampleids, patientids=patientids, studies=studies)
 
         query += " and " + wherestr
         #print(query)
@@ -253,17 +260,21 @@ finding gets the laborfinding (messbefund / begleitschein) for
 sampleid or messbefund.  (if verbose with its recorded values?)
 
 ``/finding:
-    def finding(sampleids=None, methods=None):
-        ``.``
+    def finding(self, sampleids=None, methods=None, studies=None):
+        ``findings``
+        ``values``
+        ``ret``
 ``
 
 stick together the query.
 
-``
-        query = f"""select laborfinding.*, method.code as {method_code}, sidc.psn as {sampleid}
+``/finding/findings:
+        query = f"""select laborfinding.oid as "laborfinding_oid", laborfinding.*, labormethod.code as {method_code}, sidc.psn as {sampleid}
         from centraxx_laborfinding as laborfinding
-        left join centraxx_labormethod as method on laborfinding.labormethod = method.oid
-        left join centraxx_labormapping as labormapping on labormapping.finding = laborfinding.oid
+
+        -- go from laborfinding to sample
+        left join centraxx_labormethod as labormethod on laborfinding.labormethod = labormethod.oid
+        left join centraxx_labormapping as labormapping on labormapping.laborfinding = laborfinding.oid
         left join centraxx_sample sample on labormapping.relatedoid = sample.oid
         left join centraxx_sampleidcontainer sidc on sidc.sample = sample.oid"""
 ``
@@ -271,17 +282,53 @@ stick together the query.
 get the where string and append it to the query.
 
 ``
-        (wherestr, whereargs) = self._where(sampleids=sampleids, methods=methods)
+        (wherestr, whereargs) = self._where(sampleids=sampleids, methods=methods, studies=studies)
 
         query += " where " + wherestr
+        # print(query)
 ``
 
-get the result and return it.
+get the result.
 
 ``
-        res = self.db.qfad(query, whereargs)
+        findings = self.db.qfad(query, whereargs)
+``
 
-        return res
+for each of the findings, pull in the recorded values.
+
+maybe only on --verbose = ["values"]
+
+``/finding/values:
+        for i, finding in enumerate(findings):
+            ``query``
+            ``put``
+``
+
+construct the query for the recorded values.
+
+``/finding/values/query:
+            query = """select recordedvalue.*
+                from centraxx_laborfinding as laborfinding
+
+                -- go from laborfinding to recorded value
+                join centraxx_labfindinglabval as labfindinglabval on labfindinglabval.laborfinding = laborfinding.oid
+                join centraxx_recordedvalue as recordedvalue on labfindinglabval.oid = recordedvalue.oid
+
+                where laborfinding.oid = ?
+            """
+``
+
+put the values to the finding.
+
+``/finding/values/put:
+            vals = self.db.qfad(query, finding['laborfinding_oid'])
+            findings[i][values] = vals
+``
+
+return the findings with their respective values.
+
+``/finding/ret:
+        return findings
 ``
 
 labval gets laborvalues (messparameter)
@@ -324,7 +371,15 @@ return the result.
         return res
 ``
 
-name gives the name for a code or a list of names for all codes in a table in de or en.
+name gives the multilingual names for a code or all codes in a table.
+
+the result is keyed by code and language like this:
+
+"NUM_NMR_ISOLEUCINE_VALUE": {
+   "de": "Isoleucin",
+   "en": "Isoleucine"
+}
+
 table: the name of the centraxx table without centraxx_ prefix
 code: a specific code, if none given, all code - name mappings for table are given
 lang: de|en
@@ -384,38 +439,25 @@ only add sql-where if needed
         # print(query)
 ``
 
-query and return result.
+query.
 
 ``
         res = self.db.qfad(query, *args)
-        return res
 ``
 
-names_by_code returns the multilingual name entries by code for quick access. for params see name()
-      e.g.:
-        names_by_codes("laborvalue", "de") returns:
-        {
-          "NUM_STOOL_LAXATIVE": "Abführmittel",
-          "NUM_NMR_ACETONE_VALUE": "Aceton",
-          ...
-        }
-
-
-``/names_by_codes:
-    def names_by_codes(self, table:str, lang:str, ml_table:str=None):
-        ``.``
-``
-
-get the full result, then return keys by code.
+structure by code and lang and return.
 
 ``
-        res = self.name(table, lang=lang, ml_table=ml_table)
         out = {}
         for line in res:
-            out[line["code"]] = line["name"]
-            
+            code = line["code"]
+            lang = line["lang"]
+            if not code in out:
+               out[code] = {}
+            out[code][lang] = line["name"]
         return out
 ``
+
 
 _where returns the wherestring and args array for the provided arguments (that are not None).
 the user needs to make sure that whatever is referenced here is joined into the query before.
@@ -425,11 +467,15 @@ like is an array of tr constants of the arguments for which we check likeness. w
 make sure only one of sampleids or extsampleids is passed?
 
 ``/_where:
-    def _where(self, sampleids=None, extsampleids=None, patientids=None, locationpaths=None, methods=None, like=[], verbose=[]): # -> (str, [])
+    def _where(self, sampleids=None, extsampleids=None, patientids=None, studies=None, locationpaths=None, methods=None, like=[], verbose=[]): # -> (str, [])
         ``.``
 ``
 
 put the where-info for each field into wheredict along with the passed arguments.
+
+arr: the array of values to check against
+field: the table and field where it should match. 
+morewhere: additional where constraints, e.g. idcontainertypes for samples.
 
 ``
         wheredict = {
@@ -437,6 +483,7 @@ put the where-info for each field into wheredict along with the passed arguments
 
           extsampleid: { "arr": extsampleids, "field": "extsidc.psn", "morewhere": "extsidc.idcontainertype = 7" },
           patientid: { "arr": patientids, "field": "patidc.psn", "morewhere": "patidc.idcontainertype = 8" },
+          study_code: { "arr": studies, "field": "flexistudy.code" },
           locationpath: { "arr": locationpaths, "field": "samplelocation.locationpath" },
           method_code: { "arr": methods, "field": "labormethod.code" }
         }
