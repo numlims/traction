@@ -1,4 +1,5 @@
 from dbcq import *
+import yaml
 collectiondate = "samplingdate" # entnahmedatum / extraction date
 derivaldate = "derivaldate" # aufteilungsdatum / date of distribution
 extsampleid = "extsampleid"
@@ -22,60 +23,77 @@ study_code = "study_code"
 tier = "tier"
 values = "values"
 def _readsettings():
-  if not hassettings():
-    with open(settingspath(), "w") as file:
+  if not _hassettings():
+    with open(_settingspath(), "w") as file:
       settingsstr = """
-# traction settings
-# sid sets the default sample id container type
-sid: # enter the code for your default sample idcontainertype here
-# pid sets the default patient id container type
-pid: # enter the code for your default patient idcontainertype here
+# settings for traction.
+
+# sampleid sets the default sample id container type
+sampleid: <an idcontainertype code, e.g. SAMPLEID>
+# patientid sets the default patient id container type
+patientid: <an idcontainertype code, e.g. LIMSPSN>
+
+# sidc holds codes for sampleidcontainers that will be queryable as command line flags 
+sidc:
+ - <an idcontainertype code>
+ - <another idcontainertype code>
 """
-def _settingsifnone(self, key, val):
-    if val != None:
-        return val
-    if key in self.setting:
-        return self.settings[key]
-    return None
-#`_hassettings``
-#`_settingspath``
+      file.write(settingsstr)
+      print(f"please fill in the sampleidcontainer types for sample and patient in {_settingspath()}, then run again.")
+      return None
+  else:
+    # read settings file yaml
+    with open(_settingspath(), "r") as file:
+      settings = yaml.safe_load(file)
+      return settings
+def _hassettings():
+    return _settingspath().is_file()
+
+def _settingspath():
+    home = Path.home()
+    return home / ".traction" / "settings.yaml"
 class traction:
-    external_sampleid_type = "..."
-    sampleid_type = "..."
-    idcs = {}
+  #`vars``
     def __init__(self, target):
+        self.settings = _readsettings()
+        if self.settings == None:
+            raise Exception("settings missing.")
+            return
         if isinstance(target, str):
             self.db = dbcq(target)
         elif isinstance(target, dbcq): 
             self.db = target
         else:
             raise Exception("target needs to be string or dbcq instance")
+        self._idctypes = self._getidctypes()
+        #print(f"_idctypes: {self._idctypes}")
 
-    def sample(self, sampleids=None, sid:str=None, patientids=None, pid:str=None, locationpaths=None, studies=None, mudules=None, tiers=None, verbose=[], verbose_all=False, missing=False):
-        vaa = [locationname, locationpath, module, orgunit_code, parentid,
+    def sample(self, sampleids=None, sidc=None, patientids=None, locationpaths=None, studies=None, verbose=[], verbose_all=False, missing=False):
+        # print("try:" + tr.sampleid)
+        vaa = [locationname, locationpath, orgunit_code, parentid,
                patientid, project_code, receptacle_code, sampleid, sampletype_code,
-               secondprocessing_code, stockprocessing_code, study_code, tier]
+               secondprocessing_code, stockprocessing_code, study_code]
         if not sampleid in verbose:
             verbose.append(sampleid)
         if patientids:
             verbose.append(patientid)
         if studies:
             verbose.append(study_code)
-        if tiers:
-            verbose.append(tier)
-        if modules:
-            verbose.append(module)
+        #if tiers:
+        #    verbose.append(tier)
+        #if modules:
+        #    verbose.append(module)
         if locationpaths:
             verbose.append(locationpath)
         if verbose_all == True:
             verbose = vaa
         selects = {
             sampleid: [f"sidc.psn as '{sampleid}'"],
-            extsampleid: [f"extsidc.psn as '{extsampleid}'"],
+            # extsampleid: [f"extsidc.psn as '{extsampleid}'"],
             parentid: [f"parentidc.psn as '{parentid}'"],
             locationname: [f"samplelocation.locationid as '{locationname}'"], 
             locationpath: [f"samplelocation.locationpath as '{locationpath}'"],
-            module: [f"modulesidc.psn as '{module}'"],
+            # module: [f"modulesidc.psn as '{module}'"],
             sampletype_code: [f"sampletype.code as '{sampletype_code}'"],
             stockprocessing_code: [f"stockprocessing.code as '{stockprocessing_code}'"],
             secondprocessing_code: [f"secondprocessing.code as '{secondprocessing_code}'"],
@@ -84,19 +102,19 @@ class traction:
             receptacle_code: [f"receptable.code as '{receptacle_code}'"],
             orgunit_code: [f"orgunit.code as '{orgunit_code}'"],
             study_code: [f"flexistudy.code as '{study_code}'"],
-            tier: [f"tiersidc.psn as '{tier}'"]
+            # tier: [f"tiersidc.psn as '{tier}'"]
         }
         joins = {
             sampleid: ["inner join centraxx_sampleidcontainer as sidc on sidc.sample = sample.oid"],
-            extsampleid: ["inner join centraxx_sampleidcontainer as extsidc on extsidc.sample = sample.oid"],
-            module: ["inner join centraxx_sampleidcontainer as modulesidc on modulesidc.sample = sample.oid"],
+            # extsampleid: ["inner join centraxx_sampleidcontainer as extsidc on extsidc.sample = sample.oid"],
+            # module: ["inner join centraxx_sampleidcontainer as modulesidc on modulesidc.sample = sample.oid"],
             parentid: ["left join centraxx_sampleidcontainer parentidc on parentidc.sample = sample.parent"],
             locationname: ["left join centraxx_samplelocation samplelocation on samplelocation.oid = sample.samplelocation"],
             locationpath: ["left join centraxx_samplelocation samplelocation on samplelocation.oid = sample.samplelocation"],
             sampletype_code: ["left join centraxx_sampletype as sampletype on sampletype.oid = sample.sampletype"],
             stockprocessing_code: ["left join centraxx_stockprocessing as stockprocessing on sample.stockprocessing = stockprocessing.oid"],
             secondprocessing_code: ["left join centraxx_stockprocessing as secondprocessing on sample.secondprocessing = secondprocessing.oid"],
-            tier: ["inner join centraxx_sampleidcontainer as tiersidc on tiersidc.sample = sample.oid"],
+            # tier: ["inner join centraxx_sampleidcontainer as tiersidc on tiersidc.sample = sample.oid"],
             project_code: ["left join centraxx_project as project on sample.project = project.oid"],
             patientid: ["left join centraxx_patientcontainer as patientcontainer on sample.patientcontainer = patientcontainer.oid",
             "left join centraxx_idcontainer as patidc on patidc.patientcontainer = patientcontainer.oid"], 
@@ -106,23 +124,35 @@ class traction:
         }
         selecta = ["sample.*"]
         joina = []
+        possibleverbose = vaa + self.settings["sidc"]
         for verb in verbose:
-            if not verb in selects: # selects and joins should hold the same keys
-                print(f"error: key {verb} must be in {vaa}.")
+            if not verb in possibleverbose: 
+                print(f"error: key {verb} must be in {possibleverbose}.")
+
+            # continue if verb not in selects, it could be handled by sidc
+            if not verb in selects:
+                continue
         
             # put in the select line(s)
             for s in selects[verb]:
                 selecta.append(s)
 
+            # continue if verb not in joins, it could be handled by sidc
+            if not verb in joins:
+                continue
+
             for s in joins[verb]:
                 # both locationpath and locationname join in samplelocation, so check that it's not already in the join array
                 if not s in joina:
                     joina.append(s)
+        selecta = self._append_sidc_select(selecta, sidc, verbose)
+        joina = self._append_sidc_join(joina, sidc, verbose)
         selectstr = ", \n".join(selecta)
         joinstr = "\n ".join(joina)
-        (wherestr, whereargs) = self._where(sampleids=sampleids, extsampleids=extsampleids, patientids=patientids, studies=studies, modules=modules, tiers=tiers, locationpaths=locationpaths, verbose=verbose)
+        (wherestr, whereargs) = self._where(sampleids=sampleids, sidc=sidc, patientids=patientids, studies=studies, locationpaths=locationpaths, verbose=verbose)
         query = f"select {selectstr} from centraxx_sample sample {joinstr} where {wherestr}"
-        # print(query)
+        #print(query)
+        #print(whereargs)
         res = self.db.qfad(query, whereargs)
 
         return res
@@ -141,7 +171,7 @@ class traction:
         res = self.db.qfad(query, whereargs)
 
         return res
-    def finding(self, sampleids=None, methods=None, studies=None, patientids=None, modules=None, tiers=None, visits=None, verbose=[], verbose_all=False):
+    def finding(self, sampleids=None, methods=None, studies=None, patientids=None, verbose=[], verbose_all=False):
         query = f"""select laborfinding.oid as "laborfinding_oid", laborfinding.*, labormethod.code as {method_code}, sidc.psn as {sampleid}
         from centraxx_laborfinding as laborfinding
 
@@ -227,18 +257,43 @@ inner join centraxx_laborvalue labval
             out[code][lang] = line["name"]
         return out
 
-    def _where(self, sampleids=None, sid=None, patientids=None, pid=None, studies=None, locationpaths=None, methods=None, modules=None, tiers=None, like=[], verbose=[]): # -> (str, [])
+    def _append_sidc_select(self, selecta, sidc, verbose):
+      sidca = []
+      for verb in verbose:
+        if verb in self.settings["sidc"]:
+          sidca.append(verb)
+      sidca.extend(sidc.keys())
+      for item in sidca:
+        selectstr = f"sidc_{item}.psn as '{item}'"
+        if not selectstr in selecta:
+          selecta.append(selectstr)
+      return selecta
+    def _append_sidc_join(self, joina, sidc, verbose):
+      sidca = []
+      for verb in verbose:
+        if verb in self.settings["sidc"]:
+          sidca.append(verb)
+      sidca.extend(sidc.keys())
+      for item in sidca:
+        joinstr = f"inner join centraxx_sampleidcontainer as sidc_{item} on sidc_{item}.sample = sample.oid"
+        if not joinstr in joina:
+          joina.append(joinstr)
+      return joina
+    def _where(self, sampleids=None, sidc={}, patientids=None, studies=None, locationpaths=None, methods=None, like=[], verbose=[]): # -> (str, [])
         wheredict = {
-          sampleid: { "arr": sampleids, "field": "sidc.psn", "morewhere": f"sidc.idcontainertype = 6" },  # {self._idc[sid]}" }, # pass the idcontainertype check along
+          sampleid: { "arr": sampleids, "field": "sidc.psn", "morewhere": f"sidc.idcontainertype = {self._idctypes[self.settings['sampleid'].lower()]}" }, # pass the idcontainertype check along
 
-          # extsampleid: { "arr": extsampleids, "field": "extsidc.psn", "morewhere": "extsidc.idcontainertype = 7" },
-          patientid: { "arr": patientids, "field": "patidc.psn", "morewhere": f"patidc.idcontainertype = 8" }, # {self._idc[pid]}" },
+          patientid: { "arr": patientids, "field": "patidc.psn", "morewhere": f"patidc.idcontainertype = {self._idctypes[self.settings['patientid'].lower()]}" },
           study_code: { "arr": studies, "field": "flexistudy.code" },
           locationpath: { "arr": locationpaths, "field": "samplelocation.locationpath" },
           method_code: { "arr": methods, "field": "labormethod.code" },
-          module: { "arr": modules, "field": "modulesidc.psn", "morewhere": "modulesidc.idcontainertype = 72" },
-          tier: { "arr": tiers, "field": "tiersidc.psn", "morewhere": "tiersidc.idcontainertype = 73" }
         }
+        sidca = list(sidc.keys()) + list(set(verbose).intersection(self.settings["sidc"]))
+        for item in sidca:
+            wheredict[item] = { "arr": sidc[item] if item in sidc else None, 
+                               "field": f"sidc_{item}.psn", 
+                               "morewhere": f"sidc_{item}.idcontainertype = {self._idctypes[item]}"
+                             }
         (wherearr, whereargs) = self._wherebuild(wheredict, like, verbose)
 
         wherestr = " and ".join(wherearr)
@@ -290,11 +345,11 @@ inner join centraxx_laborvalue labval
         for f in fieldarr:
             a.append(f + " like '%' + ? + '%'") # the sql takes literal plusses like here
         return " or ".join(a)
-    def _idcs(self):
-        query = "select code, oid from centraxx_idcontainertypes"
+    def _getidctypes(self):
+        query = "select code, oid from centraxx_idcontainertype"
         res = self.db.qfad(query)
         out = {}
         for row in res:
-          out[row["code"]] = row["oid"]
+          out[row["code"].lower()] = row["oid"]
         return out
   

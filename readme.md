@@ -88,7 +88,7 @@ res = trac.sample(sidc={"extsampleid": ["sid1", "sid2", "sid3"]}, verbose=[tr.lo
 get the samples of a patient1 in the rapid revive study in module 1.
 
 ```
-res = trac.sample(patientid=["patient1"], study=["NUM RAPID_REVIVE"], sidc={"module": ["module 1 "]}, verbose_all=True)
+res = trac.sample(patientid=["patient1"], study=["NUM RAPID_REVIVE"], sidc={"module": ["module 1"]}, verbose_all=True)
 ```
 
 get all samples in a study.
@@ -106,13 +106,13 @@ res = trac.sample(locationpaths=["my --> location --> path"])
 get a patient.
 
 ```
-res = trac.patient(patientids=["pid1"])
+res = trac.patient(patientids=["patient1"])
 ```
 
 get the patient for a sample.
 
 ```
-pat = trac.patient(sampleids=["sid1"])
+pat = trac.patient(sampleids=["sample1"])
 ```
 
 TODO get all patients in a study.

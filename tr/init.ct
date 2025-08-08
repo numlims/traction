@@ -1,16 +1,15 @@
 # traction
 
-commonly used getters (and setters?) for centraxx db
+commonly used getters (and setters?) for centrax db.
 
 ``//__init__.py: #py
 ``import``
 ``const``
 ``_readsettings``
-``_settingsifnone``
-#`_hassettings``
-#`_settingspath``
+``_hassettings``
+``_settingspath``
 class traction:
-  ``vars``
+  #`vars``
   ``init``
 
   ``sample``
@@ -19,13 +18,15 @@ class traction:
   ``labval``
   ``name``
 
+  ``_append_sidc_select``
+  ``_append_sidc_join``
   ``_where``
   ``_wherebuild``
   ``_sqlinplaceholder``
   ``_whereparam``
   ``_wherelike``
   ``_wherelikes``
-  ``_idcs``
+  ``_getidctypes``
   
 ``
 
@@ -59,18 +60,27 @@ values = "values"
 ``
 
 
-``/vars: #py
-    external_sampleid_type = "..."
-    sampleid_type = "..."
-    idcs = {}
-``
-
 __init__ takes the db target either as string or dbcq object.
 
 ``/init: #py
     def __init__(self, target):
         ``.``
 ``
+
+get the settings.
+
+``
+        self.settings = _readsettings()
+``
+
+for now, if no settings, do nothing.
+
+``
+        if self.settings == None:
+            raise Exception("settings missing.")
+            return
+``      
+
 
 either pass a string argument to dbcq or use dbcq instance directly.
 
@@ -83,16 +93,18 @@ either pass a string argument to dbcq or use dbcq instance directly.
             raise Exception("target needs to be string or dbcq instance")
 ``
 
+cache the id container types by code.
+
+``
+        self._idctypes = self._getidctypes()
+        #print(f"_idctypes: {self._idctypes}")
+``
+
 import dbcq.
 
 ``/import: #py
 from dbcq import *
 ``
-
-cache the id container types by code.
-
-    self.idcs = self._idcs()
-    
 
 sample gets sample(s) by sampleid or external id. pass sampleids as
 array. to join in more information, say verbose_all=True, this is
@@ -105,16 +117,17 @@ rename the joined-in fields to sampleid, *_code, patientid,
 parentid etc.
 
 ``/sample: #py
-    def sample(self, sampleids=None, sid:str=None, patientids=None, pid:str=None, locationpaths=None, studies=None, mudules=None, tiers=None, verbose=[], verbose_all=False, missing=False):
+    def sample(self, sampleids=None, sidc=None, patientids=None, locationpaths=None, studies=None, verbose=[], verbose_all=False, missing=False):
         ``.``
 ``
 
 these are all possible verbose options (verbose-all-array).
 
 `` #py
-        vaa = [locationname, locationpath, module, orgunit_code, parentid,
+        # print("try:" + tr.sampleid)
+        vaa = [locationname, locationpath, orgunit_code, parentid,
                patientid, project_code, receptacle_code, sampleid, sampletype_code,
-               secondprocessing_code, stockprocessing_code, study_code, tier]
+               secondprocessing_code, stockprocessing_code, study_code]
 ``
 
 always join in the sampleid for now.
@@ -133,10 +146,10 @@ joined-in fields.
             verbose.append(patientid)
         if studies:
             verbose.append(study_code)
-        if tiers:
-            verbose.append(tier)
-        if modules:
-            verbose.append(module)
+        #if tiers:
+        #    verbose.append(tier)
+        #if modules:
+        #    verbose.append(module)
         if locationpaths:
             verbose.append(locationpath)
 ``
@@ -153,11 +166,11 @@ the select statements for optional joins by key.
 `` #py
         selects = {
             sampleid: [f"sidc.psn as '{sampleid}'"],
-            extsampleid: [f"extsidc.psn as '{extsampleid}'"],
+            # extsampleid: [f"extsidc.psn as '{extsampleid}'"],
             parentid: [f"parentidc.psn as '{parentid}'"],
             locationname: [f"samplelocation.locationid as '{locationname}'"], 
             locationpath: [f"samplelocation.locationpath as '{locationpath}'"],
-            module: [f"modulesidc.psn as '{module}'"],
+            # module: [f"modulesidc.psn as '{module}'"],
             sampletype_code: [f"sampletype.code as '{sampletype_code}'"],
             stockprocessing_code: [f"stockprocessing.code as '{stockprocessing_code}'"],
             secondprocessing_code: [f"secondprocessing.code as '{secondprocessing_code}'"],
@@ -166,7 +179,7 @@ the select statements for optional joins by key.
             receptacle_code: [f"receptable.code as '{receptacle_code}'"],
             orgunit_code: [f"orgunit.code as '{orgunit_code}'"],
             study_code: [f"flexistudy.code as '{study_code}'"],
-            tier: [f"tiersidc.psn as '{tier}'"]
+            # tier: [f"tiersidc.psn as '{tier}'"]
         }
 ``
 
@@ -197,15 +210,15 @@ joins = {
 `` #py
         joins = {
             sampleid: ["inner join centraxx_sampleidcontainer as sidc on sidc.sample = sample.oid"],
-            extsampleid: ["inner join centraxx_sampleidcontainer as extsidc on extsidc.sample = sample.oid"],
-            module: ["inner join centraxx_sampleidcontainer as modulesidc on modulesidc.sample = sample.oid"],
+            # extsampleid: ["inner join centraxx_sampleidcontainer as extsidc on extsidc.sample = sample.oid"],
+            # module: ["inner join centraxx_sampleidcontainer as modulesidc on modulesidc.sample = sample.oid"],
             parentid: ["left join centraxx_sampleidcontainer parentidc on parentidc.sample = sample.parent"],
             locationname: ["left join centraxx_samplelocation samplelocation on samplelocation.oid = sample.samplelocation"],
             locationpath: ["left join centraxx_samplelocation samplelocation on samplelocation.oid = sample.samplelocation"],
             sampletype_code: ["left join centraxx_sampletype as sampletype on sampletype.oid = sample.sampletype"],
             stockprocessing_code: ["left join centraxx_stockprocessing as stockprocessing on sample.stockprocessing = stockprocessing.oid"],
             secondprocessing_code: ["left join centraxx_stockprocessing as secondprocessing on sample.secondprocessing = secondprocessing.oid"],
-            tier: ["inner join centraxx_sampleidcontainer as tiersidc on tiersidc.sample = sample.oid"],
+            # tier: ["inner join centraxx_sampleidcontainer as tiersidc on tiersidc.sample = sample.oid"],
             project_code: ["left join centraxx_project as project on sample.project = project.oid"],
             patientid: ["left join centraxx_patientcontainer as patientcontainer on sample.patientcontainer = patientcontainer.oid",
             "left join centraxx_idcontainer as patidc on patidc.patientcontainer = patientcontainer.oid"], 
@@ -225,19 +238,35 @@ joinstr = self._join(joins, verbose)  # join filters the joins by the verbose ar
 `` #py
         selecta = ["sample.*"]
         joina = []
+        possibleverbose = vaa + self.settings["sidc"]
         for verb in verbose:
-            if not verb in selects: # selects and joins should hold the same keys
-                print(f"error: key {verb} must be in {vaa}.")
+            if not verb in possibleverbose: 
+                print(f"error: key {verb} must be in {possibleverbose}.")
+
+            # continue if verb not in selects, it could be handled by sidc
+            if not verb in selects:
+                continue
         
             # put in the select line(s)
             for s in selects[verb]:
                 selecta.append(s)
+
+            # continue if verb not in joins, it could be handled by sidc
+            if not verb in joins:
+                continue
 
             for s in joins[verb]:
                 # both locationpath and locationname join in samplelocation, so check that it's not already in the join array
                 if not s in joina:
                     joina.append(s)
 ``
+
+append sidc selects and joins.
+
+``
+        selecta = self._append_sidc_select(selecta, sidc, verbose)
+        joina = self._append_sidc_join(joina, sidc, verbose)
+``      
 
 get the selections and joins as string.
 
@@ -249,14 +278,15 @@ get the selections and joins as string.
 get the where string.
 
 `` #py
-        (wherestr, whereargs) = self._where(sampleids=sampleids, extsampleids=extsampleids, patientids=patientids, studies=studies, modules=modules, tiers=tiers, locationpaths=locationpaths, verbose=verbose)
+        (wherestr, whereargs) = self._where(sampleids=sampleids, sidc=sidc, patientids=patientids, studies=studies, locationpaths=locationpaths, verbose=verbose)
 ``
 
 stick together the query, get the result and return it.
 
 `` #py
         query = f"select {selectstr} from centraxx_sample sample {joinstr} where {wherestr}"
-        # print(query)
+        #print(query)
+        #print(whereargs)
         res = self.db.qfad(query, whereargs)
 
         return res
@@ -303,7 +333,7 @@ finding gets the laborfinding (messbefund / begleitschein) for
 sampleid or messbefund.  (if verbose with its recorded values?)
 
 ``/finding: #py
-    def finding(self, sampleids=None, methods=None, studies=None, patientids=None, modules=None, tiers=None, visits=None, verbose=[], verbose_all=False):
+    def finding(self, sampleids=None, methods=None, studies=None, patientids=None, verbose=[], verbose_all=False):
         ``findings``
         ``values``
         ``ret``
@@ -333,10 +363,10 @@ if studies:
   verbose.append(study_code)
 if patientids:
   verbose.append(patientid)
-if modules:
-  verbose.append(module)
-if tiers:
-  verbose.append(tier)
+#if modules:
+#  verbose.append(module)
+#if tiers:
+#  verbose.append(tier)
 
 
 
@@ -540,6 +570,71 @@ structure by code and lang and return.
         return out
 ``
 
+_append_sidc_select adds the sql select statements for an sidc dict.
+
+``/_append_sidc_select:
+    def _append_sidc_select(self, selecta, sidc, verbose):
+      ``.``
+``
+
+put in the members of verbose touched by sidc and the keys of sidc into a common array.
+
+``
+  sidca = []
+  for verb in verbose:
+    if verb in self.settings["sidc"]:
+      sidca.append(verb)
+  sidca.extend(sidc.keys())
+``    
+
+add a select for each key in the sidc dict.  
+
+``
+  for item in sidca:
+    selectstr = f"sidc_{item}.psn as '{item}'"
+    if not selectstr in selecta:
+      selecta.append(selectstr)
+``
+
+return the selecta with appended strings.
+
+``
+  return selecta
+``
+
+_append_sidc_join adds the sql join statements for an sidc dict.
+
+``/_append_sidc_join: #py
+    def _append_sidc_join(self, joina, sidc, verbose):
+      ``.``
+``
+
+put in the members of verbose touched by sidc and the keys of sidc into a common array.
+
+``
+  sidca = []
+  for verb in verbose:
+    if verb in self.settings["sidc"]:
+      sidca.append(verb)
+  sidca.extend(sidc.keys())
+``    
+
+add a join for each key in the sidc dict.  
+
+``
+  for item in sidca:
+    joinstr = f"inner join centraxx_sampleidcontainer as sidc_{item} on sidc_{item}.sample = sample.oid"
+    if not joinstr in joina:
+      joina.append(joinstr)
+``
+
+return the selecta with appended strings.
+
+``
+  return joina
+``
+
+
 
 _where returns the wherestring and args array for the provided arguments (that are not None).
 the user needs to make sure that whatever is referenced here is joined into the query before.
@@ -549,7 +644,7 @@ like is an array of tr constants of the arguments for which we check likeness. w
 make sure only one of sampleids or extsampleids is passed?
 
 ``/_where:
-    def _where(self, sampleids=None, sid=None, patientids=None, pid=None, studies=None, locationpaths=None, methods=None, modules=None, tiers=None, like=[], verbose=[]): # -> (str, [])
+    def _where(self, sampleids=None, sidc={}, patientids=None, studies=None, locationpaths=None, methods=None, like=[], verbose=[]): # -> (str, [])
         ``.``
 ``
 
@@ -561,16 +656,27 @@ morewhere: additional where constraints, e.g. idcontainertypes for samples.
 
 ``
         wheredict = {
-          sampleid: { "arr": sampleids, "field": "sidc.psn", "morewhere": f"sidc.idcontainertype = 6" },  # {self._idc[sid]}" }, # pass the idcontainertype check along
+          sampleid: { "arr": sampleids, "field": "sidc.psn", "morewhere": f"sidc.idcontainertype = {self._idctypes[self.settings['sampleid'].lower()]}" }, # pass the idcontainertype check along
 
-          # extsampleid: { "arr": extsampleids, "field": "extsidc.psn", "morewhere": "extsidc.idcontainertype = 7" },
-          patientid: { "arr": patientids, "field": "patidc.psn", "morewhere": f"patidc.idcontainertype = 8" }, # {self._idc[pid]}" },
+          patientid: { "arr": patientids, "field": "patidc.psn", "morewhere": f"patidc.idcontainertype = {self._idctypes[self.settings['patientid'].lower()]}" },
           study_code: { "arr": studies, "field": "flexistudy.code" },
           locationpath: { "arr": locationpaths, "field": "samplelocation.locationpath" },
           method_code: { "arr": methods, "field": "labormethod.code" },
-          module: { "arr": modules, "field": "modulesidc.psn", "morewhere": "modulesidc.idcontainertype = 72" },
-          tier: { "arr": tiers, "field": "tiersidc.psn", "morewhere": "tiersidc.idcontainertype = 73" }
         }
+``
+
+add the sidcs to the where dict.
+
+there could be items in verbose that are handled by the sidc, get them
+with the intersection call.
+
+``
+        sidca = list(sidc.keys()) + list(set(verbose).intersection(self.settings["sidc"]))
+        for item in sidca:
+            wheredict[item] = { "arr": sidc[item] if item in sidc else None, 
+                               "field": f"sidc_{item}.psn", 
+                               "morewhere": f"sidc_{item}.idcontainertype = {self._idctypes[item]}"
+                             }
 ``
 
 stick together where clauses and arguments that covers the args that
@@ -699,17 +805,17 @@ _wherelikes gives a ?-parameterized sql of or-joined where-like expressions.
         return " or ".join(a)
 ``
 
-_idcs returns a mapping of id container types from code to respective oid.
+_getidctypes returns a mapping of id container types from code (lower-case) to respective oid.
 
-``/_idcs:
-    def _idcs(self):
+``/_getidctypes:
+    def _getidctypes(self):
         ``.``
 ``
 
 get the codes and oids.
 
 ``
-        query = "select code, oid from centraxx_idcontainertypes"
+        query = "select code, oid from centraxx_idcontainertype"
         res = self.db.qfad(query)
 ``
 
@@ -718,38 +824,8 @@ return keyed by idcontainertype code.
 ``
         out = {}
         for row in res:
-          out[row["code"]] = row["oid"]
+          out[row["code"].lower()] = row["oid"]
         return out
-``
-
-sid = self._settingsifnone("sid", sid)
-pid = self._settingsifnone("pid", pid)
-
-settingsifnone returns the default value from the settings if no value is given.
-
-``/_settingsifnone:
-def _settingsifnone(self, key, val):
-    ``.``
-``
-
-if the value is not none, return it.
-
-``
-    if val != None:
-        return val
-``
-
-if the value is none, try to return it from settings:
-
-``
-    if key in self.setting:
-        return self.settings[key]
-``
-
-return none.
-
-``
-    return None
 ``
 
 readsettings reads the setting file (and creates it if it's not there).
@@ -762,33 +838,54 @@ def _readsettings():
 if no settings, create stub settings file.
 
 ``
-  if not hassettings():
-    with open(settingspath(), "w") as file:
+  if not _hassettings():
+    with open(_settingspath(), "w") as file:
       settingsstr = """
-# traction settings
-# sid sets the default sample id container type
-sid: # enter the code for your default sample idcontainertype here
-# pid sets the default patient id container type
-pid: # enter the code for your default patient idcontainertype here
+# settings for traction.
+
+# sampleid sets the default sample id container type
+sampleid: <an idcontainertype code, e.g. SAMPLEID>
+# patientid sets the default patient id container type
+patientid: <an idcontainertype code, e.g. LIMSPSN>
+
+# sidc holds codes for sampleidcontainers that will be queryable as command line flags 
+sidc:
+ - <an idcontainertype code>
+ - <another idcontainertype code>
 """
+      file.write(settingsstr)
+      print(f"please fill in the sampleidcontainer types for sample and patient in {_settingspath()}, then run again.")
+      return None
 ``
 
+else read the settings.
 
-else
-  # read settings file yaml
-  with open(settingspath(), "r") as file:
-    settings = yaml.safe_load(file)
-    return settings
+``
+  else:
+    # read settings file yaml
+    with open(_settingspath(), "r") as file:
+      settings = yaml.safe_load(file)
+      return settings
+``
 
+import yaml.
 
+``/import
+import yaml
+``
 
+settingspath returns the path to the settings.
 
+``/_settingspath:
 
-# settingspath returns the path to the settings
-def settingspath():
+def _settingspath():
     home = Path.home()
     return home / ".traction" / "settings.yaml"
+``
 
-# hassettings reports whether there is a settings file
-def hassettings():
-    return settingspath().is_file()
+_hassettings reports whether there is a settings file.
+
+``/_hassettings:
+def _hassettings():
+    return _settingspath().is_file()
+``
