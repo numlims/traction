@@ -10,7 +10,7 @@ pat = trac.patient(sampleids=["abc"])
 on the command line:
 
 ```
-traction num_test sample --sampleid 1449330267 --verbose
+traction num_test sample --sampleid 1449330267 --verbose-all
 ```
 
 see `traction -h`.
@@ -28,6 +28,8 @@ pip install traction-<version>.whl
 for database connection setup see
 [dbcq](https://github.com/numlims/dbcq?tab=readme-ov-file#db-connection).
 
+after the first traction run set your default sample and patient
+idcontainertypes in `~/.traction/settings.yaml`.
 
 ## more usage
 
@@ -48,7 +50,7 @@ traction <db> sample --study "NUM RAPID_REVIVE"
 get the findings (messbefunde) and their values for a bunch of samples:
 
 ```
-traction <db> finding --sampleid sample1,sample2,sample3
+traction <db> finding --sampleid A0942214,A0941343,A0941344
 ```
 
 get names for messparameters.
@@ -80,13 +82,13 @@ res = trac.sample(sampleids=["sid1", "sid2", "sid3"], verbose_all=True)
 get samples with specific joined in info.
 
 ```
-res = trac.sample(sampleids=["sid1", "sid2", "sid3"], verbose=[tr.locationpath])
+res = trac.sample(sidc={"extsampleid": ["sid1", "sid2", "sid3"]}, verbose=[tr.locationpath])
 ```
 
-get the samples of a patient.
+get the samples of a patient1 in the rapid revive study in module 1.
 
 ```
-res = trac.sample(patientids=["pid1"], verbose_all=True)
+res = trac.sample(patientid=["patient1"], study=["NUM RAPID_REVIVE"], sidc={"module": ["module 1 "]}, verbose_all=True)
 ```
 
 get all samples in a study.
@@ -104,7 +106,7 @@ res = trac.sample(locationpaths=["my --> location --> path"])
 get a patient.
 
 ```
-res = trac.patient(patiendids=["pid1"])
+res = trac.patient(patientids=["pid1"])
 ```
 
 get the patient for a sample.

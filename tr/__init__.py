@@ -1,27 +1,48 @@
 from dbcq import *
+collectiondate = "samplingdate" # entnahmedatum / extraction date
 derivaldate = "derivaldate" # aufteilungsdatum / date of distribution
 extsampleid = "extsampleid"
 first_repositiondate = "first_repositiondate" # datum der ersten einlagerung / date of first storage (not in fhir). is identical to derivaldate.
 method_code = "method_code"
+module = "module"
 locationname = "locationname"
 locationpath = "locationpath"
 orgunit_code = "orgunit_code"
 parentid = "parentid"
 patientid = "patientid"
 project_code = "project_code"
+receiptdate = "receiptdate" # eingangsdatum / date of receipt
+receptacle_code = "receptacle_code"
+repositiondate = "repositiondate" # einlagerungsdatum / storage date
 sampleid = "sampleid"
-collectiondate = "samplingdate" # entnahmedatum / extraction date
 sampletype_code = "sampletype_code"
 secondprocessing_code = "secondprocessing_code"
 stockprocessing_code = "stockprocessing_code"
 study_code = "study_code"
-receiptdate = "receiptdate" # eingangsdatum / date of receipt
-receptable_code = "receptable_code"
-repositiondate = "repositiondate" # einlagerungsdatum / storage date
+tier = "tier"
 values = "values"
+def _readsettings():
+  if not hassettings():
+    with open(settingspath(), "w") as file:
+      settingsstr = """
+# traction settings
+# sid sets the default sample id container type
+sid: # enter the code for your default sample idcontainertype here
+# pid sets the default patient id container type
+pid: # enter the code for your default patient idcontainertype here
+"""
+def _settingsifnone(self, key, val):
+    if val != None:
+        return val
+    if key in self.setting:
+        return self.settings[key]
+    return None
+#`_hassettings``
+#`_settingspath``
 class traction:
     external_sampleid_type = "..."
     sampleid_type = "..."
+    idcs = {}
     def __init__(self, target):
         if isinstance(target, str):
             self.db = dbcq(target)
@@ -30,21 +51,22 @@ class traction:
         else:
             raise Exception("target needs to be string or dbcq instance")
 
-    def sample(self, sampleids=None, extsampleids=None, patientids=None, locationpaths=None, studies=None, verbose=[], verbose_all=False, missing=False):
+    def sample(self, sampleids=None, sid:str=None, patientids=None, pid:str=None, locationpaths=None, studies=None, mudules=None, tiers=None, verbose=[], verbose_all=False, missing=False):
+        vaa = [locationname, locationpath, module, orgunit_code, parentid,
+               patientid, project_code, receptacle_code, sampleid, sampletype_code,
+               secondprocessing_code, stockprocessing_code, study_code, tier]
         if not sampleid in verbose:
             verbose.append(sampleid)
-        if extsampleids:
-            verbose.append(extsampleid)
         if patientids:
             verbose.append(patientid)
         if studies:
             verbose.append(study_code)
+        if tiers:
+            verbose.append(tier)
+        if modules:
+            verbose.append(module)
         if locationpaths:
             verbose.append(locationpath)
-        vaa = [locationname, locationpath, orgunit_code, parentid,
-               patientid, project_code, sampletype_code,
-               secondprocessing_code, stockprocessing_code, study_code,
-               receptable_code, sampleid, extsampleid]
         if verbose_all == True:
             verbose = vaa
         selects = {
@@ -53,28 +75,32 @@ class traction:
             parentid: [f"parentidc.psn as '{parentid}'"],
             locationname: [f"samplelocation.locationid as '{locationname}'"], 
             locationpath: [f"samplelocation.locationpath as '{locationpath}'"],
+            module: [f"modulesidc.psn as '{module}'"],
             sampletype_code: [f"sampletype.code as '{sampletype_code}'"],
             stockprocessing_code: [f"stockprocessing.code as '{stockprocessing_code}'"],
             secondprocessing_code: [f"secondprocessing.code as '{secondprocessing_code}'"],
             project_code: [f"project.code as '{project_code}'"],
             patientid: [f"patidc.psn as '{patientid}'"],
-            receptable_code: [f"receptable.code as '{receptable_code}'"],
+            receptacle_code: [f"receptable.code as '{receptacle_code}'"],
             orgunit_code: [f"orgunit.code as '{orgunit_code}'"],
-            study_code: [f"flexistudy.code as '{study_code}'"]
+            study_code: [f"flexistudy.code as '{study_code}'"],
+            tier: [f"tiersidc.psn as '{tier}'"]
         }
         joins = {
             sampleid: ["inner join centraxx_sampleidcontainer as sidc on sidc.sample = sample.oid"],
             extsampleid: ["inner join centraxx_sampleidcontainer as extsidc on extsidc.sample = sample.oid"],
+            module: ["inner join centraxx_sampleidcontainer as modulesidc on modulesidc.sample = sample.oid"],
             parentid: ["left join centraxx_sampleidcontainer parentidc on parentidc.sample = sample.parent"],
             locationname: ["left join centraxx_samplelocation samplelocation on samplelocation.oid = sample.samplelocation"],
             locationpath: ["left join centraxx_samplelocation samplelocation on samplelocation.oid = sample.samplelocation"],
             sampletype_code: ["left join centraxx_sampletype as sampletype on sampletype.oid = sample.sampletype"],
             stockprocessing_code: ["left join centraxx_stockprocessing as stockprocessing on sample.stockprocessing = stockprocessing.oid"],
             secondprocessing_code: ["left join centraxx_stockprocessing as secondprocessing on sample.secondprocessing = secondprocessing.oid"],
+            tier: ["inner join centraxx_sampleidcontainer as tiersidc on tiersidc.sample = sample.oid"],
             project_code: ["left join centraxx_project as project on sample.project = project.oid"],
             patientid: ["left join centraxx_patientcontainer as patientcontainer on sample.patientcontainer = patientcontainer.oid",
             "left join centraxx_idcontainer as patidc on patidc.patientcontainer = patientcontainer.oid"], 
-            receptable_code: ["left join centraxx_samplereceptable as receptable on sample.receptable = receptable.oid"],
+            receptacle_code: ["left join centraxx_samplereceptable as receptable on sample.receptable = receptable.oid"], # receptable seems to be a typo in the table naming
             orgunit_code: ["left join centraxx_organisationunit as orgunit on sample.orgunit = orgunit.oid"],
             study_code: ["left join centraxx_flexistudy as flexistudy on sample.flexistudy = flexistudy.oid"]
         }
@@ -94,7 +120,7 @@ class traction:
                     joina.append(s)
         selectstr = ", \n".join(selecta)
         joinstr = "\n ".join(joina)
-        (wherestr, whereargs) = self._where(sampleids=sampleids, extsampleids=extsampleids, patientids=patientids, studies=studies, locationpaths=locationpaths, verbose=verbose)
+        (wherestr, whereargs) = self._where(sampleids=sampleids, extsampleids=extsampleids, patientids=patientids, studies=studies, modules=modules, tiers=tiers, locationpaths=locationpaths, verbose=verbose)
         query = f"select {selectstr} from centraxx_sample sample {joinstr} where {wherestr}"
         # print(query)
         res = self.db.qfad(query, whereargs)
@@ -115,7 +141,7 @@ class traction:
         res = self.db.qfad(query, whereargs)
 
         return res
-    def finding(self, sampleids=None, methods=None, studies=None):
+    def finding(self, sampleids=None, methods=None, studies=None, patientids=None, modules=None, tiers=None, visits=None, verbose=[], verbose_all=False):
         query = f"""select laborfinding.oid as "laborfinding_oid", laborfinding.*, labormethod.code as {method_code}, sidc.psn as {sampleid}
         from centraxx_laborfinding as laborfinding
 
@@ -130,17 +156,23 @@ class traction:
         # print(query)
         findings = self.db.qfad(query, whereargs)
         for i, finding in enumerate(findings):
-            query = """select recordedvalue.*
+            query = """select recordedvalue.*, laborvalue.code as laborvalue_code
                 from centraxx_laborfinding as laborfinding
 
                 -- go from laborfinding to recorded value
                 join centraxx_labfindinglabval as labfindinglabval on labfindinglabval.laborfinding = laborfinding.oid
                 join centraxx_recordedvalue as recordedvalue on labfindinglabval.oid = recordedvalue.oid
 
+                --go from labfindinglabval to the laborvalue for the messparam
+                join centraxx_laborvalue laborvalue on labfindinglabval.laborvalue = laborvalue.oid
+
                 where laborfinding.oid = ?
             """
             vals = self.db.qfad(query, finding['laborfinding_oid'])
-            findings[i][values] = vals
+            valsbycode = {}
+            for val in vals:
+              valsbycode[val["laborvalue_code"]] = val
+            findings[i][values] = valsbycode
         return findings
     def labval(self, methods=None):
         query = f"""select labval.*, method.code
@@ -194,23 +226,18 @@ inner join centraxx_laborvalue labval
                out[code] = {}
             out[code][lang] = line["name"]
         return out
-    def names_by_codes(self, table:str, lang:str, ml_table:str=None):
-        res = self.name(table, lang=lang, ml_table=ml_table)
-        out = {}
-        for line in res:
-            out[line["code"]] = line["name"]
-            
-        return out
 
-    def _where(self, sampleids=None, extsampleids=None, patientids=None, studies=None, locationpaths=None, methods=None, like=[], verbose=[]): # -> (str, [])
+    def _where(self, sampleids=None, sid=None, patientids=None, pid=None, studies=None, locationpaths=None, methods=None, modules=None, tiers=None, like=[], verbose=[]): # -> (str, [])
         wheredict = {
-          sampleid: { "arr": sampleids, "field": "sidc.psn", "morewhere": "sidc.idcontainertype = 6" }, # pass the idcontainertype check along
+          sampleid: { "arr": sampleids, "field": "sidc.psn", "morewhere": f"sidc.idcontainertype = 6" },  # {self._idc[sid]}" }, # pass the idcontainertype check along
 
-          extsampleid: { "arr": extsampleids, "field": "extsidc.psn", "morewhere": "extsidc.idcontainertype = 7" },
-          patientid: { "arr": patientids, "field": "patidc.psn", "morewhere": "patidc.idcontainertype = 8" },
+          # extsampleid: { "arr": extsampleids, "field": "extsidc.psn", "morewhere": "extsidc.idcontainertype = 7" },
+          patientid: { "arr": patientids, "field": "patidc.psn", "morewhere": f"patidc.idcontainertype = 8" }, # {self._idc[pid]}" },
           study_code: { "arr": studies, "field": "flexistudy.code" },
           locationpath: { "arr": locationpaths, "field": "samplelocation.locationpath" },
-          method_code: { "arr": methods, "field": "labormethod.code" }
+          method_code: { "arr": methods, "field": "labormethod.code" },
+          module: { "arr": modules, "field": "modulesidc.psn", "morewhere": "modulesidc.idcontainertype = 72" },
+          tier: { "arr": tiers, "field": "tiersidc.psn", "morewhere": "tiersidc.idcontainertype = 73" }
         }
         (wherearr, whereargs) = self._wherebuild(wheredict, like, verbose)
 
@@ -263,4 +290,11 @@ inner join centraxx_laborvalue labval
         for f in fieldarr:
             a.append(f + " like '%' + ? + '%'") # the sql takes literal plusses like here
         return " or ".join(a)
+    def _idcs(self):
+        query = "select code, oid from centraxx_idcontainertypes"
+        res = self.db.qfad(query)
+        out = {}
+        for row in res:
+          out[row["code"]] = row["oid"]
+        return out
   
