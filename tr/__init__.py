@@ -1,11 +1,14 @@
 from dbcq import *
 import yaml
+cxxkitid = "cxxkitid"
 collectiondate = "samplingdate" # entnahmedatum / extraction date
 derivaldate = "derivaldate" # aufteilungsdatum / date of distribution
+dtype = "dtype" # MASTER, ALIQUOTGROUP, DERIVED. maybe rename this to sampletype and sampletype (EDTA, stool etc) to samplekind as in the ui?
 extsampleid = "extsampleid"
 first_repositiondate = "first_repositiondate" # datum der ersten einlagerung / date of first storage (not in fhir). is identical to derivaldate.
 method_code = "method_code"
 module = "module"
+kitid = "kitid"
 locationname = "locationname"
 locationpath = "locationpath"
 orgunit_code = "orgunit_code"
@@ -68,13 +71,13 @@ class traction:
         self._idctypes = self._getidctypes()
         #print(f"_idctypes: {self._idctypes}")
 
-    def sample(self, sampleids=None, sidc=None, patientids=None, locationpaths=None, studies=None, verbose=[], verbose_all=False, missing=False):
+    def sample(self, sampleids=None, sidc=None, patientids=None, locationpaths=None, studies=None, kitids=None, cxxkitids=None, dtypes=None, verbose=[], verbose_all=False, missing=False, where=None, order_by=None, top=None, print_query=False):
         # print("try:" + tr.sampleid)
-        vaa = [locationname, locationpath, orgunit_code, parentid,
-               patientid, project_code, receptacle_code, sampleid, sampletype_code,
+        vaa = [sampleid, cxxkitid, kitid, locationname, locationpath, orgunit_code, parentid,
+               patientid, project_code, receptacle_code, sampletype_code,
                secondprocessing_code, stockprocessing_code, study_code]
         if not sampleid in verbose:
-            verbose.append(sampleid)
+            verbose.insert(0, sampleid)
         if patientids:
             verbose.append(patientid)
         if studies:
@@ -85,12 +88,18 @@ class traction:
         #    verbose.append(module)
         if locationpaths:
             verbose.append(locationpath)
+        if kitids:
+            verbose.append(kitid)
+        if cxxkitid:
+            verbose.append(cxxkitid)
         if verbose_all == True:
             verbose = vaa
         selects = {
+            cxxkitid: [f"samplekit.cxxkitid as '{cxxkitid}'"],
             sampleid: [f"sidc.psn as '{sampleid}'"],
             # extsampleid: [f"extsidc.psn as '{extsampleid}'"],
             parentid: [f"parentidc.psn as '{parentid}'"],
+            kitid: [f"samplekit.kitid as '{kitid}'"],
             locationname: [f"samplelocation.locationid as '{locationname}'"], 
             locationpath: [f"samplelocation.locationpath as '{locationpath}'"],
             # module: [f"modulesidc.psn as '{module}'"],
@@ -106,9 +115,11 @@ class traction:
         }
         joins = {
             sampleid: ["inner join centraxx_sampleidcontainer as sidc on sidc.sample = sample.oid"],
+            cxxkitid: ["left join centraxx_samplekititem as samplekititem on samplekititem.tubebarcode = sidc.psn", "left join centraxx_samplekit as samplekit on samplekit.oid = samplekititem.samplekit"],                  
             # extsampleid: ["inner join centraxx_sampleidcontainer as extsidc on extsidc.sample = sample.oid"],
             # module: ["inner join centraxx_sampleidcontainer as modulesidc on modulesidc.sample = sample.oid"],
             parentid: ["left join centraxx_sampleidcontainer parentidc on parentidc.sample = sample.parent"],
+            kitid: ["left join centraxx_samplekititem as samplekititem on samplekititem.tubebarcode = sidc.psn", "left join centraxx_samplekit as samplekit on samplekit.oid = samplekititem.samplekit"],
             locationname: ["left join centraxx_samplelocation samplelocation on samplelocation.oid = sample.samplelocation"],
             locationpath: ["left join centraxx_samplelocation samplelocation on samplelocation.oid = sample.samplelocation"],
             sampletype_code: ["left join centraxx_sampletype as sampletype on sampletype.oid = sample.sampletype"],
@@ -149,9 +160,12 @@ class traction:
         joina = self._append_sidc_join(joina, sidc, verbose)
         selectstr = ", \n".join(selecta)
         joinstr = "\n ".join(joina)
-        (wherestr, whereargs) = self._where(sampleids=sampleids, sidc=sidc, patientids=patientids, studies=studies, locationpaths=locationpaths, verbose=verbose)
-        query = f"select {selectstr} from centraxx_sample sample {joinstr} where {wherestr}"
-        #print(query)
+        (wherestr, whereargs) = self._where(sampleids=sampleids, sidc=sidc, patientids=patientids, studies=studies, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, dtypes=dtypes, verbose=verbose) 
+        wherestr += " and (" + where + ")"
+        topstr = self._top(top)
+        query = f"select {topstr} {selectstr} from centraxx_sample sample {joinstr} where {wherestr} order by {order_by}"
+        if print_query:
+           print(query)
         #print(whereargs)
         res = self.db.qfad(query, whereargs)
 
@@ -279,7 +293,7 @@ inner join centraxx_laborvalue labval
         if not joinstr in joina:
           joina.append(joinstr)
       return joina
-    def _where(self, sampleids=None, sidc={}, patientids=None, studies=None, locationpaths=None, methods=None, like=[], verbose=[]): # -> (str, [])
+    def _where(self, sampleids=None, sidc={}, patientids=None, studies=None, locationpaths=None, kitids=None, cxxkitids=None, dtypes=None, methods=None, like=[], verbose=[]): # -> (str, [])
         wheredict = {
           sampleid: { "arr": sampleids, "field": "sidc.psn", "morewhere": f"sidc.idcontainertype = {self._idctypes[self.settings['sampleid'].lower()]}" }, # pass the idcontainertype check along
 
@@ -287,6 +301,9 @@ inner join centraxx_laborvalue labval
           study_code: { "arr": studies, "field": "flexistudy.code" },
           locationpath: { "arr": locationpaths, "field": "samplelocation.locationpath" },
           method_code: { "arr": methods, "field": "labormethod.code" },
+          kitid: { "arr": kitids, "field": "samplekit.kitid" },
+          cxxkitid: { "arr": cxxkitids, "field": "samplekit.cxxkitid" },
+          dtype: { "arr": dtypes, "field": "sample.dtype" },
         }
         sidca = list(sidc.keys()) + list(set(verbose).intersection(self.settings["sidc"]))
         for item in sidca:
@@ -299,28 +316,38 @@ inner join centraxx_laborvalue labval
         wherestr = " and ".join(wherearr)
         return (wherestr, whereargs)
     def _wherebuild(self, wheredict, likearr=[], verbose=[]): # ([]string, [])
-        wherearr = []
+        wherestrs = []
         whereargs = []
         for (key, row) in wheredict.items():
             if row["arr"] == None or len(row["arr"]) == 0:
                 # the key is in the verbose-output selection
                 if key in verbose and "morewhere" in row:
                     # we're not searching for specific values, so only add the morewhere clause
-                    wherearr.append(row["morewhere"])
+                    wherestrs.append(row["morewhere"])
                 continue
             if key in likearr: 
                 # put in an or-chain of like checks over all elements
                 s = self._wherelikes(row["field"], row["arr"]) 
-                wherearr.append(s)
+                wherestrs.append(s)
                 whereargs.append(row["arr"])
             else:
-                placeholder = traction._sqlinplaceholder(len(row["arr"])) # todo put in package? tr._sqlinplaceholder
-                # fill wherearr and whereargs
-                wherearr.append(row["field"] + " in " + placeholder) # e.g. samplelocation.locationpath in (?, ?, ?)
+                wherestr = "("
+                needsor = False
+                if 'NULL' in row["arr"]:
+                    row["arr"].remove("NULL")
+                    wherestr += row["field"] + " is NULL"
+                    needsor = True
+                if len(row["arr"]) > 0:
+                    if needsor:
+                        wherestr += " or "
+                    placeholder = traction._sqlinplaceholder(len(row["arr"])) # todo put in package? tr._sqlinplaceholder
+                    wherestr += row["field"] + " in " + placeholder # e.g. samplelocation.locationpath in (?, ?, ?)
+                wherestr += ")"
+                wherestrs.append(wherestr)
                 whereargs.extend(row["arr"])
             if "morewhere" in row:
-                wherearr.append(row["morewhere"])
-        return (wherearr, whereargs)
+                wherestrs.append(row["morewhere"])
+        return (wherestrs, whereargs)
     def _sqlinplaceholder(n):
 
         # put this in a package sqlutil?
@@ -345,6 +372,10 @@ inner join centraxx_laborvalue labval
         for f in fieldarr:
             a.append(f + " like '%' + ? + '%'") # the sql takes literal plusses like here
         return " or ".join(a)
+    def _top(self, top):
+        if top is not None:
+           return f"top {top}"
+        return ""
     def _getidctypes(self):
         query = "select code, oid from centraxx_idcontainertype"
         res = self.db.qfad(query)

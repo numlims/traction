@@ -26,6 +26,7 @@ class traction:
   ``_whereparam``
   ``_wherelike``
   ``_wherelikes``
+  ``_top``
   ``_getidctypes``
   
 ``
@@ -35,12 +36,15 @@ put constants here and rename package to tr so you can say sample(..., verbose=[
 keep them lowercase that they are the same as the keys in the returned json?
 
 ``/const: #py
+cxxkitid = "cxxkitid"
 collectiondate = "samplingdate" # entnahmedatum / extraction date
 derivaldate = "derivaldate" # aufteilungsdatum / date of distribution
+dtype = "dtype" # MASTER, ALIQUOTGROUP, DERIVED. maybe rename this to sampletype and sampletype (EDTA, stool etc) to samplekind as in the ui?
 extsampleid = "extsampleid"
 first_repositiondate = "first_repositiondate" # datum der ersten einlagerung / date of first storage (not in fhir). is identical to derivaldate.
 method_code = "method_code"
 module = "module"
+kitid = "kitid"
 locationname = "locationname"
 locationpath = "locationpath"
 orgunit_code = "orgunit_code"
@@ -117,24 +121,28 @@ rename the joined-in fields to sampleid, *_code, patientid,
 parentid etc.
 
 ``/sample: #py
-    def sample(self, sampleids=None, sidc=None, patientids=None, locationpaths=None, studies=None, verbose=[], verbose_all=False, missing=False):
+    def sample(self, sampleids=None, sidc=None, patientids=None, locationpaths=None, studies=None, kitids=None, cxxkitids=None, dtypes=None, verbose=[], verbose_all=False, missing=False, where=None, order_by=None, top=None, print_query=False):
         ``.``
 ``
 
 these are all possible verbose options (verbose-all-array).
 
+let sampleid be the first element in vaa so it gets joined in first
+for subsequent joins that depend on it.
+
 `` #py
         # print("try:" + tr.sampleid)
-        vaa = [locationname, locationpath, orgunit_code, parentid,
-               patientid, project_code, receptacle_code, sampleid, sampletype_code,
+        vaa = [sampleid, cxxkitid, kitid, locationname, locationpath, orgunit_code, parentid,
+               patientid, project_code, receptacle_code, sampletype_code,
                secondprocessing_code, stockprocessing_code, study_code]
 ``
 
-always join in the sampleid for now.
+always join in the sampleid for now, again, as the first array element
+for subsequent joins that might need it.
 
 `` #py
         if not sampleid in verbose:
-            verbose.append(sampleid)
+            verbose.insert(0, sampleid)
 ``
 
 put the keys for the given arguments into the verbose array, so that
@@ -152,6 +160,10 @@ joined-in fields.
         #    verbose.append(module)
         if locationpaths:
             verbose.append(locationpath)
+        if kitids:
+            verbose.append(kitid)
+        if cxxkitid:
+            verbose.append(cxxkitid)
 ``
 
 on verbose_all include all constants in the verbose array.
@@ -165,9 +177,11 @@ the select statements for optional joins by key.
 
 `` #py
         selects = {
+            cxxkitid: [f"samplekit.cxxkitid as '{cxxkitid}'"],
             sampleid: [f"sidc.psn as '{sampleid}'"],
             # extsampleid: [f"extsidc.psn as '{extsampleid}'"],
             parentid: [f"parentidc.psn as '{parentid}'"],
+            kitid: [f"samplekit.kitid as '{kitid}'"],
             locationname: [f"samplelocation.locationid as '{locationname}'"], 
             locationpath: [f"samplelocation.locationpath as '{locationpath}'"],
             # module: [f"modulesidc.psn as '{module}'"],
@@ -210,9 +224,11 @@ joins = {
 `` #py
         joins = {
             sampleid: ["inner join centraxx_sampleidcontainer as sidc on sidc.sample = sample.oid"],
+            cxxkitid: ["left join centraxx_samplekititem as samplekititem on samplekititem.tubebarcode = sidc.psn", "left join centraxx_samplekit as samplekit on samplekit.oid = samplekititem.samplekit"],                  
             # extsampleid: ["inner join centraxx_sampleidcontainer as extsidc on extsidc.sample = sample.oid"],
             # module: ["inner join centraxx_sampleidcontainer as modulesidc on modulesidc.sample = sample.oid"],
             parentid: ["left join centraxx_sampleidcontainer parentidc on parentidc.sample = sample.parent"],
+            kitid: ["left join centraxx_samplekititem as samplekititem on samplekititem.tubebarcode = sidc.psn", "left join centraxx_samplekit as samplekit on samplekit.oid = samplekititem.samplekit"],
             locationname: ["left join centraxx_samplelocation samplelocation on samplelocation.oid = sample.samplelocation"],
             locationpath: ["left join centraxx_samplelocation samplelocation on samplelocation.oid = sample.samplelocation"],
             sampletype_code: ["left join centraxx_sampletype as sampletype on sampletype.oid = sample.sampletype"],
@@ -278,14 +294,27 @@ get the selections and joins as string.
 get the where string.
 
 `` #py
-        (wherestr, whereargs) = self._where(sampleids=sampleids, sidc=sidc, patientids=patientids, studies=studies, locationpaths=locationpaths, verbose=verbose)
+        (wherestr, whereargs) = self._where(sampleids=sampleids, sidc=sidc, patientids=patientids, studies=studies, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, dtypes=dtypes, verbose=verbose) 
+``
+
+add the where string passed as argument.
+
+``
+        wherestr += " and (" + where + ")"
+``
+
+get the top string.
+
+``
+        topstr = self._top(top)
 ``
 
 stick together the query, get the result and return it.
 
 `` #py
-        query = f"select {selectstr} from centraxx_sample sample {joinstr} where {wherestr}"
-        #print(query)
+        query = f"select {topstr} {selectstr} from centraxx_sample sample {joinstr} where {wherestr} order by {order_by}"
+        if print_query:
+           print(query)
         #print(whereargs)
         res = self.db.qfad(query, whereargs)
 
@@ -644,7 +673,7 @@ like is an array of tr constants of the arguments for which we check likeness. w
 make sure only one of sampleids or extsampleids is passed?
 
 ``/_where:
-    def _where(self, sampleids=None, sidc={}, patientids=None, studies=None, locationpaths=None, methods=None, like=[], verbose=[]): # -> (str, [])
+    def _where(self, sampleids=None, sidc={}, patientids=None, studies=None, locationpaths=None, kitids=None, cxxkitids=None, dtypes=None, methods=None, like=[], verbose=[]): # -> (str, [])
         ``.``
 ``
 
@@ -662,12 +691,15 @@ morewhere: additional where constraints, e.g. idcontainertypes for samples.
           study_code: { "arr": studies, "field": "flexistudy.code" },
           locationpath: { "arr": locationpaths, "field": "samplelocation.locationpath" },
           method_code: { "arr": methods, "field": "labormethod.code" },
+          kitid: { "arr": kitids, "field": "samplekit.kitid" },
+          cxxkitid: { "arr": cxxkitids, "field": "samplekit.cxxkitid" },
+          dtype: { "arr": dtypes, "field": "sample.dtype" },
         }
 ``
 
 add the sidcs to the where dict.
 
-there could be items in verbose that are handled by the sidc, get them
+there could be items in verbose that are queried via the sidc, get them
 with the intersection call.
 
 ``
@@ -697,10 +729,10 @@ _wherebuild builds wherestrings and fills whereargs.
         ``.``
 ``
 
-wherearr and whereargs get filled.
+wherestrs and whereargs get filled.
 
 ``
-        wherearr = []
+        wherestrs = []
         whereargs = []
 ``
 
@@ -710,53 +742,86 @@ iterate the passed wheredict. key is one of the tr constant strings, e.g. tr.loc
         for (key, row) in wheredict.items():
             ``no arr``
             ``like``
-            ``exact``
+            else:
+                ``exact``
             ``more where``
 ``
 
-if no or empty search array, put in the morewhere-clause if the key is
-in verbose, then skip.
+if there is no search array or it is empty still check for the
+morewhere-clause, cause the key could be in verbose, and then the
+morewhere-clause would be needed. then skip.
+
 
 ``./no arr:
             if row["arr"] == None or len(row["arr"]) == 0:
                 # the key is in the verbose-output selection
                 if key in verbose and "morewhere" in row:
                     # we're not searching for specific values, so only add the morewhere clause
-                    wherearr.append(row["morewhere"])
+                    wherestrs.append(row["morewhere"])
                 continue
 ``
 
 should we check for likeness for this key?
 
-``../like:
+``/_wherebuild/like:
             if key in likearr: 
                 # put in an or-chain of like checks over all elements
                 s = self._wherelikes(row["field"], row["arr"]) 
-                wherearr.append(s)
+                wherestrs.append(s)
                 whereargs.append(row["arr"])
 ``
 
 else we search by exact matching.
 
-``../exact:
-            else:
-                placeholder = traction._sqlinplaceholder(len(row["arr"])) # todo put in package? tr._sqlinplaceholder
-                # fill wherearr and whereargs
-                wherearr.append(row["field"] + " in " + placeholder) # e.g. samplelocation.locationpath in (?, ?, ?)
+if we'd like to take NULL checks into account, we need to check it
+extra, like '(kitid is NULL or kitid in (1, 2, 3))'.
+
+``/_wherebuild/exact:
+                wherestr = "("
+``
+                
+is there a 'NULL' in the array? put in a NULL check and remove it from
+the array, so it doesn't mess with the where-arguments later.
+
+``
+                needsor = False
+                if 'NULL' in row["arr"]:
+                    row["arr"].remove("NULL")
+                    wherestr += row["field"] + " is NULL"
+                    needsor = True
+``
+
+if there is anything left in the array, make the in-list part of the
+wherestring with the ?-placeholder string.
+
+``
+                if len(row["arr"]) > 0:
+                    if needsor:
+                        wherestr += " or "
+                    placeholder = traction._sqlinplaceholder(len(row["arr"])) # todo put in package? tr._sqlinplaceholder
+                    wherestr += row["field"] + " in " + placeholder # e.g. samplelocation.locationpath in (?, ?, ?)
+``
+
+close the wherestr with ) and put the wherestring and its arguments
+into their corresponding arrays.
+
+``
+                wherestr += ")"
+                wherestrs.append(wherestr)
                 whereargs.extend(row["arr"])
 ``
 
 are there additional where clauses passed (e.g. for idcontainertype)? add them.
 
-``../more where:
+``/_wherebuild/more where:
             if "morewhere" in row:
-                wherearr.append(row["morewhere"])
+                wherestrs.append(row["morewhere"])
 ``
 
 out of the loop, return.
 
-``../
-        return (wherearr, whereargs)
+``/_wherebuild/
+        return (wherestrs, whereargs)
 ``
 
     
@@ -804,6 +869,16 @@ _wherelikes gives a ?-parameterized sql of or-joined where-like expressions.
             a.append(f + " like '%' + ? + '%'") # the sql takes literal plusses like here
         return " or ".join(a)
 ``
+
+_top returns the top string, for, e.g. `select top 100 * from table`, if
+top is None return an empty string.
+
+``/_top:
+    def _top(self, top):
+        if top is not None:
+           return f"top {top}"
+        return ""
+``                             
 
 _getidctypes returns a mapping of id container types from code (lower-case) to respective oid.
 

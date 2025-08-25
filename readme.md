@@ -47,6 +47,14 @@ get all samples in a study.
 traction <db> sample --study "NUM RAPID_REVIVE"
 ```
 
+get all master samples where the kitid is NULL that don't have a dot
+at the end of their sample id (passed as an additional where clause
+with --where).
+
+```
+traction num_prod sample --cxxkitid NULL --dtype MASTER --where "sidc.psn not like '%.'"
+```
+
 get the findings (messbefunde) and their values for a bunch of samples:
 
 ```
