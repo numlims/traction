@@ -28,8 +28,8 @@ pip install traction-<version>.whl
 for database connection setup see
 [dbcq](https://github.com/numlims/dbcq?tab=readme-ov-file#db-connection).
 
-after the first traction run set your default sample and patient
-idcontainertypes in `~/.traction/settings.yaml`.
+after the first traction run set your default idcontainer codes for
+sample and patient in `~/.traction/settings.yaml`. 
 
 ## more usage
 
@@ -52,7 +52,7 @@ at the end of their sample id (passed as an additional where clause
 with --where).
 
 ```
-traction num_prod sample --cxxkitid NULL --dtype MASTER --where "sidc.psn not like '%.'"
+traction <db> sample --cxxkitid NULL --dtype MASTER --where "sidc.psn not like '%.'"
 ```
 
 get the findings (messbefunde) and their values for a bunch of samples:
@@ -87,16 +87,16 @@ get samples with all joined in info (slower).
 res = trac.sample(sampleids=["sid1", "sid2", "sid3"], verbose_all=True)
 ```
 
-get samples with specific joined in info.
+get samples with info from idcontainers (idc).
 
 ```
-res = trac.sample(sidc={"extsampleid": ["sid1", "sid2", "sid3"]}, verbose=[tr.locationpath])
+res = trac.sample(idc={"extsampleid": ["sid1", "sid2", "sid3"]}, verbose=[tr.locationpath])
 ```
 
 get the samples of a patient1 in the rapid revive study in module 1.
 
 ```
-res = trac.sample(patientid=["patient1"], study=["NUM RAPID_REVIVE"], sidc={"module": ["module 1"]}, verbose_all=True)
+res = trac.sample(patientids=["patient1"], study=["NUM RAPID_REVIVE"], idc={"module": ["module 1"]}, verbose_all=True)
 ```
 
 get all samples in a study.

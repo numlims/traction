@@ -3,11 +3,11 @@ import tr
 import simplejson as json
 import sys
 def add_args(parser, settings):
-  for item in settings["sidc"]:
+  for item in settings["idc"]:
     parser.add_argument(f"--{item}", required=False, help=f"{item} sampleidcontainer")
-def getsidc(args:dict, settings):
+def getidc(args:dict, settings):
   out = {}
-  for item in settings["sidc"]:
+  for item in settings["idc"]:
     if item in args and args[item] != None:
       out[item] = args[item].split(",")
   return out
@@ -98,7 +98,7 @@ def main():
 #        tiers = args.tier.split(",")
         
     if args.what == "sample":
-        sample = traction.sample(sampleids=sampleids, sidc=getsidc(vars(args), settings), patientids=patientids, studies=studies, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, dtypes=dtypes, verbose=verbose, verbose_all=args.verbose_all, missing=args.missing, where=args.where, order_by=args.order_by, top=args.top, print_query=args.query) # todo different arguments for string and array
+        sample = traction.sample(sampleids=sampleids, idc=getidc(vars(args), settings), patientids=patientids, studies=studies, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, dtypes=dtypes, verbose=verbose, verbose_all=args.verbose_all, missing=args.missing, where=args.where, order_by=args.order_by, top=args.top, print_query=args.query) # todo different arguments for string and array
         # print json
         print(json.dumps(sample, default=str))
     if args.what == "patient":

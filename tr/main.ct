@@ -3,7 +3,7 @@
 ``//__main__.py:
 ``import``
 ``add_args``
-``getsidc``
+``getidc``
 ``main``
 
 
@@ -70,7 +70,7 @@ parse the arguments.
     parser.add_argument("--query", required=False, help="print the query", action="store_true")         
 ``
 
-add sidc flags from settings.
+add idc flags from settings.
 
 ``
     add_args(parser, settings)
@@ -163,7 +163,7 @@ get a sample.
 
 ``
     if args.what == "sample":
-        sample = traction.sample(sampleids=sampleids, sidc=getsidc(vars(args), settings), patientids=patientids, studies=studies, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, dtypes=dtypes, verbose=verbose, verbose_all=args.verbose_all, missing=args.missing, where=args.where, order_by=args.order_by, top=args.top, print_query=args.query) # todo different arguments for string and array
+        sample = traction.sample(sampleids=sampleids, idc=getidc(vars(args), settings), patientids=patientids, studies=studies, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, dtypes=dtypes, verbose=verbose, verbose_all=args.verbose_all, missing=args.missing, where=args.where, order_by=args.order_by, top=args.top, print_query=args.query) # todo different arguments for string and array
         # print json
         print(json.dumps(sample, default=str))
 ``
@@ -202,20 +202,20 @@ get a name.
         print(json.dumps(res, default=str))
 ``
 
-add_args adds sidc args from settings.
+add_args adds idc args from settings.
 
 ``/add_args:
 def add_args(parser, settings):
-  for item in settings["sidc"]:
+  for item in settings["idc"]:
     parser.add_argument(f"--{item}", required=False, help=f"{item} sampleidcontainer")
 ``
 
-getsidc filters the arg flags according to the sidcs given in settings.
+getidc filters the arg flags according to the idcs given in settings.
 
-``/getsidc:
-def getsidc(args:dict, settings):
+``/getidc:
+def getidc(args:dict, settings):
   out = {}
-  for item in settings["sidc"]:
+  for item in settings["idc"]:
     if item in args and args[item] != None:
       out[item] = args[item].split(",")
   return out

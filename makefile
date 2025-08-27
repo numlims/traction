@@ -6,7 +6,7 @@ name = "traction"
 version = $(shell git tag | tail -1 | tr -d v)
 
 all:
-	cd tr; ct init.ct; ct main.ct; cd ..
+	ct tr/init.ct; ct tr/main.ct; 
 	python3 -m build --no-isolation
 
 install:

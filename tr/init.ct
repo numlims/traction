@@ -18,8 +18,8 @@ class traction:
   ``labval``
   ``name``
 
-  ``_append_sidc_select``
-  ``_append_sidc_join``
+  ``_append_idc_select``
+  ``_append_idc_join``
   ``_where``
   ``_wherebuild``
   ``_sqlinplaceholder``
@@ -27,7 +27,7 @@ class traction:
   ``_wherelike``
   ``_wherelikes``
   ``_top``
-  ``_getidctypes``
+  ``_idcinit``
   
 ``
 
@@ -97,11 +97,11 @@ either pass a string argument to dbcq or use dbcq instance directly.
             raise Exception("target needs to be string or dbcq instance")
 ``
 
-cache the id container types by code.
+cache the id containers' oids and kinds by code.
 
 ``
-        self._idctypes = self._getidctypes()
-        #print(f"_idctypes: {self._idctypes}")
+        self._idcinit()
+        #print(f"_idcoids: {self._idcoids}")
 ``
 
 import dbcq.
@@ -121,7 +121,7 @@ rename the joined-in fields to sampleid, *_code, patientid,
 parentid etc.
 
 ``/sample: #py
-    def sample(self, sampleids=None, sidc=None, patientids=None, locationpaths=None, studies=None, kitids=None, cxxkitids=None, dtypes=None, verbose=[], verbose_all=False, missing=False, where=None, order_by=None, top=None, print_query=False):
+    def sample(self, sampleids=None, idc=None, patientids=None, locationpaths=None, studies=None, kitids=None, cxxkitids=None, dtypes=None, verbose=[], verbose_all=False, like=[], missing=False, where=None, order_by=None, top=None, print_query=False):
         ``.``
 ``
 
@@ -254,12 +254,12 @@ joinstr = self._join(joins, verbose)  # join filters the joins by the verbose ar
 `` #py
         selecta = ["sample.*"]
         joina = []
-        possibleverbose = vaa + self.settings["sidc"]
+        possibleverbose = vaa + self.settings["idc"]
         for verb in verbose:
             if not verb in possibleverbose: 
                 print(f"error: key {verb} must be in {possibleverbose}.")
 
-            # continue if verb not in selects, it could be handled by sidc
+            # continue if verb not in selects, it could be handled by idc
             if not verb in selects:
                 continue
         
@@ -267,7 +267,7 @@ joinstr = self._join(joins, verbose)  # join filters the joins by the verbose ar
             for s in selects[verb]:
                 selecta.append(s)
 
-            # continue if verb not in joins, it could be handled by sidc
+            # continue if verb not in joins, it could be handled by idc
             if not verb in joins:
                 continue
 
@@ -277,11 +277,11 @@ joinstr = self._join(joins, verbose)  # join filters the joins by the verbose ar
                     joina.append(s)
 ``
 
-append sidc selects and joins.
+append idc selects and joins.
 
 ``
-        selecta = self._append_sidc_select(selecta, sidc, verbose)
-        joina = self._append_sidc_join(joina, sidc, verbose)
+        selecta = self._append_idc_select(selecta, idc, verbose)
+        joina = self._append_idc_join(joina, idc, verbose)
 ``      
 
 get the selections and joins as string.
@@ -294,13 +294,14 @@ get the selections and joins as string.
 get the where string.
 
 `` #py
-        (wherestr, whereargs) = self._where(sampleids=sampleids, sidc=sidc, patientids=patientids, studies=studies, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, dtypes=dtypes, verbose=verbose) 
+        (wherestr, whereargs) = self._where(sampleids=sampleids, idc=idc, patientids=patientids, studies=studies, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, dtypes=dtypes, verbose=verbose, like=like) 
 ``
 
 add the where string passed as argument.
 
 ``
-        wherestr += " and (" + where + ")"
+        if where is not None:
+           wherestr += " and (" + where + ")"
 ``
 
 get the top string.
@@ -312,7 +313,9 @@ get the top string.
 stick together the query, get the result and return it.
 
 `` #py
-        query = f"select {topstr} {selectstr} from centraxx_sample sample {joinstr} where {wherestr} order by {order_by}"
+        query = f"select {topstr} {selectstr} from centraxx_sample sample {joinstr} where {wherestr}"
+        if order_by is not None:
+            query += " order by {order_by}"
         if print_query:
            print(query)
         #print(whereargs)
@@ -599,28 +602,28 @@ structure by code and lang and return.
         return out
 ``
 
-_append_sidc_select adds the sql select statements for an sidc dict.
+_append_idc_select adds the sql select statements for an idc dict.
 
-``/_append_sidc_select:
-    def _append_sidc_select(self, selecta, sidc, verbose):
+``/_append_idc_select:
+    def _append_idc_select(self, selecta, idc, verbose):
       ``.``
 ``
 
-put in the members of verbose touched by sidc and the keys of sidc into a common array.
+put in the members of verbose touched by idc and the keys of idc into a common array.
 
 ``
-  sidca = []
+  idca = []
   for verb in verbose:
-    if verb in self.settings["sidc"]:
-      sidca.append(verb)
-  sidca.extend(sidc.keys())
+    if verb in self.settings["idc"]:
+      idca.append(verb)
+  idca.extend(idc.keys())
 ``    
 
-add a select for each key in the sidc dict.  
+add a select for each key in the idc dict.  
 
 ``
-  for item in sidca:
-    selectstr = f"sidc_{item}.psn as '{item}'"
+  for item in idca:
+    selectstr = f"idc_{item}.psn as '{item}'"
     if not selectstr in selecta:
       selecta.append(selectstr)
 ``
@@ -631,36 +634,61 @@ return the selecta with appended strings.
   return selecta
 ``
 
-_append_sidc_join adds the sql join statements for an sidc dict.
+_append_idc_join adds the sql join statements for an idc dict.
 
-``/_append_sidc_join: #py
-    def _append_sidc_join(self, joina, sidc, verbose):
+``/_append_idc_join: #py
+    def _append_idc_join(self, joina, idc, verbose):
       ``.``
 ``
 
-put in the members of verbose touched by sidc and the keys of sidc into a common array.
+put in the members of verbose touched by idc and the keys of idc into a common array.
 
 ``
-  sidca = []
-  for verb in verbose:
-    if verb in self.settings["sidc"]:
-      sidca.append(verb)
-  sidca.extend(sidc.keys())
+      idca = []
+      for verb in verbose:
+        if verb in self.settings["idc"]:
+          idca.append(verb)
+      idca.extend(idc.keys())
 ``    
 
-add a join for each key in the sidc dict.  
+add a join for each member of the idc array.
+
+the joins are different for idckind SAMPLE and PATIENT.
 
 ``
-  for item in sidca:
-    joinstr = f"inner join centraxx_sampleidcontainer as sidc_{item} on sidc_{item}.sample = sample.oid"
-    if not joinstr in joina:
-      joina.append(joinstr)
+      for item in idca:
+        if self._idckind[item] == "SAMPLE":
+          ``sample``
+        elif self._idckind[item] == "PATIENT":
+          ``patient``
+        else:
+          print(f"error: idcontainer kind {self._idckind[item]} not supported.")
+``
+
+join in sampleidcontainer for SAMPLE. prefix it with idc_ instead of sidc_,
+so that there can be one where-check that uses the idc_ prefix for both patient and sample idcontainers.
+
+``./sample:
+        joinstr = f"inner join centraxx_sampleidcontainer as idc_{item} on idc_{item}.sample = sample.oid"
+        if not joinstr in joina:
+          joina.append(joinstr)
+``
+
+join in idcontainer via patientcontainer for PATIENT:
+
+``../patient:
+        joinstr = f"left join centraxx_patientcontainer as pc_{item} on sample.patientcontainer = pc_{item}.oid"
+        if not joinstr in joina: # neccessary?
+          joina.append(joinstr)
+        joinstr = f"left join centraxx_idcontainer as idc_{item} on pc_{item}.oid = idc_{item}.patientcontainer"
+        if not joinstr in joina: # neccessary?
+          joina.append(joinstr)
 ``
 
 return the selecta with appended strings.
 
-``
-  return joina
+``/_append_idc_join
+      return joina
 ``
 
 
@@ -673,7 +701,7 @@ like is an array of tr constants of the arguments for which we check likeness. w
 make sure only one of sampleids or extsampleids is passed?
 
 ``/_where:
-    def _where(self, sampleids=None, sidc={}, patientids=None, studies=None, locationpaths=None, kitids=None, cxxkitids=None, dtypes=None, methods=None, like=[], verbose=[]): # -> (str, [])
+    def _where(self, sampleids=None, idc={}, patientids=None, studies=None, locationpaths=None, kitids=None, cxxkitids=None, dtypes=None, methods=None, like=[], verbose=[]): # -> (str, [])
         ``.``
 ``
 
@@ -685,9 +713,9 @@ morewhere: additional where constraints, e.g. idcontainertypes for samples.
 
 ``
         wheredict = {
-          sampleid: { "arr": sampleids, "field": "sidc.psn", "morewhere": f"sidc.idcontainertype = {self._idctypes[self.settings['sampleid'].lower()]}" }, # pass the idcontainertype check along
+          sampleid: { "arr": sampleids, "field": "sidc.psn", "morewhere": f"sidc.idcontainertype = {self._idcoid[self.settings['sampleid'].lower()]}" }, # pass the idcontainertype check along
 
-          patientid: { "arr": patientids, "field": "patidc.psn", "morewhere": f"patidc.idcontainertype = {self._idctypes[self.settings['patientid'].lower()]}" },
+          patientid: { "arr": patientids, "field": "patidc.psn", "morewhere": f"patidc.idcontainertype = {self._idcoid[self.settings['patientid'].lower()]}" },
           study_code: { "arr": studies, "field": "flexistudy.code" },
           locationpath: { "arr": locationpaths, "field": "samplelocation.locationpath" },
           method_code: { "arr": methods, "field": "labormethod.code" },
@@ -697,17 +725,17 @@ morewhere: additional where constraints, e.g. idcontainertypes for samples.
         }
 ``
 
-add the sidcs to the where dict.
+add the idcs to the where dict.
 
-there could be items in verbose that are queried via the sidc, get them
+there could be items in verbose that are queried via the idc, get them
 with the intersection call.
 
 ``
-        sidca = list(sidc.keys()) + list(set(verbose).intersection(self.settings["sidc"]))
-        for item in sidca:
-            wheredict[item] = { "arr": sidc[item] if item in sidc else None, 
-                               "field": f"sidc_{item}.psn", 
-                               "morewhere": f"sidc_{item}.idcontainertype = {self._idctypes[item]}"
+        idca = list(idc.keys()) + list(set(verbose).intersection(self.settings["idc"]))
+        for item in idca:
+            wheredict[item] = { "arr": idc[item] if item in idc else None, 
+                                "field": f"idc_{item}.psn", 
+                                "morewhere": f"idc_{item}.idcontainertype = {self._idcoid[item]}"
                              }
 ``
 
@@ -880,27 +908,28 @@ top is None return an empty string.
         return ""
 ``                             
 
-_getidctypes returns a mapping of id container types from code (lower-case) to respective oid.
+_idcinit makes a mapping of idcontainers from their code (lower-case) to respective oid and kind.
 
-``/_getidctypes:
-    def _getidctypes(self):
+``/_idcinit:
+    def _idcinit(self):
         ``.``
 ``
 
 get the codes and oids.
 
 ``
-        query = "select code, oid from centraxx_idcontainertype"
+        query = "select code, oid, kind from centraxx_idcontainertype"
         res = self.db.qfad(query)
 ``
 
-return keyed by idcontainertype code.
+return idcontainer oids and kinds keyed by their code.
 
 ``
-        out = {}
+        self._idcoid = {}
+        self._idckind = {}
         for row in res:
-          out[row["code"].lower()] = row["oid"]
-        return out
+          self._idcoid[row["code"].lower()] = row["oid"]
+          self._idckind[row["code"].lower()] = row["kind"]
 ``
 
 readsettings reads the setting file (and creates it if it's not there).
@@ -918,18 +947,18 @@ if no settings, create stub settings file.
       settingsstr = """
 # settings for traction.
 
-# sampleid sets the default sample id container type
+# sampleid sets the idcontainertype code that is used when searching for sampleid
 sampleid: <an idcontainertype code, e.g. SAMPLEID>
-# patientid sets the default patient id container type
+# patientid sets the idcontainertype code that is used when searching for patientid
 patientid: <an idcontainertype code, e.g. LIMSPSN>
 
-# sidc holds codes for sampleidcontainers that will be queryable as command line flags 
-sidc:
+# idc holds additional idcontainertype codes that will be queryable as command line flags 
+idc:
  - <an idcontainertype code>
  - <another idcontainertype code>
 """
       file.write(settingsstr)
-      print(f"please fill in the sampleidcontainer types for sample and patient in {_settingspath()}, then run again.")
+      print(f"please fill in the idcontainertype codes for sampleid and patientid in {_settingspath()}, then run again.")
       return None
 ``
 
