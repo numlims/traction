@@ -12,7 +12,6 @@ description = "samples and patients in centraxx"
 readme = "readme.md"
 requires-python = ">=3.8"
 dependencies = [
-  #"tbl @ git+https://github.com/numlims/tbl"
   "dbcq @ https://github.com/numlims/dbcq/archive/refs/tags/v0.0.3.zip",
   "pyyaml",
   "simplejson",

@@ -36,3 +36,5 @@ publish-update: # if an asset was already uploaded, delete it before uploading a
 	git push --tags
 	gh release delete-asset "v${version}" "${name}-${version}-py3-none-any.whl" -y
 	gh release upload "v${version}" "./dist/${name}-${version}-py3-none-any.whl"
+	# apparently the tag change rolled the release back to draft, set it to publish again
+	gh release delete-asset "v${version}" --draft=false
