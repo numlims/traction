@@ -31,18 +31,18 @@ def _readsettings():
       settingsstr = """
 # settings for traction.
 
-# sampleid sets the default sample id container type
+# sampleid sets the idcontainertype code that is used when searching for sampleid
 sampleid: <an idcontainertype code, e.g. SAMPLEID>
-# patientid sets the default patient id container type
+# patientid sets the idcontainertype code that is used when searching for patientid
 patientid: <an idcontainertype code, e.g. LIMSPSN>
 
-# idc holds codes for sampleidcontainers that will be queryable as command line flags 
+# idc holds additional idcontainertype codes that will be queryable as command line flags 
 idc:
  - <an idcontainertype code>
  - <another idcontainertype code>
 """
       file.write(settingsstr)
-      print(f"please fill in the sampleidcontainer types for sample and patient in {_settingspath()}, then run again.")
+      print(f"please fill in the idcontainertype codes for sampleid and patientid in {_settingspath()}, then run again.")
       return None
   else:
     # read settings file yaml

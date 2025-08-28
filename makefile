@@ -22,9 +22,11 @@ doc-wrap:
 	ct --tex -o doc/traction.tex
 
 publish:
+	make
 	git push --tags
 	gh release create "v${version}" "./dist/${name}-${version}-py3-none-any.whl"
 
 publish-update: # if an asset was already uploaded, delete it before uploading again
+	make
 	gh release delete-asset "v${version}" "${name}-${version}-py3-none-any.whl" -y
 	gh release upload "v${version}" "./dist/${name}-${version}-py3-none-any.whl"
