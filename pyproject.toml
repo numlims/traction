@@ -17,7 +17,6 @@ dependencies = [
   "pyyaml",
   "simplejson",
   "tbl @ https://github.com/numlims/tbl/archive/refs/tags/v0.0.2.zip"
-  
 ]
 classifiers = [
   "Programming Language :: Python :: 3"
