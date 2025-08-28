@@ -28,5 +28,11 @@ publish:
 
 publish-update: # if an asset was already uploaded, delete it before uploading again
 	make
+	# let the version tag point to the most recent commit
+	git tag -f "v${version}"
+	# delete tag on remote
+	git push origin ":refs/tags/v${version}" 
+	# re-push the tag to the remote
+	git push --tags
 	gh release delete-asset "v${version}" "${name}-${version}-py3-none-any.whl" -y
 	gh release upload "v${version}" "./dist/${name}-${version}-py3-none-any.whl"
