@@ -22,7 +22,7 @@ sampleid = "sampleid"
 sampletype_code = "sampletype_code"
 secondprocessing_code = "secondprocessing_code"
 stockprocessing_code = "stockprocessing_code"
-study_code = "study_code"
+trial_code = "trial_code"
 tier = "tier"
 values = "values"
 def _readsettings():
@@ -71,17 +71,17 @@ class traction:
         self._idcinit()
         #print(f"_idcoids: {self._idcoids}")
 
-    def sample(self, sampleids=None, idc=None, patientids=None, locationpaths=None, studies=None, kitids=None, cxxkitids=None, dtypes=None, verbose=[], verbose_all=False, like=[], missing=False, where=None, order_by=None, top=None, print_query=False):
+    def sample(self, sampleids=None, idc=None, patientids=None, locationpaths=None, trials=None, kitids=None, cxxkitids=None, dtypes=None, verbose=[], verbose_all=False, like=[], missing=False, where=None, order_by=None, top=None, print_query=False):
         # print("try:" + tr.sampleid)
         vaa = [sampleid, cxxkitid, kitid, locationname, locationpath, orgunit_code, parentid,
                patientid, project_code, receptacle_code, sampletype_code,
-               secondprocessing_code, stockprocessing_code, study_code]
+               secondprocessing_code, stockprocessing_code, trial_code]
         if not sampleid in verbose:
             verbose.insert(0, sampleid)
         if patientids:
             verbose.append(patientid)
-        if studies:
-            verbose.append(study_code)
+        if trials:
+            verbose.append(trial_code)
         #if tiers:
         #    verbose.append(tier)
         #if modules:
@@ -110,7 +110,7 @@ class traction:
             patientid: [f"patidc.psn as '{patientid}'"],
             receptacle_code: [f"receptable.code as '{receptacle_code}'"],
             orgunit_code: [f"orgunit.code as '{orgunit_code}'"],
-            study_code: [f"flexistudy.code as '{study_code}'"],
+            trial_code: [f"flexistudy.code as '{trial_code}'"],
             # tier: [f"tiersidc.psn as '{tier}'"]
         }
         joins = {
@@ -131,7 +131,7 @@ class traction:
             "left join centraxx_idcontainer as patidc on patidc.patientcontainer = patientcontainer.oid"], 
             receptacle_code: ["left join centraxx_samplereceptable as receptable on sample.receptable = receptable.oid"], # receptable seems to be a typo in the table naming
             orgunit_code: ["left join centraxx_organisationunit as orgunit on sample.orgunit = orgunit.oid"],
-            study_code: ["left join centraxx_flexistudy as flexistudy on sample.flexistudy = flexistudy.oid"]
+            trial_code: ["left join centraxx_flexistudy as flexistudy on sample.flexistudy = flexistudy.oid"]
         }
         selecta = ["sample.*"]
         joina = []
@@ -160,27 +160,27 @@ class traction:
         joina = self._append_idc_join(joina, idc, verbose)
         selectstr = ", \n".join(selecta)
         joinstr = "\n ".join(joina)
-        (wherestr, whereargs) = self._where(sampleids=sampleids, idc=idc, patientids=patientids, studies=studies, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, dtypes=dtypes, verbose=verbose, like=like) 
+        (wherestr, whereargs) = self._where(sampleids=sampleids, idc=idc, patientids=patientids, trials=trials, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, dtypes=dtypes, verbose=verbose, like=like) 
         if where is not None:
            wherestr += " and (" + where + ")"
         topstr = self._top(top)
         query = f"select {topstr} {selectstr} from centraxx_sample sample {joinstr} where {wherestr}"
         if order_by is not None:
-            query += " order by {order_by}"
+            query += f" order by {order_by}"
         if print_query:
            print(query)
         #print(whereargs)
         res = self.db.qfad(query, whereargs)
 
         return res
-    def patient(self, patientids=None, sampleids=None, studies=None):
+    def patient(self, patientids=None, sampleids=None, trials=None):
         query = f"""
         select patc.*, patidc.psn as {patientid} from centraxx_idcontainer patidc
         left join centraxx_patientcontainer patc on patidc.patientcontainer = patc.oid
         left join centraxx_sample sample on sample.patientcontainer = patc.oid
         left join centraxx_sampleidcontainer sidc on sidc.sample = sample.oid
         where patidc.idcontainertype = 8"""
-        (wherestr, whereargs) = self._where(sampleids=sampleids, patientids=patientids, studies=studies)
+        (wherestr, whereargs) = self._where(sampleids=sampleids, patientids=patientids, trials=trials)
 
         query += " and " + wherestr
         #print(query)
@@ -188,7 +188,11 @@ class traction:
         res = self.db.qfad(query, whereargs)
 
         return res
-    def finding(self, sampleids=None, methods=None, studies=None, patientids=None, verbose=[], verbose_all=False):
+    def trial(self):
+        query = "select code from centraxx_flexistudy"
+        res = self.db.qfad(query)
+        return res
+    def finding(self, sampleids=None, methods=None, trials=None, patientids=None, verbose=[], verbose_all=False):
         query = f"""select laborfinding.oid as "laborfinding_oid", laborfinding.*, labormethod.code as {method_code}, sidc.psn as {sampleid}
         from centraxx_laborfinding as laborfinding
 
@@ -197,7 +201,7 @@ class traction:
         left join centraxx_labormapping as labormapping on labormapping.laborfinding = laborfinding.oid
         left join centraxx_sample sample on labormapping.relatedoid = sample.oid
         left join centraxx_sampleidcontainer sidc on sidc.sample = sample.oid"""
-        (wherestr, whereargs) = self._where(sampleids=sampleids, methods=methods, studies=studies)
+        (wherestr, whereargs) = self._where(sampleids=sampleids, methods=methods, trials=trials)
 
         query += " where " + wherestr
         # print(query)
@@ -279,7 +283,8 @@ inner join centraxx_laborvalue labval
       for verb in verbose:
         if verb in self.settings["idc"]:
           idca.append(verb)
-      idca.extend(idc.keys())
+      if idc is not None:
+        idca.extend(idc.keys())
       for item in idca:
         selectstr = f"idc_{item}.psn as '{item}'"
         if not selectstr in selecta:
@@ -290,7 +295,8 @@ inner join centraxx_laborvalue labval
       for verb in verbose:
         if verb in self.settings["idc"]:
           idca.append(verb)
-      idca.extend(idc.keys())
+      if idc is not None:                                
+        idca.extend(idc.keys())
       for item in idca:
         if self._idckind[item] == "SAMPLE":
           joinstr = f"inner join centraxx_sampleidcontainer as idc_{item} on idc_{item}.sample = sample.oid"
@@ -306,19 +312,20 @@ inner join centraxx_laborvalue labval
         else:
           print(f"error: idcontainer kind {self._idckind[item]} not supported.")
       return joina
-    def _where(self, sampleids=None, idc={}, patientids=None, studies=None, locationpaths=None, kitids=None, cxxkitids=None, dtypes=None, methods=None, like=[], verbose=[]): # -> (str, [])
+    def _where(self, sampleids=None, idc={}, patientids=None, trials=None, locationpaths=None, kitids=None, cxxkitids=None, dtypes=None, methods=None, like=[], verbose=[]): # -> (str, [])
         wheredict = {
           sampleid: { "arr": sampleids, "field": "sidc.psn", "morewhere": f"sidc.idcontainertype = {self._idcoid[self.settings['sampleid'].lower()]}" }, # pass the idcontainertype check along
 
           patientid: { "arr": patientids, "field": "patidc.psn", "morewhere": f"patidc.idcontainertype = {self._idcoid[self.settings['patientid'].lower()]}" },
-          study_code: { "arr": studies, "field": "flexistudy.code" },
+          trial_code: { "arr": trials, "field": "flexistudy.code" },
           locationpath: { "arr": locationpaths, "field": "samplelocation.locationpath" },
           method_code: { "arr": methods, "field": "labormethod.code" },
           kitid: { "arr": kitids, "field": "samplekit.kitid" },
           cxxkitid: { "arr": cxxkitids, "field": "samplekit.cxxkitid" },
           dtype: { "arr": dtypes, "field": "sample.dtype" },
         }
-        idca = list(idc.keys()) + list(set(verbose).intersection(self.settings["idc"]))
+        idckeys = [] if idc is None else idc.keys()
+        idca = list(idckeys) + list(set(verbose).intersection(self.settings["idc"]))
         for item in idca:
             wheredict[item] = { "arr": idc[item] if item in idc else None, 
                                 "field": f"idc_{item}.psn", 
@@ -338,9 +345,9 @@ inner join centraxx_laborvalue labval
                     # we're not searching for specific values, so only add the morewhere clause
                     wherestrs.append(row["morewhere"])
                 continue
-            if key in likearr: 
+            if likearr is not None and key in likearr: 
                 # put in an or-chain of like checks over all elements
-                s = self._wherelikes(row["field"], row["arr"]) 
+                s = "(" + self._wherelikes(row["field"]) + ")"
                 wherestrs.append(s)
                 whereargs.append(row["arr"])
             else:

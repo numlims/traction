@@ -47,13 +47,10 @@ parse the arguments.
     # in any case take the database target
     parser.add_argument("db", help="db target")
 
-    parser.add_argument("what", help="sample|patient|finding|method|labval|name - finding: messbefund; method: messprofil; labval: messparam; name: table name for which the display names of the codes should be fetched.")
+    parser.add_argument("what", help="sample|patient|trial|finding|method|labval|name - finding: messbefund; method: messprofil; labval: messparam; name: table name for which the display names of the codes should be fetched.")
     parser.add_argument("--sampleid", required=False, help="sampleid(s)")
-    #parser.add_argument("--sidtype", required=False, "sampleid type")
-    #parser.add_argument("--extsampleid", required=False, help="external sampleid(s)")
     parser.add_argument("--patientid", required=False, help="patientid(s)")
-    #parser.add_argument("--pidtype", required=False, "patientid type")    
-    parser.add_argument("--study", required=False, help="study code(s)")    
+    parser.add_argument("--trial", required=False, help="trial code(s)")
     parser.add_argument("--locationpath", required=False, help="locationpath(s)")
     parser.add_argument("--kitid", required=False, help="kitid(s)")
     parser.add_argument("--cxxkitid", required=False, help="cxxkitid(s)")
@@ -63,6 +60,7 @@ parse the arguments.
     parser.add_argument("--ml-table", required=False, help="if the table mapping from codes to in mytable to names is not called centraxx_mytable_ml_name, give its name here.")
     parser.add_argument("--verbose", help="comma-separated tr constants for additional info, e.g. 'patientid,locationpath'") # -v?  nargs=1?
     parser.add_argument("--verbose-all", help="join in all additional info, takes longer", action="store_true") # -a?
+    parser.add_argument("--like", required=False, help="list of arguments where to check for like instead of equal")
     parser.add_argument("--missing", help="get missing. not yet implemented.", action="store_true") # -m?
     parser.add_argument("--where", required=False, help="additional sql where string")
     parser.add_argument("--order-by", required=False, help="order by on sql query level")
@@ -102,7 +100,7 @@ start up traction.
 initialize the args arrays passed to from cli to traction.
 
 ``
-    sampleids = extsampleids = patientids = studies = locationpaths = kitids = cxxkitids = dtypes = methods = modules = tiers = None
+    sampleids = extsampleids = patientids = trials = locationpaths = kitids = cxxkitids = dtypes = methods = modules = tiers = likes = None
 ``
 
 get the args. if -f flag is set, from file, else from command line.
@@ -123,10 +121,10 @@ patient, finding etc) a seperate?
         if "f" in args: # quickfix read from file if -f
             patientids = open(args.patientid).read().split("\n") # list
         patientids = args.patientid.split(",")
-    if args.study: 
+    if args.trial: 
         if "f" in args: # quickfix read from file if -f
-            studies = open(args.study).read().split("\n") # list
-        studies = args.study.split(",")        
+            trials = open(args.trial).read().split("\n") # list
+        trials = args.trial.split(",")        
     if args.locationpath: 
         if "f" in args: # quickfix read from file if -f
             locationpaths = open(args.locationpath).read().split("\n") # list
@@ -147,6 +145,9 @@ patient, finding etc) a seperate?
         if "f" in args: # quickfix read from file if -f
             dtypes = open(args.dtype).read().split("\n") # list
         dtypes = args.dtype.split(",")
+    if args.like:
+        # don't read as file
+        likes = args.like.split(",")
         
 #    if args.module: 
 #        if "f" in args: # quickfix read from file if -f   ## maybe --module-f, sampleid-f, etc
@@ -163,7 +164,7 @@ get a sample.
 
 ``
     if args.what == "sample":
-        sample = traction.sample(sampleids=sampleids, idc=getidc(vars(args), settings), patientids=patientids, studies=studies, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, dtypes=dtypes, verbose=verbose, verbose_all=args.verbose_all, missing=args.missing, where=args.where, order_by=args.order_by, top=args.top, print_query=args.query) # todo different arguments for string and array
+        sample = traction.sample(sampleids=sampleids, idc=getidc(vars(args), settings), patientids=patientids, trials=trials, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, dtypes=dtypes, verbose=verbose, verbose_all=args.verbose_all, like=likes, missing=args.missing, where=args.where, order_by=args.order_by, top=args.top, print_query=args.query) # todo different arguments for string and array
         # print json
         print(json.dumps(sample, default=str))
 ``
@@ -173,8 +174,16 @@ get a patient.
 
 ``
     if args.what == "patient":
-        patients = traction.patient(patientids=patientids, sampleids=sampleids, studies=studies)
+        patients = traction.patient(patientids=patientids, sampleids=sampleids, trials=trials)
         print(json.dumps(patients, default=str))
+``
+
+get a trial.
+
+``
+    if args.what == "trial":
+        res = traction.trial()
+        print(json.dumps(res, default=str))
 ``
 
 get a labval.
@@ -189,7 +198,7 @@ get a finding.
 
 ``
     if args.what == "finding":
-        res = traction.finding(sampleids=sampleids, methods=methods, studies=studies)
+        res = traction.finding(sampleids=sampleids, methods=methods, trials=trials)
         print(json.dumps(res, default=str))
 ``
 

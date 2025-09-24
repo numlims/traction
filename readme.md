@@ -10,7 +10,7 @@ pat = trac.patient(sampleids=["abc"])
 on the command line:
 
 ```
-traction num_test sample --sampleid 1449330267 --verbose-all
+traction num_test sample --sampleid 1449330267 --verbose-all --pamm primary-aliquot-map.json
 ```
 
 see `traction -h`.
@@ -41,10 +41,10 @@ get the samples of a patient:
 traction <db> sample --patientid lims_565551365
 ```
 
-get all samples in a study.
+get all samples in a trial.
 
 ```
-traction <db> sample --study "NUM RAPID_REVIVE"
+traction <db> sample --trial "NUM RAPID_REVIVE"
 ```
 
 get all master samples where the kitid is NULL that don't have a dot
@@ -93,16 +93,16 @@ get samples with info from idcontainers (idc).
 res = trac.sample(idc={"extsampleid": ["sid1", "sid2", "sid3"]}, verbose=[tr.locationpath])
 ```
 
-get the samples of a patient1 in the rapid revive study in module 1.
+get the samples of a patient1 in the rapid revive trial in module 1.
 
 ```
-res = trac.sample(patientids=["patient1"], study=["NUM RAPID_REVIVE"], idc={"module": ["module 1"]}, verbose_all=True)
+res = trac.sample(patientids=["patient1"], trials=["NUM RAPID_REVIVE"], idc={"module": ["module 1"]}, verbose_all=True)
 ```
 
-get all samples in a study.
+get all samples in a trial.
 
 ```
-res = trac.sample(studies=["NUM RAPID_REVIVE"])
+res = trac.sample(trials=["NUM RAPID_REVIVE"])
 ```
 
 get the samples on a locationpath.
@@ -123,10 +123,10 @@ get the patient for a sample.
 pat = trac.patient(sampleids=["sample1"])
 ```
 
-TODO get all patients in a study.
+TODO get all patients in a trial.
 
 ```
-res = trac.patient(studies=["NUM RAPID_REVIVE"])
+res = trac.patient(trials=["NUM RAPID_REVIVE"])
 ```
 
 get the findings and their values for a sample.
@@ -143,7 +143,7 @@ acetone_name = trac.name("laborvalue")["NUM_NMR_ACETONE_VALUE"]["en"]
 
 ## dev
 
-get [codetext](github.com/tnustrings/codetext) for assembling init.ct
+get [codetext](https://github.com/tnustrings/ct) for assembling init.ct
 and main.ct.
 
 build and install:
