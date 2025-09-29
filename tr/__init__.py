@@ -25,6 +25,12 @@ stockprocessing_code = "stockprocessing_code"
 trial_code = "trial_code"
 tier = "tier"
 values = "values"
+def _checkverbose(verbose, possible):
+        for verb in verbose:
+            if not verb in possible: 
+                print(f"error: verbose entry {verb} must be in {possible}.")
+                return False
+        return True
 def _readsettings():
   if not _hassettings():
     with open(_settingspath(), "w") as file:
@@ -57,6 +63,21 @@ def _settingspath():
     return home / ".traction" / "settings.yaml"
 class traction:
   #`vars``
+    jd = {
+            "sample_to_sampleid": ["inner join centraxx_sampleidcontainer as sidc on sidc.sample = sample.oid"],
+            "sample_to_samplekit": ["left join centraxx_samplekititem as samplekititem on samplekititem.tubebarcode = sidc.psn", "left join centraxx_samplekit as samplekit on samplekit.oid = samplekititem.samplekit"],                  
+            "sample_to_parentid": ["left join centraxx_sampleidcontainer parentidc on parentidc.sample = sample.parent"],
+            "sample_to_samplelocation": ["left join centraxx_samplelocation samplelocation on samplelocation.oid = sample.samplelocation"],
+            "sample_to_sampletype": ["left join centraxx_sampletype as sampletype on sampletype.oid = sample.sampletype"],
+            "sample_to_stockprocessing": ["left join centraxx_stockprocessing as stockprocessing on sample.stockprocessing = stockprocessing.oid"],
+            "sample_to_secondprocessing": ["left join centraxx_stockprocessing as secondprocessing on sample.secondprocessing = secondprocessing.oid"],
+            "sample_to_project": ["left join centraxx_project as project on sample.project = project.oid"],
+            "sample_to_patientid": ["left join centraxx_patientcontainer as patientcontainer on sample.patientcontainer = patientcontainer.oid",
+            "left join centraxx_idcontainer as patidc on patidc.patientcontainer = patientcontainer.oid"], 
+            "sample_to_receptacle": ["left join centraxx_samplereceptable as receptable on sample.receptable = receptable.oid"], # receptable seems to be a typo in the table naming
+            "sample_to_orgunit": ["left join centraxx_organisationunit as orgunit on sample.orgunit = orgunit.oid"],
+            "sample_to_trial": ["left join centraxx_flexistudy as flexistudy on sample.flexistudy = flexistudy.oid"]
+    }
     def __init__(self, target):
         self.settings = _readsettings()
         if self.settings == None:
@@ -82,10 +103,6 @@ class traction:
             verbose.append(patientid)
         if trials:
             verbose.append(trial_code)
-        #if tiers:
-        #    verbose.append(tier)
-        #if modules:
-        #    verbose.append(module)
         if locationpaths:
             verbose.append(locationpath)
         if kitids:
@@ -94,15 +111,15 @@ class traction:
             verbose.append(cxxkitid)
         if verbose_all == True:
             verbose = vaa
+        if not _checkverbose(verbose, vaa + self.settings["idc"]):
+            return None # throw error?
         selects = {
             cxxkitid: [f"samplekit.cxxkitid as '{cxxkitid}'"],
             sampleid: [f"sidc.psn as '{sampleid}'"],
-            # extsampleid: [f"extsidc.psn as '{extsampleid}'"],
             parentid: [f"parentidc.psn as '{parentid}'"],
             kitid: [f"samplekit.kitid as '{kitid}'"],
             locationname: [f"samplelocation.locationid as '{locationname}'"], 
             locationpath: [f"samplelocation.locationpath as '{locationpath}'"],
-            # module: [f"modulesidc.psn as '{module}'"],
             sampletype_code: [f"sampletype.code as '{sampletype_code}'"],
             stockprocessing_code: [f"stockprocessing.code as '{stockprocessing_code}'"],
             secondprocessing_code: [f"secondprocessing.code as '{secondprocessing_code}'"],
@@ -111,58 +128,26 @@ class traction:
             receptacle_code: [f"receptable.code as '{receptacle_code}'"],
             orgunit_code: [f"orgunit.code as '{orgunit_code}'"],
             trial_code: [f"flexistudy.code as '{trial_code}'"],
-            # tier: [f"tiersidc.psn as '{tier}'"]
         }
         joins = {
-            sampleid: ["inner join centraxx_sampleidcontainer as sidc on sidc.sample = sample.oid"],
-            cxxkitid: ["left join centraxx_samplekititem as samplekititem on samplekititem.tubebarcode = sidc.psn", "left join centraxx_samplekit as samplekit on samplekit.oid = samplekititem.samplekit"],                  
-            # extsampleid: ["inner join centraxx_sampleidcontainer as extsidc on extsidc.sample = sample.oid"],
-            # module: ["inner join centraxx_sampleidcontainer as modulesidc on modulesidc.sample = sample.oid"],
-            parentid: ["left join centraxx_sampleidcontainer parentidc on parentidc.sample = sample.parent"],
-            kitid: ["left join centraxx_samplekititem as samplekititem on samplekititem.tubebarcode = sidc.psn", "left join centraxx_samplekit as samplekit on samplekit.oid = samplekititem.samplekit"],
-            locationname: ["left join centraxx_samplelocation samplelocation on samplelocation.oid = sample.samplelocation"],
-            locationpath: ["left join centraxx_samplelocation samplelocation on samplelocation.oid = sample.samplelocation"],
-            sampletype_code: ["left join centraxx_sampletype as sampletype on sampletype.oid = sample.sampletype"],
-            stockprocessing_code: ["left join centraxx_stockprocessing as stockprocessing on sample.stockprocessing = stockprocessing.oid"],
-            secondprocessing_code: ["left join centraxx_stockprocessing as secondprocessing on sample.secondprocessing = secondprocessing.oid"],
-            # tier: ["inner join centraxx_sampleidcontainer as tiersidc on tiersidc.sample = sample.oid"],
-            project_code: ["left join centraxx_project as project on sample.project = project.oid"],
-            patientid: ["left join centraxx_patientcontainer as patientcontainer on sample.patientcontainer = patientcontainer.oid",
-            "left join centraxx_idcontainer as patidc on patidc.patientcontainer = patientcontainer.oid"], 
-            receptacle_code: ["left join centraxx_samplereceptable as receptable on sample.receptable = receptable.oid"], # receptable seems to be a typo in the table naming
-            orgunit_code: ["left join centraxx_organisationunit as orgunit on sample.orgunit = orgunit.oid"],
-            trial_code: ["left join centraxx_flexistudy as flexistudy on sample.flexistudy = flexistudy.oid"]
+            sampleid: self.jd["sample_to_sampleid"],
+            cxxkitid: self.jd["sample_to_samplekit"],
+            parentid: self.jd["sample_to_parentid"],
+            kitid: self.jd["sample_to_samplekit"],
+            locationname: self.jd["sample_to_samplelocation"],
+            locationpath: self.jd["sample_to_samplelocation"],
+            sampletype_code: self.jd["sample_to_sampletype"],
+            stockprocessing_code: self.jd["sample_to_stockprocessing"],
+            secondprocessing_code: self.jd["sample_to_secondprocessing"],
+            project_code: self.jd["sample_to_project"],
+            patientid: self.jd["sample_to_patientid"],
+            receptacle_code: self.jd["sample_to_receptacle"],
+            orgunit_code: self.jd["sample_to_orgunit"],
+            trial_code: self.jd["sample_to_trial"]
         }
-        selecta = ["sample.*"]
-        joina = []
-        possibleverbose = vaa + self.settings["idc"]
-        for verb in verbose:
-            if not verb in possibleverbose: 
-                print(f"error: key {verb} must be in {possibleverbose}.")
-
-            # continue if verb not in selects, it could be handled by idc
-            if not verb in selects:
-                continue
-        
-            # put in the select line(s)
-            for s in selects[verb]:
-                selecta.append(s)
-
-            # continue if verb not in joins, it could be handled by idc
-            if not verb in joins:
-                continue
-
-            for s in joins[verb]:
-                # both locationpath and locationname join in samplelocation, so check that it's not already in the join array
-                if not s in joina:
-                    joina.append(s)
-        selecta = self._append_idc_select(selecta, idc, verbose)
-        joina = self._append_idc_join(joina, idc, verbose)
-        selectstr = ", \n".join(selecta)
-        joinstr = "\n ".join(joina)
-        (wherestr, whereargs) = self._where(sampleids=sampleids, idc=idc, patientids=patientids, trials=trials, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, dtypes=dtypes, verbose=verbose, like=like) 
-        if where is not None:
-           wherestr += " and (" + where + ")"
+        selectstr = self._selectstr(selects, verbose, ["sample.*"], idc)  
+        joinstr = self._joinstr(joins, verbose, idc)  
+        (wherestr, whereargs) = self._where(sampleids=sampleids, idc=idc, patientids=patientids, trials=trials, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, dtypes=dtypes, verbose=verbose, like=like, wherearg=where) 
         topstr = self._top(top)
         query = f"select {topstr} {selectstr} from centraxx_sample sample {joinstr} where {wherestr}"
         if order_by is not None:
@@ -278,6 +263,26 @@ inner join centraxx_laborvalue labval
             out[code][lang] = line["name"]
         return out
 
+    def _selectstr(self, selects, verbose, selecta, idc):
+        for verb in verbose:
+            if not verb in selects:
+                continue
+            for s in selects[verb]:
+                selecta.append(s)
+        selecta = self._append_idc_select(selecta, idc, verbose)
+        selectstr = ", \n".join(selecta)
+        return selectstr
+    def _joinstr(self, joins, verbose, idc):
+        joina = []
+        for verb in verbose:
+            if not verb in joins:
+                continue
+            for s in joins[verb]:
+                if not s in joina:
+                    joina.append(s)
+        joina = self._append_idc_join(joina, idc, verbose)
+        joinstr = "\n ".join(joina)
+        return joinstr
     def _append_idc_select(self, selecta, idc, verbose):
       idca = []
       for verb in verbose:
@@ -312,7 +317,7 @@ inner join centraxx_laborvalue labval
         else:
           print(f"error: idcontainer kind {self._idckind[item]} not supported.")
       return joina
-    def _where(self, sampleids=None, idc={}, patientids=None, trials=None, locationpaths=None, kitids=None, cxxkitids=None, dtypes=None, methods=None, like=[], verbose=[]): # -> (str, [])
+    def _where(self, sampleids=None, idc={}, patientids=None, trials=None, locationpaths=None, kitids=None, cxxkitids=None, dtypes=None, methods=None, like=[], verbose=[], wherearg:str=None): # -> (str, [])
         wheredict = {
           sampleid: { "arr": sampleids, "field": "sidc.psn", "morewhere": f"sidc.idcontainertype = {self._idcoid[self.settings['sampleid'].lower()]}" }, # pass the idcontainertype check along
 
@@ -334,6 +339,8 @@ inner join centraxx_laborvalue labval
         (wherearr, whereargs) = self._wherebuild(wheredict, like, verbose)
 
         wherestr = " and ".join(wherearr)
+        if wherearg is not None:
+           wherestr += " and (" + wherearg + ")"
         return (wherestr, whereargs)
     def _wherebuild(self, wheredict, likearr=[], verbose=[]): # ([]string, [])
         wherestrs = []
