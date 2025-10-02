@@ -48,7 +48,7 @@ idc:
  - <another idcontainertype code>
 """
       file.write(settingsstr)
-      print(f"please fill in the idcontainertype codes for sampleid and patientid in {_settingspath()}, then run again.")
+      print(f"traction: please edit {_settingspath()} and fill in the idcontainertype codes for sampleid and patientid, then run again.")
       return None
   else:
     # read settings file yaml
@@ -75,13 +75,17 @@ class traction:
             "sample_to_patientid": ["left join centraxx_patientcontainer as patientcontainer on sample.patientcontainer = patientcontainer.oid",
             "left join centraxx_idcontainer as patidc on patidc.patientcontainer = patientcontainer.oid"], 
             "sample_to_receptacle": ["left join centraxx_samplereceptable as receptable on sample.receptable = receptable.oid"], # receptable seems to be a typo in the table naming
-            "sample_to_orgunit": ["left join centraxx_organisationunit as orgunit on sample.orgunit = orgunit.oid"],
+            "sample_to_orgunit": ["left join centraxx_organisationunit as organisationunit on sample.orgunit = organisationunit.oid"],
             "sample_to_trial": ["left join centraxx_flexistudy as flexistudy on sample.flexistudy = flexistudy.oid"]
+        ,
+            "patient_to_orgunit": ["left JOIN CENTRAXX_PATIENTORGUNIT patientorgunit ON patidc.PATIENTCONTAINER=patientorgunit.PATIENTCONTAINER_OID", "left JOIN CENTRAXX_ORGANISATIONUNIT organisationunit ON patientorgunit.ORGUNIT_OID=organisationunit.OID"],
+            "patient_to_patientid": ["left join centraxx_idcontainer patidc on patidc.patientcontainer = patientcontainer.oid"],
+            "patient_to_trial": ["left join CENTRAXX_PATIENTSTUDY as patientstudy ON patientstudy.patientcontainer = patientcontainer.oid", "left join centraxx_flexistudy as flexistudy ON flexistudy.oid = patientstudy.flexistudy"]
     }
     def __init__(self, target):
         self.settings = _readsettings()
         if self.settings == None:
-            raise Exception("settings missing.")
+            raise Exception("no settings.")
             return
         if isinstance(target, str):
             self.db = dbcq(target)
@@ -126,7 +130,7 @@ class traction:
             project_code: [f"project.code as '{project_code}'"],
             patientid: [f"patidc.psn as '{patientid}'"],
             receptacle_code: [f"receptable.code as '{receptacle_code}'"],
-            orgunit_code: [f"orgunit.code as '{orgunit_code}'"],
+            orgunit_code: [f"organisationunit.code as '{orgunit_code}'"],
             trial_code: [f"flexistudy.code as '{trial_code}'"],
         }
         joins = {
@@ -158,18 +162,39 @@ class traction:
         res = self.db.qfad(query, whereargs)
 
         return res
-    def patient(self, patientids=None, sampleids=None, trials=None):
-        query = f"""
-        select patc.*, patidc.psn as {patientid} from centraxx_idcontainer patidc
-        left join centraxx_patientcontainer patc on patidc.patientcontainer = patc.oid
-        left join centraxx_sample sample on sample.patientcontainer = patc.oid
-        left join centraxx_sampleidcontainer sidc on sidc.sample = sample.oid
-        where patidc.idcontainertype = 8"""
-        (wherestr, whereargs) = self._where(sampleids=sampleids, patientids=patientids, trials=trials)
+    def patient(self, patientids=None, trials=None, orgunits=None, verbose=[], verbose_all=False, like=[], order_by=None, top=None, print_query=False):
+        # print("try:" + tr.sampleid)
+        vaa = [patientid, trial_code, orgunit_code]
+        if not patientid in verbose:
+            verbose.insert(0, patientid)
+        if trials:
+            verbose.append(trial_code)
+        if orgunits:
+            verbose.append(orgunit_code)
+        if verbose_all == True:
+            verbose = vaa
+        if not _checkverbose(verbose, vaa + self.settings["idc"]):
+            return None # throw error?
+        selects = {
+            patientid: [f"patidc.psn as '{patientid}'"],
+            orgunit_code: [f"organisationunit.code as '{orgunit_code}'"],
+            trial_code: [f"flexistudy.code as '{trial_code}'"],
+        }
+        joins = {
+            patientid: self.jd["patient_to_patientid"],
+            orgunit_code: self.jd["patient_to_orgunit"],
+            trial_code: self.jd["patient_to_trial"]
+        }
+        selectstr = self._selectstr(selects, verbose, ["patientcontainer.*"], {})  
+        joinstr = self._joinstr(joins, verbose, {})  
+        (wherestr, whereargs) = self._where(patientids=patientids, trials=trials, verbose=verbose, like=like) 
+        topstr = self._top(top)
+        query = f"select {topstr} {selectstr} from centraxx_patientcontainer patientcontainer {joinstr} where {wherestr}"
+        if order_by is not None:
+            query += f" order by {order_by}"
+        if print_query:
+           print(query)
 
-        query += " and " + wherestr
-        #print(query)
-        #print(whereargs)
         res = self.db.qfad(query, whereargs)
 
         return res

@@ -75,6 +75,8 @@ make a join-dict, jd.
 ``/jd:
     jd = {
         ``sample_to``
+        ,
+        ``patient_to``
     }
 ``
 
@@ -85,19 +87,20 @@ __init__ takes the db target either as string or dbcq object.
         ``.``
 ``
 
-get the settings.
+get the settings. 
 
 ``
         self.settings = _readsettings()
 ``
 
-for now, if no settings, do nothing.
+if no settings, do nothing. if the settings file is missing,
+_readsetting creates it and asks the user to edit it.
 
 ``
         if self.settings == None:
-            raise Exception("settings missing.")
+            raise Exception("no settings.")
             return
-``      
+``
 
 
 either pass a string argument to dbcq or use dbcq instance directly.
@@ -206,7 +209,7 @@ the select statements for optional joins by key.
             project_code: [f"project.code as '{project_code}'"],
             patientid: [f"patidc.psn as '{patientid}'"],
             receptacle_code: [f"receptable.code as '{receptacle_code}'"],
-            orgunit_code: [f"orgunit.code as '{orgunit_code}'"],
+            orgunit_code: [f"organisationunit.code as '{orgunit_code}'"],
             trial_code: [f"flexistudy.code as '{trial_code}'"],
         }
 ``
@@ -283,46 +286,130 @@ the joindict entries that sample needs.
             "sample_to_patientid": ["left join centraxx_patientcontainer as patientcontainer on sample.patientcontainer = patientcontainer.oid",
             "left join centraxx_idcontainer as patidc on patidc.patientcontainer = patientcontainer.oid"], 
             "sample_to_receptacle": ["left join centraxx_samplereceptable as receptable on sample.receptable = receptable.oid"], # receptable seems to be a typo in the table naming
-            "sample_to_orgunit": ["left join centraxx_organisationunit as orgunit on sample.orgunit = orgunit.oid"],
+            "sample_to_orgunit": ["left join centraxx_organisationunit as organisationunit on sample.orgunit = organisationunit.oid"],
             "sample_to_trial": ["left join centraxx_flexistudy as flexistudy on sample.flexistudy = flexistudy.oid"]
 ``
+
+
 
 patient gives patients.
 
 ``/patient: #py
-    def patient(self, patientids=None, sampleids=None, trials=None):
+    def patient(self, patientids=None, trials=None, orgunits=None, verbose=[], verbose_all=False, like=[], order_by=None, top=None, print_query=False):
         ``.``
 ``
 
-get from sample to patient psn: sample to patientcontainer,
-patientcontainer to idcontainer, idcontainer has psn.
+vaa (verbose-all-array) holds all possible verbose options for patient.
+
+make patientid the first element in vaa so it gets joined in first if
+subsequent joins need it.
+
 
 `` #py
-        query = f"""
-        select patc.*, patidc.psn as {patientid} from centraxx_idcontainer patidc
-        left join centraxx_patientcontainer patc on patidc.patientcontainer = patc.oid
-        left join centraxx_sample sample on sample.patientcontainer = patc.oid
-        left join centraxx_sampleidcontainer sidc on sidc.sample = sample.oid
-        where patidc.idcontainertype = 8"""
+        # print("try:" + tr.sampleid)
+        vaa = [patientid, trial_code, orgunit_code]
 ``
 
-get the where string for the args and stick together the query.
+always put the patientid into verbose for now, again, as the first array element
+for subsequent joins that might need it.
 
 `` #py
-        (wherestr, whereargs) = self._where(sampleids=sampleids, patientids=patientids, trials=trials)
-
-        query += " and " + wherestr
-        #print(query)
-        #print(whereargs)
+        if not patientid in verbose:
+            verbose.insert(0, patientid)
 ``
 
-get the result and return it.
+put the keys for the given arguments into the verbose array, so that
+they land in the join, so that the wherestring can access the
+joined-in fields.
 
 `` #py
+        if trials:
+            verbose.append(trial_code)
+        if orgunits:
+            verbose.append(orgunit_code)
+``
+
+on verbose_all include all constants in the verbose array.
+
+`` #py
+        if verbose_all == True:
+            verbose = vaa
+``
+
+make sure that the verbose array only contains keys from the
+verbose-all-array, and possible idcontainer names.
+
+``
+        if not _checkverbose(verbose, vaa + self.settings["idc"]):
+            return None # throw error?
+``
+
+the select statements for optional joins by key.
+
+`` #py
+        selects = {
+            patientid: [f"patidc.psn as '{patientid}'"],
+            orgunit_code: [f"organisationunit.code as '{orgunit_code}'"],
+            trial_code: [f"flexistudy.code as '{trial_code}'"],
+        }
+``
+
+the join statements for optional joins by key. if the same join is
+needed for two different keys they are filtered out later.
+
+pull the values from the join dict, jd.
+
+`` #py
+        joins = {
+            patientid: self.jd["patient_to_patientid"],
+            orgunit_code: self.jd["patient_to_orgunit"],
+            trial_code: self.jd["patient_to_trial"]
+        }
+``
+
+put together the select string and join string for the query.
+
+`` #py
+        selectstr = self._selectstr(selects, verbose, ["patientcontainer.*"], {})  
+        joinstr = self._joinstr(joins, verbose, {})  
+``
+
+get the where string.
+
+`` #py
+        (wherestr, whereargs) = self._where(patientids=patientids, trials=trials, verbose=verbose, like=like) 
+``
+
+get the top string.
+
+``
+        topstr = self._top(top)
+``
+
+stick together the query, get the result and return it.
+
+`` #py
+        query = f"select {topstr} {selectstr} from centraxx_patientcontainer patientcontainer {joinstr} where {wherestr}"
+        if order_by is not None:
+            query += f" order by {order_by}"
+        if print_query:
+           print(query)
+
         res = self.db.qfad(query, whereargs)
 
         return res
 ``
+
+  
+
+the joindict entries that patient needs.
+
+``/jd/patient_to:
+            "patient_to_orgunit": ["left JOIN CENTRAXX_PATIENTORGUNIT patientorgunit ON patidc.PATIENTCONTAINER=patientorgunit.PATIENTCONTAINER_OID", "left JOIN CENTRAXX_ORGANISATIONUNIT organisationunit ON patientorgunit.ORGUNIT_OID=organisationunit.OID"],
+            "patient_to_patientid": ["left join centraxx_idcontainer patidc on patidc.patientcontainer = patientcontainer.oid"],
+            "patient_to_trial": ["left join CENTRAXX_PATIENTSTUDY as patientstudy ON patientstudy.patientcontainer = patientcontainer.oid", "left join centraxx_flexistudy as flexistudy ON flexistudy.oid = patientstudy.flexistudy"]
+``
+
 
 trial gives trials.
 
@@ -584,6 +671,8 @@ _selectstr filters the selects by the verbose array and returns the
 sql select string. selecta is for fields that should be selected
 regardless if they're in the verbose array or not.
 
+the idc argument assumes that the sample table is joined it.
+
 ``/_selectstr: #py
     def _selectstr(self, selects, verbose, selecta, idc):
         for verb in verbose:
@@ -619,6 +708,8 @@ get the selections and joins as string.
 ``
 
 _joinstr filters the joins by the verbose array and returns the sql join string.
+
+the idc argument assumes that the sample table is joined in.
 
 ``/_joinstr: #py
     def _joinstr(self, joins, verbose, idc):
@@ -1044,7 +1135,7 @@ idc:
  - <another idcontainertype code>
 """
       file.write(settingsstr)
-      print(f"please fill in the idcontainertype codes for sampleid and patientid in {_settingspath()}, then run again.")
+      print(f"traction: please edit {_settingspath()} and fill in the idcontainertype codes for sampleid and patientid, then run again.")
       return None
 ``
 

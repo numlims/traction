@@ -14,7 +14,7 @@ def getidc(args:dict, settings):
 def main():
     settings = tr._readsettings()
     if settings == None:
-      return
+        return
     parser = argparse.ArgumentParser()
 
     # in any case take the database target
@@ -28,6 +28,7 @@ def main():
     parser.add_argument("--kitid", required=False, help="kitid(s)")
     parser.add_argument("--cxxkitid", required=False, help="cxxkitid(s)")
     parser.add_argument("--dtype", required=False, help="MASTER|DERIVED|ALIQUOTGROUP")
+    parser.add_argument("--orgunit", required=False, help="organisation unit")    
     parser.add_argument("--method", required=False, help="for labormethod(s) (messprofil)")
     parser.add_argument("--table", required=False, help="the table to get names for codes for")
     parser.add_argument("--ml-table", required=False, help="if the table mapping from codes to in mytable to names is not called centraxx_mytable_ml_name, give its name here.")
@@ -48,7 +49,7 @@ def main():
     if args.verbose != None:
         verbose = args.verbose.split(",")
     traction = tr.traction(args.db)
-    sampleids = extsampleids = patientids = trials = locationpaths = kitids = cxxkitids = dtypes = methods = modules = tiers = likes = None
+    sampleids = extsampleids = patientids = trials = locationpaths = kitids = cxxkitids = dtypes = methods = orgunits = likes = None
     if args.sampleid: # read sampleid from cmd line
         if "f" in args: # quickfix read from file if -f
             sampleids = open(args.sampleid).read().split("\n") # list
@@ -85,25 +86,21 @@ def main():
         if "f" in args: # quickfix read from file if -f
             dtypes = open(args.dtype).read().split("\n") # list
         dtypes = args.dtype.split(",")
+    if args.orgunit: 
+        if "f" in args: # quickfix read from file if -f
+            orgunits = open(args.orgunit).read().split("\n") # list
+        orgunits = args.orgunit.split(",")
     if args.like:
         # don't read as file
         likes = args.like.split(",")
         
-#    if args.module: 
-#        if "f" in args: # quickfix read from file if -f   ## maybe --module-f, sampleid-f, etc
-#            modules = open(args.module).read().split("\n") # list
-#        modules = args.module.split(",")
-#    if args.tier: 
-#        if "f" in args: # quickfix read from file if -f   ## maybe --module-f, sampleid-f, etc
-#            tiers = open(args.tier).read().split("\n") # list
-#        tiers = args.tier.split(",")
         
     if args.what == "sample":
         sample = traction.sample(sampleids=sampleids, idc=getidc(vars(args), settings), patientids=patientids, trials=trials, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, dtypes=dtypes, verbose=verbose, verbose_all=args.verbose_all, like=likes, missing=args.missing, where=args.where, order_by=args.order_by, top=args.top, print_query=args.query) # todo different arguments for string and array
         # print json
         print(json.dumps(sample, default=str))
     if args.what == "patient":
-        patients = traction.patient(patientids=patientids, sampleids=sampleids, trials=trials)
+        patients = traction.patient(patientids=patientids, trials=trials, orgunits=orgunits, verbose=verbose, verbose_all=args.verbose_all, like=likes, order_by=args.order_by, top=args.top, print_query=args.query)
         print(json.dumps(patients, default=str))
     if args.what == "trial":
         res = traction.trial()
