@@ -78,9 +78,10 @@ class traction:
             "sample_to_orgunit": ["left join centraxx_organisationunit as organisationunit on sample.orgunit = organisationunit.oid"],
             "sample_to_trial": ["left join centraxx_flexistudy as flexistudy on sample.flexistudy = flexistudy.oid"]
         ,
-            "patient_to_orgunit": ["left JOIN CENTRAXX_PATIENTORGUNIT patientorgunit ON patidc.PATIENTCONTAINER=patientorgunit.PATIENTCONTAINER_OID", "left JOIN CENTRAXX_ORGANISATIONUNIT organisationunit ON patientorgunit.ORGUNIT_OID=organisationunit.OID"],
+            "patient_to_orgunit": ["left join centraxx_patientorgunit patientorgunit on patidc.patientcontainer=patientorgunit.patientcontainer_oid", "left join centraxx_organisationunit organisationunit on patientorgunit.orgunit_oid=organisationunit.oid"],
             "patient_to_patientid": ["left join centraxx_idcontainer patidc on patidc.patientcontainer = patientcontainer.oid"],
-            "patient_to_trial": ["left join CENTRAXX_PATIENTSTUDY as patientstudy ON patientstudy.patientcontainer = patientcontainer.oid", "left join centraxx_flexistudy as flexistudy ON flexistudy.oid = patientstudy.flexistudy"]
+            "patient_to_trial": ["left join centraxx_patientstudy as patientstudy on patientstudy.patientcontainer = patientcontainer.oid", "left join centraxx_flexistudy as flexistudy on flexistudy.oid = patientstudy.flexistudy"],
+            "patient_to_sample": ["left join centraxx_sample sample on sample.patientcontainer = patientcontainer.oid"]
     }
     def __init__(self, target):
         self.settings = _readsettings()
@@ -162,18 +163,21 @@ class traction:
         res = self.db.qfad(query, whereargs)
 
         return res
-    def patient(self, patientids=None, trials=None, orgunits=None, verbose=[], verbose_all=False, like=[], order_by=None, top=None, print_query=False):
+    def patient(self, patientids=None, trials=None, orgunits=None, idc=None, verbose=[], verbose_all=False, like=[], order_by=None, top=None, print_query=False):
         # print("try:" + tr.sampleid)
         vaa = [patientid, trial_code, orgunit_code]
         if not patientid in verbose:
             verbose.insert(0, patientid)
+        silent = []
         if trials:
-            verbose.append(trial_code)
+            silent.append(trial_code)
         if orgunits:
-            verbose.append(orgunit_code)
+            silent.append(orgunit_code)
+        if idc:
+            silent.append(sampleid)
         if verbose_all == True:
             verbose = vaa
-        if not _checkverbose(verbose, vaa + self.settings["idc"]):
+        if not _checkverbose(verbose, vaa + self.settings["idc"] + [sampleid]):
             return None # throw error?
         selects = {
             patientid: [f"patidc.psn as '{patientid}'"],
@@ -183,11 +187,12 @@ class traction:
         joins = {
             patientid: self.jd["patient_to_patientid"],
             orgunit_code: self.jd["patient_to_orgunit"],
+            sampleid: self.jd["patient_to_sample"] + self.jd["sample_to_sampleid"], # add sample_to_sampleid to not mess up where clause for now
             trial_code: self.jd["patient_to_trial"]
         }
-        selectstr = self._selectstr(selects, verbose, ["patientcontainer.*"], {})  
-        joinstr = self._joinstr(joins, verbose, {})  
-        (wherestr, whereargs) = self._where(patientids=patientids, trials=trials, verbose=verbose, like=like) 
+        selectstr = self._selectstr(selects, verbose, ["distinct patientcontainer.*"], idc)  
+        joinstr = self._joinstr(joins, verbose + silent, idc)  
+        (wherestr, whereargs) = self._where(patientids=patientids, trials=trials, idc=idc, verbose=verbose, like=like) 
         topstr = self._top(top)
         query = f"select {topstr} {selectstr} from centraxx_patientcontainer patientcontainer {joinstr} where {wherestr}"
         if order_by is not None:
@@ -313,8 +318,8 @@ inner join centraxx_laborvalue labval
       for verb in verbose:
         if verb in self.settings["idc"]:
           idca.append(verb)
-      if idc is not None:
-        idca.extend(idc.keys())
+      #if idc is not None:
+      #  idca.extend(idc.keys())
       for item in idca:
         selectstr = f"idc_{item}.psn as '{item}'"
         if not selectstr in selecta:

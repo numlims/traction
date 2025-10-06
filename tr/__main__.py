@@ -100,7 +100,7 @@ def main():
         # print json
         print(json.dumps(sample, default=str))
     if args.what == "patient":
-        patients = traction.patient(patientids=patientids, trials=trials, orgunits=orgunits, verbose=verbose, verbose_all=args.verbose_all, like=likes, order_by=args.order_by, top=args.top, print_query=args.query)
+        patients = traction.patient(patientids=patientids, trials=trials, orgunits=orgunits, idc=getidc(vars(args), settings), verbose=verbose, verbose_all=args.verbose_all, like=likes, order_by=args.order_by, top=args.top, print_query=args.query)
         print(json.dumps(patients, default=str))
     if args.what == "trial":
         res = traction.trial()

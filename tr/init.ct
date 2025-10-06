@@ -295,7 +295,7 @@ the joindict entries that sample needs.
 patient gives patients.
 
 ``/patient: #py
-    def patient(self, patientids=None, trials=None, orgunits=None, verbose=[], verbose_all=False, like=[], order_by=None, top=None, print_query=False):
+    def patient(self, patientids=None, trials=None, orgunits=None, idc=None, verbose=[], verbose_all=False, like=[], order_by=None, top=None, print_query=False):
         ``.``
 ``
 
@@ -318,15 +318,22 @@ for subsequent joins that might need it.
             verbose.insert(0, patientid)
 ``
 
-put the keys for the given arguments into the verbose array, so that
-they land in the join, so that the wherestring can access the
-joined-in fields.
+put the keys for the given arguments into an array for silent joins.
 
 `` #py
+        silent = []
         if trials:
-            verbose.append(trial_code)
+            silent.append(trial_code)
         if orgunits:
-            verbose.append(orgunit_code)
+            silent.append(orgunit_code)
+``
+
+if there's idc given, join in the sample, cause idc joins require a
+sample connection. is that always true?
+
+``
+        if idc:
+            silent.append(sampleid)
 ``
 
 on verbose_all include all constants in the verbose array.
@@ -339,8 +346,12 @@ on verbose_all include all constants in the verbose array.
 make sure that the verbose array only contains keys from the
 verbose-all-array, and possible idcontainer names.
 
+add the sampleid extra cause it strictly isn't allowed as a verbose
+flag, but if verbose is used to orchestrate all joins it needs to be
+in verbose for idc?
+
 ``
-        if not _checkverbose(verbose, vaa + self.settings["idc"]):
+        if not _checkverbose(verbose, vaa + self.settings["idc"] + [sampleid]):
             return None # throw error?
 ``
 
@@ -363,21 +374,24 @@ pull the values from the join dict, jd.
         joins = {
             patientid: self.jd["patient_to_patientid"],
             orgunit_code: self.jd["patient_to_orgunit"],
+            sampleid: self.jd["patient_to_sample"] + self.jd["sample_to_sampleid"], # add sample_to_sampleid to not mess up where clause for now
             trial_code: self.jd["patient_to_trial"]
         }
 ``
 
 put together the select string and join string for the query.
 
+always select patientcontainer. make joins for verbose and silent.
+
 `` #py
-        selectstr = self._selectstr(selects, verbose, ["patientcontainer.*"], {})  
-        joinstr = self._joinstr(joins, verbose, {})  
+        selectstr = self._selectstr(selects, verbose, ["distinct patientcontainer.*"], idc)  
+        joinstr = self._joinstr(joins, verbose + silent, idc)  
 ``
 
 get the where string.
 
 `` #py
-        (wherestr, whereargs) = self._where(patientids=patientids, trials=trials, verbose=verbose, like=like) 
+        (wherestr, whereargs) = self._where(patientids=patientids, trials=trials, idc=idc, verbose=verbose, like=like) 
 ``
 
 get the top string.
@@ -405,9 +419,10 @@ stick together the query, get the result and return it.
 the joindict entries that patient needs.
 
 ``/jd/patient_to:
-            "patient_to_orgunit": ["left JOIN CENTRAXX_PATIENTORGUNIT patientorgunit ON patidc.PATIENTCONTAINER=patientorgunit.PATIENTCONTAINER_OID", "left JOIN CENTRAXX_ORGANISATIONUNIT organisationunit ON patientorgunit.ORGUNIT_OID=organisationunit.OID"],
+            "patient_to_orgunit": ["left join centraxx_patientorgunit patientorgunit on patidc.patientcontainer=patientorgunit.patientcontainer_oid", "left join centraxx_organisationunit organisationunit on patientorgunit.orgunit_oid=organisationunit.oid"],
             "patient_to_patientid": ["left join centraxx_idcontainer patidc on patidc.patientcontainer = patientcontainer.oid"],
-            "patient_to_trial": ["left join CENTRAXX_PATIENTSTUDY as patientstudy ON patientstudy.patientcontainer = patientcontainer.oid", "left join centraxx_flexistudy as flexistudy ON flexistudy.oid = patientstudy.flexistudy"]
+            "patient_to_trial": ["left join centraxx_patientstudy as patientstudy on patientstudy.patientcontainer = patientcontainer.oid", "left join centraxx_flexistudy as flexistudy on flexistudy.oid = patientstudy.flexistudy"],
+            "patient_to_sample": ["left join centraxx_sample sample on sample.patientcontainer = patientcontainer.oid"]
 ``
 
 
@@ -758,18 +773,16 @@ _append_idc_select adds the sql select statements for an idc dict.
       ``.``
 ``
 
-put in the members of verbose touched by idc and the keys of idc into a common array.
+put in the members of verbose touched by idc.
 
 ``
   idca = []
   for verb in verbose:
     if verb in self.settings["idc"]:
       idca.append(verb)
-  if idc is not None:
-    idca.extend(idc.keys())
 ``    
 
-add a select for each key in the idc dict.  
+make select strings and append them.
 
 ``
   for item in idca:
