@@ -190,11 +190,11 @@ class traction:
             sampleid: self.jd["patient_to_sample"] + self.jd["sample_to_sampleid"], # add sample_to_sampleid to not mess up where clause for now
             trial_code: self.jd["patient_to_trial"]
         }
-        selectstr = self._selectstr(selects, verbose, ["distinct patientcontainer.*"], idc)  
+        selectstr = self._selectstr(selects, verbose, ["patientcontainer.*"], idc)  
         joinstr = self._joinstr(joins, verbose + silent, idc)  
         (wherestr, whereargs) = self._where(patientids=patientids, trials=trials, idc=idc, verbose=verbose, like=like) 
         topstr = self._top(top)
-        query = f"select {topstr} {selectstr} from centraxx_patientcontainer patientcontainer {joinstr} where {wherestr}"
+        query = f"select distinct {topstr} {selectstr} from centraxx_patientcontainer patientcontainer {joinstr} where {wherestr}"
         if order_by is not None:
             query += f" order by {order_by}"
         if print_query:
@@ -318,8 +318,6 @@ inner join centraxx_laborvalue labval
       for verb in verbose:
         if verb in self.settings["idc"]:
           idca.append(verb)
-      #if idc is not None:
-      #  idca.extend(idc.keys())
       for item in idca:
         selectstr = f"idc_{item}.psn as '{item}'"
         if not selectstr in selecta:

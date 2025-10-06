@@ -381,10 +381,10 @@ pull the values from the join dict, jd.
 
 put together the select string and join string for the query.
 
-always select patientcontainer. make joins for verbose and silent.
+always select patientcontainer. join in verbose and silent.
 
 `` #py
-        selectstr = self._selectstr(selects, verbose, ["distinct patientcontainer.*"], idc)  
+        selectstr = self._selectstr(selects, verbose, ["patientcontainer.*"], idc)  
         joinstr = self._joinstr(joins, verbose + silent, idc)  
 ``
 
@@ -400,17 +400,23 @@ get the top string.
         topstr = self._top(top)
 ``
 
-stick together the query, get the result and return it.
+stick together the query. select distinct so that sample joins for
+idcontainers etc don't result in a patient getting returned multiple
+times if there's multiple samples.
+
 
 `` #py
-        query = f"select {topstr} {selectstr} from centraxx_patientcontainer patientcontainer {joinstr} where {wherestr}"
+        query = f"select distinct {topstr} {selectstr} from centraxx_patientcontainer patientcontainer {joinstr} where {wherestr}"
         if order_by is not None:
             query += f" order by {order_by}"
         if print_query:
            print(query)
+``
 
+get the result and return it.
+
+``
         res = self.db.qfad(query, whereargs)
-
         return res
 ``
 

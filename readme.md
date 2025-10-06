@@ -4,13 +4,13 @@ samples and patients in centraxx
 
 ```
 trac = new tr.traction("num_test")
-pat = trac.patient(sampleids=["abc"])
+result = trac.sample(sampleids=["1449330267"], verbose=[tr.locationpath])
 ```
 
 on the command line:
 
 ```
-traction num_test sample --sampleid 1449330267 --verbose-all --pamm primary-aliquot-map.json
+traction num_test sample --sampleid 1449330267 --verbose-all
 ```
 
 see `traction -h`.
@@ -53,6 +53,12 @@ with --where).
 
 ```
 traction <db> sample --cxxkitid NULL --dtype MASTER --where "sidc.psn not like '%.'"
+```
+
+get all patients in the BSI or CNS module of SNID.
+
+```
+traction <db> patient --trial "NUM S-SNID" --modul "BSI: Bloodstream Infections,CNS: CNS Infections"
 ```
 
 get the findings (messbefunde) and their values for a bunch of samples:
