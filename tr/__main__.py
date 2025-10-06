@@ -4,7 +4,7 @@ import simplejson as json
 import sys
 def add_args(parser, settings):
   for item in settings["idc"]:
-    parser.add_argument(f"--{item}", required=False, help=f"{item} sampleidcontainer")
+    parser.add_argument(f"--{item}", required=False, help=f"{item} idcontainer")
 def getidc(args:dict, settings):
   out = {}
   for item in settings["idc"]:
@@ -20,7 +20,7 @@ def main():
     # in any case take the database target
     parser.add_argument("db", help="db target")
 
-    parser.add_argument("what", help="sample|patient|trial|finding|method|name - finding: messbefund; name: table name for which the display names of the codes should be fetched.") # labval: messparameter
+    parser.add_argument("what", help="sample|patient|trial|finding|method|name. finding: messbefund; name: table name for which the display names of the codes should be fetched.") # labval: messparameter
     parser.add_argument("--sampleid", required=False, help="sampleid(s)")
     parser.add_argument("--patientid", required=False, help="patientid(s)")
     parser.add_argument("--trial", required=False, help="trial code(s)")

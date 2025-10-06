@@ -67,6 +67,12 @@ get the findings (messbefunde) and their values for a bunch of samples:
 traction <db> finding --sampleid A0942214,A0941343,A0941344
 ```
 
+get all methods and their labvals.
+
+```
+traction <db> method
+```
+
 get names for messparameters.
 
 ```
