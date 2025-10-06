@@ -18,7 +18,7 @@ class traction:
   ``patient``
   ``trial``
   ``finding``
-  ``labval``
+  ``method``
   ``name``
 
   ``_selectstr``
@@ -561,28 +561,28 @@ return the findings with their respective values.
         return findings
 ``
 
-labval gets laborvalues (messparameter) of a method.
+method (messprofil) gets method(s) and their labvals (messparameter).
         
-``/labval:
-    def labval(self, methods=None):
+``/method:
+    def method(self, methods=None):
         ``.``
 ``
 
 the query.
 
 ``
-        query = f"""select labval.*, method.code
-from centraxx_labormethod method
+        query = f"""select laborvalue.*, labormethod.code as "method_code"
+from centraxx_labormethod labormethod
 inner join centraxx_crftemplate crf_t
-    on method.crf_template=crf_t.oid
+    on labormethod.crf_template=crf_t.oid
 inner join centraxx_crftempsection crf_ts
     on crf_t.oid=crf_ts.crftemplate
 inner join centraxx_crftempsection_fields crf_tsf
     on crf_ts.oid=crf_tsf.crftempsection_oid
 inner join centraxx_crftempfield crf_tf
     on crf_tsf.crftempfield_oid=crf_tf.oid
-inner join centraxx_laborvalue labval
-    on crf_tf.labval=labval.oid"""
+inner join centraxx_laborvalue laborvalue
+    on crf_tf.laborvalue=laborvalue.oid"""
 ``
 
 add the where string.
@@ -590,15 +590,29 @@ add the where string.
 ``
         (wherestr, whereargs) = self._where(methods=methods)
 
-        query += " where " + wherestr
+        if wherestr:
+          query += " where " + wherestr
+        # print(query)
 ``
 
 return the result.
 
 ``
         res = self.db.qfad(query, whereargs)
+``
 
-        return res
+key by method code.
+
+``
+        out = {}
+        for row in res:
+          mc = row[method_code]
+          if mc not in out:
+            out[mc] = {}
+          del row[method_code]
+          out[mc] = row
+        
+        return out
 ``
 
 name gives the multilingual names for a code or all codes in a table.

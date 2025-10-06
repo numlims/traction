@@ -20,7 +20,7 @@ def main():
     # in any case take the database target
     parser.add_argument("db", help="db target")
 
-    parser.add_argument("what", help="sample|patient|trial|finding|method|labval|name - finding: messbefund; method: messprofil; labval: messparam; name: table name for which the display names of the codes should be fetched.")
+    parser.add_argument("what", help="sample|patient|trial|finding|method|name - finding: messbefund; name: table name for which the display names of the codes should be fetched.") # labval: messparameter
     parser.add_argument("--sampleid", required=False, help="sampleid(s)")
     parser.add_argument("--patientid", required=False, help="patientid(s)")
     parser.add_argument("--trial", required=False, help="trial code(s)")
@@ -29,7 +29,7 @@ def main():
     parser.add_argument("--cxxkitid", required=False, help="cxxkitid(s)")
     parser.add_argument("--dtype", required=False, help="MASTER|DERIVED|ALIQUOTGROUP")
     parser.add_argument("--orgunit", required=False, help="organisation unit")    
-    parser.add_argument("--method", required=False, help="for labormethod(s) (messprofil)")
+    parser.add_argument("--method", required=False, help="labormethod(s) (messprofil)")
     parser.add_argument("--table", required=False, help="the table to get names for codes for")
     parser.add_argument("--ml-table", required=False, help="if the table mapping from codes to in mytable to names is not called centraxx_mytable_ml_name, give its name here.")
     parser.add_argument("--verbose", help="comma-separated tr constants for additional info, e.g. 'patientid,locationpath'") # -v?  nargs=1?
@@ -105,8 +105,8 @@ def main():
     if args.what == "trial":
         res = traction.trial()
         print(json.dumps(res, default=str))
-    if args.what == "labval":
-        res = traction.labval(methods=methods)
+    if args.what == "method":
+        res = traction.method(methods=methods)
         print(json.dumps(res, default=str))
     if args.what == "finding":
         res = traction.finding(sampleids=sampleids, methods=methods, trials=trials)

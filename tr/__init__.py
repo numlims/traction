@@ -199,9 +199,7 @@ class traction:
             query += f" order by {order_by}"
         if print_query:
            print(query)
-
         res = self.db.qfad(query, whereargs)
-
         return res
     def trial(self):
         query = "select code from centraxx_flexistudy"
@@ -240,25 +238,34 @@ class traction:
               valsbycode[val["laborvalue_code"]] = val
             findings[i][values] = valsbycode
         return findings
-    def labval(self, methods=None):
-        query = f"""select labval.*, method.code
-from centraxx_labormethod method
+    def method(self, methods=None):
+        query = f"""select laborvalue.*, labormethod.code as "method_code"
+from centraxx_labormethod labormethod
 inner join centraxx_crftemplate crf_t
-    on method.crf_template=crf_t.oid
+    on labormethod.crf_template=crf_t.oid
 inner join centraxx_crftempsection crf_ts
     on crf_t.oid=crf_ts.crftemplate
 inner join centraxx_crftempsection_fields crf_tsf
     on crf_ts.oid=crf_tsf.crftempsection_oid
 inner join centraxx_crftempfield crf_tf
     on crf_tsf.crftempfield_oid=crf_tf.oid
-inner join centraxx_laborvalue labval
-    on crf_tf.labval=labval.oid"""
+inner join centraxx_laborvalue laborvalue
+    on crf_tf.laborvalue=laborvalue.oid"""
         (wherestr, whereargs) = self._where(methods=methods)
 
-        query += " where " + wherestr
+        if wherestr:
+          query += " where " + wherestr
+        # print(query)
         res = self.db.qfad(query, whereargs)
-
-        return res
+        out = {}
+        for row in res:
+          mc = row[method_code]
+          if mc not in out:
+            out[mc] = {}
+          del row[method_code]
+          out[mc] = row
+        
+        return out
     def name(self, table:str, code:str=None, lang:str=None, ml_table:str=None):
         query = "select [" + table + "].code, multilingual.value as name, multilingual.lang as lang"
         query += " from [centraxx_" + table + "] as [" + table + "]"

@@ -129,10 +129,10 @@ get the patient for a sample.
 pat = trac.patient(sampleids=["sample1"])
 ```
 
-TODO get all patients in a trial.
+get all patients in the revive trial that are in the BSI module.
 
 ```
-res = trac.patient(trials=["NUM RAPID_REVIVE"])
+res = trac.patient(trials=["NUM RAPID_REVIVE"], idc={"modul": ["BSI: Bloodstream Infections"]})
 ```
 
 get the findings and their values for a sample.
