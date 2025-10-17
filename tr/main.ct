@@ -10,26 +10,21 @@
 sys.exit(main())
 ``
 
-import.
-
-``/import:
-import argparse
-import tr
-import simplejson as json
-import sys
-``
-
-main offers a cli for traction
+main holds a cli for traction.
 
 ``/main:
 def main():
     ``.``
 ``
 
-get the settings for setting up idcontainer flags.
+get the settings before starting traction for setting up idcontainer flags.
 
 ``
-    settings = tr._readsettings()
+    try:
+        settings = cnf.makeload(path=".traction/settings.yaml", root=cnf.home, fmt="yaml", make=tr.cnftemplate)        
+    except cnf.MakeCnfException as e:
+        print("traction: " + str(e))
+        return 1
 ``
 
 for now, if no settings, do nothing.
@@ -95,7 +90,16 @@ split the verbose array.
 start up traction.
 
 ``
-    traction = tr.traction(args.db)
+    try:
+        traction = tr.traction(args.db)
+``
+
+intercept target error.
+
+``
+    except TargetException as e: # is this referencable from other packages?
+        print("traction: " + str(e))
+        return 1
 ``
 
 initialize the args arrays passed to from cli to traction.
@@ -208,21 +212,34 @@ get a name.
         print(json.dumps(res, default=str))
 ``
 
+import.
+
+``/import:
+import argparse
+import cnf
+from dbcq import dbcq
+from dbcq import TargetException
+import tr
+import simplejson as json
+import sys
+``
+
+
 add_args adds idc args from settings.
 
 ``/add_args:
 def add_args(parser, settings):
-  for item in settings["idc"]:
-    parser.add_argument(f"--{item}", required=False, help=f"{item} idcontainer")
+    for item in settings["idc"]:
+        parser.add_argument(f"--{item}", required=False, help=f"{item} idcontainer")
 ``
 
 getidc filters the arg flags according to the idcs given in settings.
 
 ``/getidc:
 def getidc(args:dict, settings):
-  out = {}
-  for item in settings["idc"]:
-    if item in args and args[item] != None:
-      out[item] = args[item].split(",")
-  return out
+    out = {}
+    for item in settings["idc"]:
+      if item in args and args[item] != None:
+        out[item] = args[item].split(",")
+    return out
 ``

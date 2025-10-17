@@ -1,5 +1,4 @@
 from dbcq import *
-import yaml
 cxxkitid = "cxxkitid"
 collectiondate = "samplingdate" # entnahmedatum / extraction date
 derivaldate = "derivaldate" # aufteilungsdatum / date of distribution
@@ -7,7 +6,6 @@ dtype = "dtype" # MASTER, ALIQUOTGROUP, DERIVED. maybe rename this to sampletype
 extsampleid = "extsampleid"
 first_repositiondate = "first_repositiondate" # datum der ersten einlagerung / date of first storage (not in fhir). is identical to derivaldate.
 method_code = "method_code"
-module = "module"
 kitid = "kitid"
 locationname = "locationname"
 locationpath = "locationpath"
@@ -23,18 +21,8 @@ sampletype_code = "sampletype_code"
 secondprocessing_code = "secondprocessing_code"
 stockprocessing_code = "stockprocessing_code"
 trial_code = "trial_code"
-tier = "tier"
 values = "values"
-def _checkverbose(verbose, possible):
-        for verb in verbose:
-            if not verb in possible: 
-                print(f"error: verbose entry {verb} must be in {possible}.")
-                return False
-        return True
-def _readsettings():
-  if not _hassettings():
-    with open(_settingspath(), "w") as file:
-      settingsstr = """
+cnftemplate = """
 # settings for traction.
 
 # sampleid sets the idcontainertype code that is used when searching for sampleid
@@ -47,22 +35,16 @@ idc:
  - <an idcontainertype code>
  - <another idcontainertype code>
 """
-      file.write(settingsstr)
-      print(f"traction: please edit {_settingspath()} and fill in the idcontainertype codes for sampleid and patientid, then run again.")
-      return None
-  else:
-    # read settings file yaml
-    with open(_settingspath(), "r") as file:
-      settings = yaml.safe_load(file)
-      return settings
-def _hassettings():
-    return _settingspath().is_file()
-
-def _settingspath():
-    home = Path.home()
-    return home / ".traction" / "settings.yaml"
+def _checkverbose(verbose, possible):
+    """
+    _checkverbose makes shure that only allowed keys are in the verbose array. 
+    """
+    for verb in verbose:
+        if not verb in possible: 
+            print(f"error: verbose entry {verb} must be in {possible}.")
+            return False
+    return True
 class traction:
-  #`vars``
     jd = {
             "sample_to_sampleid": ["inner join centraxx_sampleidcontainer as sidc on sidc.sample = sample.oid"],
             "sample_to_samplekit": ["left join centraxx_samplekititem as samplekititem on samplekititem.tubebarcode = sidc.psn", "left join centraxx_samplekit as samplekit on samplekit.oid = samplekititem.samplekit"],                  
@@ -84,7 +66,10 @@ class traction:
             "patient_to_sample": ["left join centraxx_sample sample on sample.patientcontainer = patientcontainer.oid"]
     }
     def __init__(self, target):
-        self.settings = _readsettings()
+        """
+        __init__ takes the db target either as string or dbcq object.
+        """
+        self.settings = cnf.makeload(path=".traction/settings.yaml", root=cnf.home, fmt="yaml", make=cnftemplate)        
         if self.settings == None:
             raise Exception("no settings.")
             return
@@ -98,6 +83,17 @@ class traction:
         #print(f"_idcoids: {self._idcoids}")
 
     def sample(self, sampleids=None, idc=None, patientids=None, locationpaths=None, trials=None, kitids=None, cxxkitids=None, dtypes=None, verbose=[], verbose_all=False, like=[], missing=False, where=None, order_by=None, top=None, print_query=False):
+        """
+        sample gets sample(s) by sampleid or external id. pass sampleids as
+        array. to join in more information, say verbose_all=True, this is
+        slower than non-verbose.
+        
+        the first implementation tried to take the tablenames/colums as keys
+        for the returned json fields, but that doesn't quite work for
+        patientpsn, where the key would be just 'idcontainer.psn'. so maybe
+        rename the joined-in fields to sampleid, *_code, patientid,
+        parentid etc.
+        """
         # print("try:" + tr.sampleid)
         vaa = [sampleid, cxxkitid, kitid, locationname, locationpath, orgunit_code, parentid,
                patientid, project_code, receptacle_code, sampletype_code,
@@ -164,6 +160,9 @@ class traction:
 
         return res
     def patient(self, patientids=None, trials=None, orgunits=None, idc=None, verbose=[], verbose_all=False, like=[], order_by=None, top=None, print_query=False):
+        """
+        patient gives patients.
+        """
         # print("try:" + tr.sampleid)
         vaa = [patientid, trial_code, orgunit_code]
         if not patientid in verbose:
@@ -202,10 +201,17 @@ class traction:
         res = self.db.qfad(query, whereargs)
         return res
     def trial(self):
+        """
+        trial gives trials.
+        """
         query = "select code from centraxx_flexistudy"
         res = self.db.qfad(query)
         return res
     def finding(self, sampleids=None, methods=None, trials=None, patientids=None, verbose=[], verbose_all=False):
+        """
+        finding gets the laborfinding (messbefund / begleitschein) for
+        sampleid or messbefund.  (if verbose with its recorded values?)
+        """
         query = f"""select laborfinding.oid as "laborfinding_oid", laborfinding.*, labormethod.code as {method_code}, sidc.psn as {sampleid}
         from centraxx_laborfinding as laborfinding
 
@@ -217,7 +223,7 @@ class traction:
         (wherestr, whereargs) = self._where(sampleids=sampleids, methods=methods, trials=trials)
 
         query += " where " + wherestr
-        # print(query)
+        #print(query)
         findings = self.db.qfad(query, whereargs)
         for i, finding in enumerate(findings):
             query = """select recordedvalue.*, laborvalue.code as laborvalue_code
@@ -239,6 +245,9 @@ class traction:
             findings[i][values] = valsbycode
         return findings
     def method(self, methods=None):
+        """
+        method (messprofil) gets method(s) and their labvals (messparameter).
+        """
         query = f"""select laborvalue.*, labormethod.code as "method_code"
 from centraxx_labormethod labormethod
 inner join centraxx_crftemplate crf_t
@@ -267,6 +276,23 @@ inner join centraxx_laborvalue laborvalue
         
         return out
     def name(self, table:str, code:str=None, lang:str=None, ml_table:str=None):
+        """
+        name gives the multilingual names for a code or all codes in a table.
+        
+        the result is keyed by code and language like this:
+        
+        
+        "NUM_NMR_ISOLEUCINE_VALUE": {  
+           "de": "Isoleucin",  
+           "en": "Isoleucine"  
+        }
+        
+        
+        table: the name of the centraxx table without centraxx_ prefix  
+        code: a specific code, if none given, all code - name mappings for table are given  
+        lang: de|en  
+        ml_table: if the name of the table connecting to multilingualentry is not simlpy the queried table name followed by "_ml_name", give the connecting table's name here. eg: name('laborvaluegroup', ..., ml_name='labval_grp_ml_name')  
+        """
         query = "select [" + table + "].code, multilingual.value as name, multilingual.lang as lang"
         query += " from [centraxx_" + table + "] as [" + table + "]"
         ml_name = ""
@@ -301,6 +327,13 @@ inner join centraxx_laborvalue laborvalue
         return out
 
     def _selectstr(self, selects, verbose, selecta, idc):
+        """
+        _selectstr filters the selects by the verbose array and returns the
+        sql select string. selecta is for fields that should be selected
+        regardless if they're in the verbose array or not.
+        
+        the idc argument assumes that the sample table is joined it.
+        """
         for verb in verbose:
             if not verb in selects:
                 continue
@@ -310,6 +343,11 @@ inner join centraxx_laborvalue laborvalue
         selectstr = ", \n".join(selecta)
         return selectstr
     def _joinstr(self, joins, verbose, idc):
+        """
+        _joinstr filters the joins by the verbose array and returns the sql join string.
+        
+        the idc argument assumes that the sample table is joined in.
+        """
         joina = []
         for verb in verbose:
             if not verb in joins:
@@ -321,38 +359,52 @@ inner join centraxx_laborvalue laborvalue
         joinstr = "\n ".join(joina)
         return joinstr
     def _append_idc_select(self, selecta, idc, verbose):
-      idca = []
-      for verb in verbose:
-        if verb in self.settings["idc"]:
-          idca.append(verb)
-      for item in idca:
-        selectstr = f"idc_{item}.psn as '{item}'"
-        if not selectstr in selecta:
-          selecta.append(selectstr)
-      return selecta
+        """
+        _append_idc_select adds the sql select statements for an idc dict.
+        """
+        idca = []
+        for verb in verbose:
+          if verb in self.settings["idc"]:
+            idca.append(verb)
+        for item in idca:
+          selectstr = f"idc_{item}.psn as '{item}'"
+          if not selectstr in selecta:
+            selecta.append(selectstr)
+        return selecta
     def _append_idc_join(self, joina, idc, verbose):
-      idca = []
-      for verb in verbose:
-        if verb in self.settings["idc"]:
-          idca.append(verb)
-      if idc is not None:                                
-        idca.extend(idc.keys())
-      for item in idca:
-        if self._idckind[item] == "SAMPLE":
-          joinstr = f"inner join centraxx_sampleidcontainer as idc_{item} on idc_{item}.sample = sample.oid"
-          if not joinstr in joina:
-            joina.append(joinstr)
-        elif self._idckind[item] == "PATIENT":
-          joinstr = f"left join centraxx_patientcontainer as pc_{item} on sample.patientcontainer = pc_{item}.oid"
-          if not joinstr in joina: # neccessary?
-            joina.append(joinstr)
-          joinstr = f"left join centraxx_idcontainer as idc_{item} on pc_{item}.oid = idc_{item}.patientcontainer"
-          if not joinstr in joina: # neccessary?
-            joina.append(joinstr)
-        else:
-          print(f"error: idcontainer kind {self._idckind[item]} not supported.")
-      return joina
+        """
+        _append_idc_join adds the sql join statements for an idc dict.
+        """
+        idca = []
+        for verb in verbose:
+          if verb in self.settings["idc"]:
+            idca.append(verb)
+        if idc is not None:                                
+          idca.extend(idc.keys())
+        for item in idca:
+          if self._idckind[item] == "SAMPLE":
+            joinstr = f"inner join centraxx_sampleidcontainer as idc_{item} on idc_{item}.sample = sample.oid"
+            if not joinstr in joina:
+              joina.append(joinstr)
+          elif self._idckind[item] == "PATIENT":
+            joinstr = f"left join centraxx_patientcontainer as pc_{item} on sample.patientcontainer = pc_{item}.oid"
+            if not joinstr in joina: # neccessary?
+              joina.append(joinstr)
+            joinstr = f"left join centraxx_idcontainer as idc_{item} on pc_{item}.oid = idc_{item}.patientcontainer"
+            if not joinstr in joina: # neccessary?
+              joina.append(joinstr)
+          else:
+            print(f"error: idcontainer kind {self._idckind[item]} not supported.")
+        return joina
     def _where(self, sampleids=None, idc={}, patientids=None, trials=None, locationpaths=None, kitids=None, cxxkitids=None, dtypes=None, methods=None, like=[], verbose=[], wherearg:str=None): # -> (str, [])
+        """
+        _where returns the wherestring and args array for the provided arguments (that are not None).
+        the user needs to make sure that whatever is referenced here is joined into the query before.
+        the names are assumed to be the tr constants, like e.g. tr.sampleid.
+        like is an array of tr constants of the arguments for which we check likeness. we only check likeness for the first passed string of an argument array. if for example like=[tr.locationpath], we check likeness of locationpaths[0].
+        
+        make sure only one of sampleids or extsampleids is passed?
+        """
         wheredict = {
           sampleid: { "arr": sampleids, "field": "sidc.psn", "morewhere": f"sidc.idcontainertype = {self._idcoid[self.settings['sampleid'].lower()]}" }, # pass the idcontainertype check along
 
@@ -378,6 +430,9 @@ inner join centraxx_laborvalue laborvalue
            wherestr += " and (" + wherearg + ")"
         return (wherestr, whereargs)
     def _wherebuild(self, wheredict, likearr=[], verbose=[]): # ([]string, [])
+        """
+        _wherebuild builds wherestrings and fills whereargs.
+        """
         wherestrs = []
         whereargs = []
         for (key, row) in wheredict.items():
@@ -411,6 +466,9 @@ inner join centraxx_laborvalue laborvalue
                 wherestrs.append(row["morewhere"])
         return (wherestrs, whereargs)
     def _sqlinplaceholder(n):
+        """
+        _sqlinplaceholder returns a string like (?, ?, ?, ? ...) with n question marks for sql in.
+        """
 
         # put this in a package sqlutil?
 
@@ -422,23 +480,40 @@ inner join centraxx_laborvalue laborvalue
         out += ")"
         return out
     def _whereparam(self, name, like:bool=None):
+        """
+        _whereparam gives a ?-parameterized sql where expression for name
+        equal or like parameter for use in queries.
+        """
         if like == None or like == False:
             return name + " = ?"
         else:
             return name + " like '%' + ? + '%'"
     def _wherelike(self, name):
-          return name + " like '%' + ? + '%'"
+        """
+        _wherelike gives a ?-parameterized sql where like expression.
+        """
+        return name + " like '%' + ? + '%'"
 
     def _wherelikes(self, fieldarr):
+        """
+        _wherelikes gives a ?-parameterized sql of or-joined where-like expressions.
+        """
         a = []
         for f in fieldarr:
             a.append(f + " like '%' + ? + '%'") # the sql takes literal plusses like here
         return " or ".join(a)
     def _top(self, top):
+        """
+        _top returns the top string, for, e.g. `select top 100 * from table`, if
+        top is None return an empty string.
+        """
         if top is not None:
            return f"top {top}"
         return ""
     def _idcinit(self):
+        """
+        _idcinit makes a mapping of idcontainers from their code (lower-case) to respective oid and kind.
+        """
         query = "select code, oid, kind from centraxx_idcontainertype"
         res = self.db.qfad(query)
         self._idcoid = {}
@@ -446,4 +521,3 @@ inner join centraxx_laborvalue laborvalue
         for row in res:
           self._idcoid[row["code"].lower()] = row["oid"]
           self._idckind[row["code"].lower()] = row["kind"]
-  

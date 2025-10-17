@@ -6,34 +6,29 @@ commonly used getters (and setters?) for centrax db.
 ``import``
 ``const``
 ``_checkverbose``
-``_readsettings``
-``_hassettings``
-``_settingspath``
 class traction:
-  #`vars``
-  ``jd``
-  ``init``
+    ``jd``
+    ``init``
 
-  ``sample``
-  ``patient``
-  ``trial``
-  ``finding``
-  ``method``
-  ``name``
+    ``sample``
+    ``patient``
+    ``trial``
+    ``finding``
+    ``method``
+    ``name``
 
-  ``_selectstr``
-  ``_joinstr``
-  ``_append_idc_select``
-  ``_append_idc_join``
-  ``_where``
-  ``_wherebuild``
-  ``_sqlinplaceholder``
-  ``_whereparam``
-  ``_wherelike``
-  ``_wherelikes``
-  ``_top``
-  ``_idcinit``
-  
+    ``_selectstr``
+    ``_joinstr``
+    ``_append_idc_select``
+    ``_append_idc_join``
+    ``_where``
+    ``_wherebuild``
+    ``_sqlinplaceholder``
+    ``_whereparam``
+    ``_wherelike``
+    ``_wherelikes``
+    ``_top``
+    ``_idcinit``
 ``
 
 put constants here so you can say sample(..., verbose=[tr.parentid,
@@ -50,7 +45,6 @@ dtype = "dtype" # MASTER, ALIQUOTGROUP, DERIVED. maybe rename this to sampletype
 extsampleid = "extsampleid"
 first_repositiondate = "first_repositiondate" # datum der ersten einlagerung / date of first storage (not in fhir). is identical to derivaldate.
 method_code = "method_code"
-module = "module"
 kitid = "kitid"
 locationname = "locationname"
 locationpath = "locationpath"
@@ -66,7 +60,6 @@ sampletype_code = "sampletype_code"
 secondprocessing_code = "secondprocessing_code"
 stockprocessing_code = "stockprocessing_code"
 trial_code = "trial_code"
-tier = "tier"
 values = "values"
 ``
 
@@ -87,21 +80,20 @@ __init__ takes the db target either as string or dbcq object.
         ``.``
 ``
 
-get the settings. 
+get the settings. if the settings file is missing, cnf creates it and
+asks the user to edit it.
 
 ``
-        self.settings = _readsettings()
+        self.settings = cnf.makeload(path=".traction/settings.yaml", root=cnf.home, fmt="yaml", make=cnftemplate)        
 ``
 
-if no settings, do nothing. if the settings file is missing,
-_readsetting creates it and asks the user to edit it.
+if no settings, do nothing. 
 
 ``
         if self.settings == None:
             raise Exception("no settings.")
             return
 ``
-
 
 either pass a string argument to dbcq or use dbcq instance directly.
 
@@ -125,6 +117,24 @@ import dbcq.
 
 ``/import: #py
 from dbcq import *
+``
+
+add a variable that holds the conf template.
+
+``/const
+cnftemplate = """
+# settings for traction.
+
+# sampleid sets the idcontainertype code that is used when searching for sampleid
+sampleid: <an idcontainertype code, e.g. SAMPLEID>
+# patientid sets the idcontainertype code that is used when searching for patientid
+patientid: <an idcontainertype code, e.g. LIMSPSN>
+
+# idc holds additional idcontainertype codes that will be queryable as command line flags 
+idc:
+ - <an idcontainertype code>
+ - <another idcontainertype code>
+"""
 ``
 
 sample gets sample(s) by sampleid or external id. pass sampleids as
@@ -504,7 +514,7 @@ get the where string and append it to the query.
         (wherestr, whereargs) = self._where(sampleids=sampleids, methods=methods, trials=trials)
 
         query += " where " + wherestr
-        # print(query)
+        #print(query)
 ``
 
 get the result.
@@ -619,15 +629,17 @@ name gives the multilingual names for a code or all codes in a table.
 
 the result is keyed by code and language like this:
 
-"NUM_NMR_ISOLEUCINE_VALUE": {
-   "de": "Isoleucin",
-   "en": "Isoleucine"
+
+"NUM_NMR_ISOLEUCINE_VALUE": {  
+   "de": "Isoleucin",  
+   "en": "Isoleucine"  
 }
 
-table: the name of the centraxx table without centraxx_ prefix
-code: a specific code, if none given, all code - name mappings for table are given
-lang: de|en
-ml_table: if the name of the table connecting to multilingualentry is not simlpy the queried table name followed by "_ml_name", give the connecting table's name here. eg: name('laborvaluegroup', ... ml_name='labval_grp_ml_name')
+
+table: the name of the centraxx table without centraxx_ prefix  
+code: a specific code, if none given, all code - name mappings for table are given  
+lang: de|en  
+ml_table: if the name of the table connecting to multilingualentry is not simlpy the queried table name followed by "_ml_name", give the connecting table's name here. eg: name('laborvaluegroup', ..., ml_name='labval_grp_ml_name')  
 
 
 ``/name:
@@ -790,7 +802,7 @@ _append_idc_select adds the sql select statements for an idc dict.
 
 ``/_append_idc_select:
     def _append_idc_select(self, selecta, idc, verbose):
-      ``.``
+        ``.``
 ``
 
 put in the members of verbose touched by idc.
@@ -821,19 +833,19 @@ _append_idc_join adds the sql join statements for an idc dict.
 
 ``/_append_idc_join: #py
     def _append_idc_join(self, joina, idc, verbose):
-      ``.``
+        ``.``
 ``
 
 put in the members of verbose touched by idc and the keys of idc into
 a common array.
 
 ``
-      idca = []
-      for verb in verbose:
-        if verb in self.settings["idc"]:
-          idca.append(verb)
-      if idc is not None:                                
-        idca.extend(idc.keys())
+        idca = []
+        for verb in verbose:
+          if verb in self.settings["idc"]:
+            idca.append(verb)
+        if idc is not None:                                
+          idca.extend(idc.keys())
 ``    
 
 add a join for each member of the idc array.
@@ -841,13 +853,13 @@ add a join for each member of the idc array.
 the joins are different for idckind SAMPLE and PATIENT.
 
 ``
-      for item in idca:
-        if self._idckind[item] == "SAMPLE":
-          ``sample``
-        elif self._idckind[item] == "PATIENT":
-          ``patient``
-        else:
-          print(f"error: idcontainer kind {self._idckind[item]} not supported.")
+        for item in idca:
+          if self._idckind[item] == "SAMPLE":
+            ``sample``
+          elif self._idckind[item] == "PATIENT":
+            ``patient``
+          else:
+            print(f"error: idcontainer kind {self._idckind[item]} not supported.")
 ``
 
 join in sampleidcontainer for SAMPLE. prefix it with idc_ instead of sidc_,
@@ -873,7 +885,7 @@ join in idcontainer via patientcontainer for PATIENT:
 return the selecta with appended strings.
 
 ``/_append_idc_join
-      return joina
+        return joina
 ``
 
 
@@ -881,7 +893,7 @@ return the selecta with appended strings.
 _where returns the wherestring and args array for the provided arguments (that are not None).
 the user needs to make sure that whatever is referenced here is joined into the query before.
 the names are assumed to be the tr constants, like e.g. tr.sampleid.
-like is an array of tr constants of the arguments for which we check likeness. we only check likeness for the first passed string of an argument array. if for example like=[tr.locationpath], we check likeness of locationpaths[0]."""
+like is an array of tr constants of the arguments for which we check likeness. we only check likeness for the first passed string of an argument array. if for example like=[tr.locationpath], we check likeness of locationpaths[0].
 
 make sure only one of sampleids or extsampleids is passed?
 
@@ -1082,7 +1094,7 @@ _wherelike gives a ?-parameterized sql where like expression.
 
 ``/_wherelike:
     def _wherelike(self, name):
-          return name + " like '%' + ? + '%'"
+        return name + " like '%' + ? + '%'"
 
 ``
 
@@ -1134,75 +1146,11 @@ _checkverbose makes shure that only allowed keys are in the verbose array.
 
 ``/_checkverbose:
 def _checkverbose(verbose, possible):
-        for verb in verbose:
-            if not verb in possible: 
-                print(f"error: verbose entry {verb} must be in {possible}.")
-                return False
-        return True
-``
-
-
-_readsettings reads the setting file (and creates it if it's not there).
-
-``/_readsettings:
-def _readsettings():
-  ``.``
-``
-
-if no settings, create stub settings file.
-
-``
-  if not _hassettings():
-    with open(_settingspath(), "w") as file:
-      settingsstr = """
-# settings for traction.
-
-# sampleid sets the idcontainertype code that is used when searching for sampleid
-sampleid: <an idcontainertype code, e.g. SAMPLEID>
-# patientid sets the idcontainertype code that is used when searching for patientid
-patientid: <an idcontainertype code, e.g. LIMSPSN>
-
-# idc holds additional idcontainertype codes that will be queryable as command line flags 
-idc:
- - <an idcontainertype code>
- - <another idcontainertype code>
-"""
-      file.write(settingsstr)
-      print(f"traction: please edit {_settingspath()} and fill in the idcontainertype codes for sampleid and patientid, then run again.")
-      return None
-``
-
-else read the settings.
-
-``
-  else:
-    # read settings file yaml
-    with open(_settingspath(), "r") as file:
-      settings = yaml.safe_load(file)
-      return settings
-``
-
-import yaml.
-
-``/import
-import yaml
-``
-
-
-settingspath returns the path to the settings.
-
-``/_settingspath:
-
-def _settingspath():
-    home = Path.home()
-    return home / ".traction" / "settings.yaml"
-``
-
-_hassettings reports whether there is a settings file.
-
-``/_hassettings:
-def _hassettings():
-    return _settingspath().is_file()
+    for verb in verbose:
+        if not verb in possible: 
+            print(f"error: verbose entry {verb} must be in {possible}.")
+            return False
+    return True
 ``
 
 

@@ -1,0 +1,27 @@
+test tests traction.
+
+``//test_dbcq.py:
+``import``
+``test_run``
+``
+
+test run tries to start up traction and to a query.
+
+``/test_run:
+def test_run():
+    ``.``
+``
+
+start up traction and get a sample.
+
+``
+    trac = tr.traction("num_test")
+    res = trac.sample(sampleids=["abc"])
+    assert len(res) == 0
+``
+
+import.
+
+``/import:
+import tr
+``

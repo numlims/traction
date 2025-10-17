@@ -7,6 +7,8 @@ trac = new tr.traction("num_test")
 result = trac.sample(sampleids=["1449330267"], verbose=[tr.locationpath])
 ```
 
+docs [here](https://numlims.github.io/traction/).
+
 on the command line:
 
 ```
@@ -155,11 +157,23 @@ acetone_name = trac.name("laborvalue")["NUM_NMR_ACETONE_VALUE"]["en"]
 
 ## dev
 
-get [codetext](https://github.com/tnustrings/ct) for assembling init.ct
+get [ct](https://github.com/tnustrings/ct) for assembling init.ct
 and main.ct.
 
 build and install:
 
 ```
 make install
+```
+
+test:
+
+```
+make test
+```
+
+generate api doc:
+
+```
+make doc
 ```

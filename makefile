@@ -1,22 +1,41 @@
 # name
-name = "traction"
+name = traction
+
+docdir = ~/numlims.github.io/traction/
+docmake = ~/numlims.github.io
 
 # get the version from github tag
 # delete the v from the version tag cause python build seems to strip it as well
-version = $(shell git tag | tail -1 | tr -d v)
+version = $(shell git tag | sort -V | tail -1 | tr -d v)
 
 all:
-	ct tr/init.ct; ct tr/main.ct; 
+	ct tr/init.ct
+	ct tr/main.ct
+	ct test/test.ct
+
+build:
+	make
 	python3 -m build --no-isolation
 
 install:
-	make
+	make build
 	pip install "./dist/${name}-${version}-py3-none-any.whl" --no-deps --force-reinstall
 
+.PHONY: test
+test:
+	make install
+	pytest -s
+
 doc:
-	pdoc --html "${name} --force
+	make
+	pdoc "./tr" -o html
 	ct tr/init.ct --tex --mdtotex "pandoc -f markdown -t latex" -o doc/init.tex
 	ct tr/main.ct --tex --mdtotex "pandoc -f markdown -t latex" -o doc/main.tex
+
+doc-publish:
+	make doc
+	cp -r html/* ${docdir}
+	cd ${docmake} && make publish
 
 doc-wrap:
 	ct --tex -o doc/traction.tex

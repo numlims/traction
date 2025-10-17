@@ -1,18 +1,34 @@
 import argparse
+import cnf
+from dbcq import dbcq
+from dbcq import TargetException
 import tr
 import simplejson as json
 import sys
 def add_args(parser, settings):
-  for item in settings["idc"]:
-    parser.add_argument(f"--{item}", required=False, help=f"{item} idcontainer")
+    """
+    add_args adds idc args from settings.
+    """
+    for item in settings["idc"]:
+        parser.add_argument(f"--{item}", required=False, help=f"{item} idcontainer")
 def getidc(args:dict, settings):
-  out = {}
-  for item in settings["idc"]:
-    if item in args and args[item] != None:
-      out[item] = args[item].split(",")
-  return out
+    """
+    getidc filters the arg flags according to the idcs given in settings.
+    """
+    out = {}
+    for item in settings["idc"]:
+      if item in args and args[item] != None:
+        out[item] = args[item].split(",")
+    return out
 def main():
-    settings = tr._readsettings()
+    """
+    main holds a cli for traction.
+    """
+    try:
+        settings = cnf.makeload(path=".traction/settings.yaml", root=cnf.home, fmt="yaml", make=tr.cnftemplate)        
+    except cnf.MakeCnfException as e:
+        print("traction: " + str(e))
+        return 1
     if settings == None:
         return
     parser = argparse.ArgumentParser()
@@ -48,7 +64,11 @@ def main():
     verbose = []
     if args.verbose != None:
         verbose = args.verbose.split(",")
-    traction = tr.traction(args.db)
+    try:
+        traction = tr.traction(args.db)
+    except TargetException as e: # is this referencable from other packages?
+        print("traction: " + str(e))
+        return 1
     sampleids = extsampleids = patientids = trials = locationpaths = kitids = cxxkitids = dtypes = methods = orgunits = likes = None
     if args.sampleid: # read sampleid from cmd line
         if "f" in args: # quickfix read from file if -f
