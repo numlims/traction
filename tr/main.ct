@@ -10,7 +10,8 @@
 sys.exit(main())
 ``
 
-main holds a cli for traction.
+main holds a cli for traction. it takes a database target and
+various search flags. see `traction -h`.
 
 ``/main:
 def main():

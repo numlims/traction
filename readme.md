@@ -157,8 +157,9 @@ acetone_name = trac.name("laborvalue")["NUM_NMR_ACETONE_VALUE"]["en"]
 
 ## dev
 
-get [ct](https://github.com/tnustrings/ct) for assembling init.ct
-and main.ct.
+edit [`tr/main.ct`](./tr/main.ct) and [`tr/init.ct`](./tr/init.ct).
+
+to generate the code from the ct files get [ct](https://github.com/tnustrings/ct).
 
 build and install:
 
