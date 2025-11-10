@@ -12,12 +12,25 @@ def test_run():
     ``.``
 ``
 
+take a live sampleid.
+
+``
+    sampleid = "1478370269"
+``
+
 start up traction and get a sample.
 
 ``
     trac = tr.traction("num_test")
-    res = trac.sample(sampleids=["abc"])
-    assert len(res) == 0
+    res = trac.sample(sampleids=[sampleid])
+    assert len(res) == 1
+``
+
+get the patient for a sample.
+
+``
+    res = trac.patient(sampleids=[sampleid])
+    assert len(res) == 1
 ``
 
 import.
@@ -25,3 +38,7 @@ import.
 ``/import:
 import tr
 ``
+
+        #joinstr = f"left join centraxx_patientcontainer as pc_{item} on sample.patientcontainer = pc_{item}.oid"
+        #if not joinstr in joina: # neccessary?
+        #  joina.append(joinstr)

@@ -54,7 +54,7 @@ at the end of their sample id (passed as an additional where clause
 with --where).
 
 ```
-traction <db> sample --cxxkitid NULL --dtype MASTER --where "sidc.psn not like '%.'"
+traction <db> sample --cxxkitid NULL --category MASTER --where "sidc.psn not like '%.'"
 ```
 
 get all patients in the BSI or CNS module of SNID.
@@ -104,13 +104,13 @@ res = trac.sample(sampleids=["sid1", "sid2", "sid3"], verbose_all=True)
 get samples with info from idcontainers (idc).
 
 ```
-res = trac.sample(idc={"extsampleid": ["sid1", "sid2", "sid3"]}, verbose=[tr.locationpath])
+res = trac.sample(idc={"EXTSAMPLEID": ["sid1", "sid2", "sid3"]}, verbose=[tr.locationpath])
 ```
 
 get the samples of a patient1 in the rapid revive trial in module 1.
 
 ```
-res = trac.sample(patientids=["patient1"], trials=["NUM RAPID_REVIVE"], idc={"module": ["module 1"]}, verbose_all=True)
+res = trac.sample(patientids=["patient1"], trials=["NUM RAPID_REVIVE"], idc={"MODUL": ["module 1"]}, verbose_all=True)
 ```
 
 get all samples in a trial.
@@ -140,7 +140,7 @@ pat = trac.patient(sampleids=["sample1"])
 get all patients in the revive trial that are in the BSI module.
 
 ```
-res = trac.patient(trials=["NUM RAPID_REVIVE"], idc={"modul": ["BSI: Bloodstream Infections"]})
+res = trac.patient(trials=["NUM RAPID_REVIVE"], idc={"MODUL": ["BSI: Bloodstream Infections"]})
 ```
 
 get the findings and their values for a sample.
