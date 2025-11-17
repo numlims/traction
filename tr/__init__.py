@@ -641,7 +641,7 @@ class traction:
         query = "select code from centraxx_flexistudy"
         res = self.db.qfad(query)
         return res
-    def finding(self, sampleids=None, patientids=None, idc=None, methods=None, trials=None, verbose=[], verbose_all:bool=False, print_query:bool=False, raw:bool=False):
+    def finding(self, sampleids=None, patientids=None, idc=None, methods=None, trials=None, values:bool=True, verbose=[], verbose_all:bool=False, print_query:bool=False, raw:bool=False):
         """
          finding gets the laborfindings ("messbefund" / "begleitschein") for
          sampleids or method.  it returns a list of Finding instances.
@@ -683,6 +683,8 @@ class traction:
             print(whereargs)
         results = self.db.qfad(query, whereargs)
         for i, finding in enumerate(results):
+            if values != True: # todo put this outside of the loop?
+                continue
             query = f"""select recordedvalue.*, laborvalue.code as laborvalue_code, laborvalue.dtype as laborvalue_type, laborvalue.custom_catalog as laborvalue_catalog_oid, unit.code as laborvalue_unit
                 from centraxx_laborfinding as laborfinding
 
@@ -702,7 +704,7 @@ class traction:
             valsbycode = {}
             for recval in recvals:
               valsbycode[recval["laborvalue_code"]] = self._make_rec(recval, finding)
-            results[i][values] = valsbycode
+            results[i]["values"] = valsbycode
         if raw:
             return results
         findings = []
@@ -712,8 +714,7 @@ class traction:
                 method=res["method_code"],
                 methodname=res["shortname"],
                 patient=Idable(id=dig(res, patientid), code=self.pidc(), mainidc=self.pidc()) if dig(res, patientid) is not None else None, 
-                recs=res[values], 
-                #sample=Idable(ids=[Identifier(id=res[sampleid], code=self.sidc())], mainidc=self.sidc()), 
+                recs=res["values"] if "values" in res else None, # todo None ok?
                 sample=Idable(id=res[sampleid], code=self.sidc(), mainidc=self.sidc()),
                 sender=None
             )

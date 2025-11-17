@@ -224,6 +224,7 @@ def main():
             idc=getidc(vars(args), settings),
             methods=methods,
             trials=trials,
+            values=True, # todo make arg?
             print_query=args.query,
             raw=args.raw)
         print(jsonpickle.encode(res, unpicklable=False))

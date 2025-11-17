@@ -1069,7 +1069,7 @@ make findings from the results.
                 method=res["method_code"],
                 methodname=res["shortname"],
                 patient=Idable(id=dig(res, patientid), code=self.pidc(), mainidc=self.pidc()) if dig(res, patientid) is not None else None, 
-                recs=res["values"] if "values" in res, 
+                recs=res["values"] if "values" in res else None, # todo None ok?
                 sample=Idable(id=res[sampleid], code=self.sidc(), mainidc=self.sidc()),
                 sender=None
             )
