@@ -12,7 +12,6 @@ derivaldate = "derivaldate" # aufteilungsdatum / date of distribution
 category = "category" # MASTER, ALIQUOTGROUP, DERIVED. dtype in db.
 initialamount = "initialamount"
 initialunit = "initialunit"
-extsampleid = "extsampleid"
 first_repositiondate = "first_repositiondate" # datum der ersten einlagerung / date of first storage (not in fhir). is identical to derivaldate. first_repositiondate in db.
 method_code = "method_code"
 kitid = "kitid"
@@ -20,6 +19,7 @@ locationname = "locationname"
 locationpath = "locationpath"
 orga_code = "orga_code"
 parentid = "parentid"
+parentoid = "parentoid"
 patientid = "patientid"
 project_code = "project_code"
 receiptdate = "receiptdate" # eingangsdatum / date of receipt. receiptdate in db.
@@ -28,9 +28,12 @@ repositiondate = "repositiondate" # datum der letzten einlagerung / most recent 
 restamount = "restamount"
 restunit = "restunit"
 sampleid = "sampleid"
+sampleoid = "sampleoid"
 sampletype_code = "sampletype_code"
 secondprocessing_code = "secondprocessing_code"
+secondprocessingdate = "secondprocessingdate"
 stockprocessing_code = "stockprocessing_code"
+stockprocessingdate = "stockprocessingdate"
 trial_code = "trial_code"
 type = "type" # sampletype (EDTA, stool etc) in db. 
 values = "values"
@@ -67,13 +70,19 @@ def floatornull(x):
     if x is None:
         return None
     return float(x)
+def get_ids(idables:list, code:str=None) -> list:
+    """
+     get_ids returns a list of string ids from a list of Idables (Sample or
+     Patient).
+    """
+    return [ x.get_id(code) for x in idables ]
 
 class Identifier:
-    def __init__(self, value:str=None, code:str=None):
+    def __init__(self, id=None, code:str=None):
         """
          __init__ initializes an identifier.
         """
-        self.value = value
+        self.id = id
         self.code = code
 class Amount:
     def __init__(self, value:float=None, unit:str=None):
@@ -82,27 +91,57 @@ class Amount:
         """
         self.value = value
         self.unit = unit
-class Sample: #(JSONEncoder):
+class Idable:
+    def __init__(self, ids:list=None, mainidc:str=None, id=None, code:str=None):
+        """
+         __init__ initializes an Idable from a list of Identifiers and a
+         mainidc string.
+        """
+        self.ids = ids
+        if self.ids is None:
+            self.ids = []
+        self.mainidc = mainidc
+        if id is not None:
+            self.ids.append(Identifier(id=id, code=code))
+    def identifier(self, code:str=None) -> Identifier:
+        """
+         identifier returns the Identifier for the given code, if no code
+         given, the Identifier for the main idc returned.
+        """
+        if code == None:
+            code = self.mainidc
+        for identifier in self.ids:
+            if identifier.code == code:
+                return identifier
+    def id(self, code:str=None) -> str:
+        """
+         id returns the id value for the given code, if no code
+         given, the id value for the main idc is returned.
+        """
+        if self.identifier(code) is not None:
+            return self.identifier(code).id
+        return None 
+class Sample(Idable):
     category:str = None
     concentration=None
     derivaldate:datetime=None
-    ids:list=None # of Identifier
     receiptdate:datetime=None
     first_repositiondate:datetime=None
     initialamount:Amount=None
     locationname:str=None
     locationpath:str=None
     orga:str = None
-    parentid:Identifier=None, 
-    patientid:Identifier = None
+    parent:Idable=None 
+    patient:Idable = None
     project:str = None
     receptacle:str=None
     restamount:Amount=None
     samplingdate:datetime=None
     secondprocessing:str=None
+    secondprocessingdate:datetime=None
     stockprocessing:str=None
+    stockprocessingdate:datetime=None
     repositiondate:datetime=None
-    sidc:str=None
     trial:str=None
     type:str=None
     xposition:int=None
@@ -120,14 +159,16 @@ class Sample: #(JSONEncoder):
          locationpath:str=None,
          locationname:str=None,
          orga:str=None,
-         parentid:Identifier=None, 
-         patientid:Identifier=None,
+         parent:Idable=None,
+         patient:Idable=None,
          project:str=None,
          receptacle:str=None, 
          restamount:Amount=None,
          samplingdate:datetime=None,
          secondprocessing:str=None,
+         secondprocessingdate:datetime=None,         
          stockprocessing:str=None,
+         stockprocessingdate:datetime=None,         
          receiptdate:datetime=None,         
          repositiondate:datetime=None,
          sidc:str=None,
@@ -136,6 +177,7 @@ class Sample: #(JSONEncoder):
          xposition:int=None, 
          yposition:int=None
          ):
+        Idable.__init__(self, ids, sidc)
         self.category = category
         self.cxxkitid = cxxkitid
         self.concentration = concentration
@@ -147,17 +189,17 @@ class Sample: #(JSONEncoder):
         self.locationpath = locationpath
         self.locationname = locationname
         self.orga = orga
-        self.parentid = parentid
-        self.patientid = patientid
+        self.parent = parent
+        self.patient = patient
         self.project = project
         self.receptacle = receptacle
         self.repositiondate = repositiondate
         self.restamount = restamount
         self.secondprocessing = secondprocessing
+        self.secondprocessingdate = secondprocessingdate        
         self.stockprocessing = stockprocessing
-        self.ids = ids
+        self.stockprocessingdate = stockprocessingdate        
         self.samplingdate = samplingdate        
-        self.sidc = sidc
         self.trial = trial
         self.type = type
         self.xposition = xposition
@@ -167,59 +209,61 @@ class Sample: #(JSONEncoder):
          default returns the json dict.
         """
         return o.__dict__
-    def get_id(self, code:str=None) -> str:
+    @property
+    def sampleid(self):
         """
-         get_id returns the id for the given code, if no code
-         given, the main id specified by sidc is returned.
+         sampleid is a shorthand to get the sampleid so it isn't buried in a
+         dict when displaying the object as json.
         """
-        if code == None:
-            code = self.sidc
-        for id in self.ids:
-            if id.code == code:
-                return id.value
-class Patient:
+        return "bla" # self.get_id()
+    def __getstate__(self):
+        """
+         __getstate__ returns what gets jsonpickled. include sampleid and
+         patientid in root level, for quicker access.
+        """
+        state = self.__dict__.copy() # is this slow?
+        state[sampleid] = self.id()
+        state[patientid] = self.patient.id() if self.patient else None
+        return state
+class Patient(Idable):
     def __init__(
       self,
       ids:list=None,
       orga:str=None,
       pidc:str=None
     ):
-        self.ids = ids
+        Idable.__init__(self, ids, pidc)
         self.orga = orga
-        self.pidc = pidc
-    def get_id(self, code:str=None) -> str:
+    def __getstate__(self):
         """
-         get_id returns the id for the given code, if no code
-         given, the main id specified by pidc is returned.
+         __getstate__ returns what gets jsonpickled. include the patientid at the root level, for quicker access.
         """
-        if code == None:
-            code = self.pidc
-        for id in self.ids:
-            if id.code == code:
-                return id.value
+        state = self.__dict__.copy() # is this slow?
+        state[patientid] = self.id()
+        return state
 class Finding:
     method:str=None
-    creationdate:datetime=None
+    findingdate:datetime=None
     methodname:str=None
-    patientid:Identifier=None
+    patient:Idable=None
     recs:map={} # of Rec, by code
-    sampleid:Identifier
+    sample:Idable
     sender:str=None
     def __init__(self,
-        creationdate:datetime=None,
+        findingdate:datetime=None,
         method:str=None,
         methodname:str=None,
-        patientid:Identifier=None,        
+        patient:Idable=None,        
         recs:map={}, # of Rec, by code
-        sampleid:Identifier=None,
+        sample:Idable=None,
         sender:str=None,
     ):
-        self.creationdate = creationdate
+        self.findingdate = findingdate
         self.method = method
         self.methodname = methodname
-        self.patientid = patientid
+        self.patient = patient
         self.recs = recs
-        self.sampleid = sampleid        
+        self.sample = sample
         self.sender = sender
 class Rec:
     method:str = None
@@ -301,7 +345,7 @@ class traction:
         #print(f"_idcoids: {self._idcoids}")
         self.jd = {
             "sample_to_samplekit": [f"left join centraxx_samplekititem as samplekititem on samplekititem.tubebarcode = idc_{self.sidc()}.psn", "left join centraxx_samplekit as samplekit on samplekit.oid = samplekititem.samplekit"],
-            "sample_to_parentid": ["left join centraxx_sampleidcontainer parentidc on parentidc.sample = sample.parent"],
+            "sample_to_parentid": [f"left join centraxx_sampleidcontainer parentidc on parentidc.sample = sample.parent and parentidc.idcontainertype={self._idcoid[self.sidc()]}"],
             "sample_to_samplelocation": ["left join centraxx_samplelocation samplelocation on samplelocation.oid = sample.samplelocation"],
             "sample_to_sampletype": ["left join centraxx_sampletype as sampletype on sampletype.oid = sample.sampletype"],
             "sample_to_stockprocessing": ["left join centraxx_stockprocessing as stockprocessing on sample.stockprocessing = stockprocessing.oid"],
@@ -317,7 +361,7 @@ class traction:
             "patient_to_sample": ["left join centraxx_sample sample on sample.patientcontainer = patientcontainer.oid"]
         }
 
-    def sample(self, sampleids=None, idc=None, patientids=None, locationpaths=None, trials=None, kitids=None, cxxkitids=None, categories=None, samplingdates=None, receiptdates=None, derivaldates=None, first_repositiondates=None, repositiondates=None, verbose=[], verbose_all=False, like=[], missing=False, where=None, order_by=None, top=None, print_query=False):
+    def sample(self, sampleids:list=None, oids:list=None, idc=None, patientids:list=None, parentids:list=None, parentoids:list=None, locationpaths:list=None, trials:list=None, kitids:list=None, cxxkitids:list=None, categories:list=None, samplingdates=None, receiptdates=None, derivaldates=None, first_repositiondates=None, repositiondates=None, stockprocessingdates=None, secondprocessingdates=None, verbose=[], verbose_all=False, incl_parents:bool=False, incl_childs:bool=False, incl_tree:bool=False, like=[], missing=False, where=None, order_by=None, top=None, print_query:bool=False, raw:bool=False):
         """
          sample gets sample(s) and returns them as a list of Sample instances.
          
@@ -331,7 +375,7 @@ class traction:
          e.g.  `verbose=[tr.locationpath]`. to join in everything, say
          `verbose_all=True`. this is slower than non-verbose.
          
-         pass dates as a tuple of from and to datetime, e.g. `samplingdate=(datefrom, None)`.
+         pass dates as a tuple of from and to datetime, e.g. `samplingdates=(datefrom, None)`.
          
          to check via like as opposed to exact, put the respective fields into
          the like array, e.g. `like=[tr.locationpath]`.
@@ -353,10 +397,40 @@ class traction:
             verbose.append(kitid)
         if cxxkitid:
             verbose.append(cxxkitid)
+        if parentids:
+            verbose.append(parentid)
         if verbose_all == True:
             verbose = vaa
         if not _checkverbose(verbose, vaa): 
             return None # throw error?
+        if incl_parents or incl_childs or incl_tree:
+            res = self.sample(sampleids=sampleids, idc=idc, parentids=parentids, parentoids=parentoids, patientids=patientids, trials=trials, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, categories=categories, samplingdates=samplingdates, receiptdates=receiptdates, derivaldates=derivaldates, first_repositiondates=first_repositiondates, repositiondates=repositiondates, stockprocessingdates=stockprocessingdates, secondprocessingdates=secondprocessingdates, verbose=verbose, verbose_all=verbose_all, like=like, missing=missing, where=where, order_by=order_by, top=top, print_query=print_query)
+            s_oids = get_ids(res, "oid")
+            withincl = []
+            for s_oid in s_oids:
+               if incl_parents:
+                   p_oids = []
+                   self._get_parents(s_oid, p_oids)
+                   withincl.extend(p_oids)
+                   withincl.append(s_oid)
+               if incl_childs:
+                   c_oids = []
+                   self._get_childs(s_oid, c_oids)
+                   withincl.append(s_oid)
+                   withincl.extend(c_oids)
+               if incl_tree:
+                   p_oids = []
+                   self._get_parents(s_oid, p_oids)
+                   if len(p_oids) > 0:
+                       root = p_oids[0]
+                   else:
+                       root = s_oid
+                   c_oids = []
+                   self._get_childs(root, c_oids)
+                   withincl.append(root)
+                   withincl.extend(c_oids)
+            withincl = list(dict.fromkeys(withincl))
+            return self.sample(oids=withincl, verbose=verbose, print_query=print_query, raw=raw)
         # todo check that self.sidc() is not in idc
         if idc is None:
            idc = {}
@@ -383,10 +457,12 @@ class traction:
             trial_code: [f"flexistudy.code as '{trial_code}'"],
         }
         lselects = [
-          "sample.*",
           f"sample.amountrest as {restamount}",
-          f"sample.dtype as {category}"
-          ]
+          f"sample.dtype as {category}",
+          f"sample.oid as {sampleoid}",
+          f"sample.parent as {parentoid}",
+          "sample.*"
+        ]
         joins = {
             cxxkitid: self.jd["sample_to_samplekit"],
             parentid: self.jd["sample_to_parentid"],
@@ -405,44 +481,66 @@ class traction:
             joins[pidc] = self.jd["sample_to_patient"]
         selectstr = self._selectstr(jselects, verbose, lselects, idc)  
         joinstr = self._joinstr(joins, verbose, idc)  
-        (wherestr, whereargs) = self._where(idc=idc, trials=trials, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, categories=categories, samplingdates=samplingdates, receiptdates=receiptdates, derivaldates=derivaldates, first_repositiondates=first_repositiondates, repositiondates=repositiondates, verbose=verbose, like=like, wherearg=where) 
+        (wherestr, whereargs) = self._where(idc=idc, sampleoids=oids, parentids=parentids, parentoids=parentoids, trials=trials, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, categories=categories, samplingdates=samplingdates, receiptdates=receiptdates, derivaldates=derivaldates, first_repositiondates=first_repositiondates, repositiondates=repositiondates, stockprocessingdates=stockprocessingdates, secondprocessingdates=secondprocessingdates, verbose=verbose, like=like, wherearg=where) 
         topstr = self._top(top)
-        query = f"select {topstr} {selectstr} from centraxx_sample sample {joinstr} where {wherestr}"
+        query = f"select {topstr} {selectstr} from centraxx_sample sample \n{joinstr} \nwhere {wherestr}"
         if order_by is not None:
             query += f" order by {order_by}"
         if print_query:
            print(query)
+           print(whereargs)
         #print(whereargs)
         res = self.db.qfad(query, whereargs)
         #print(res)
+        if raw:
+            return res
         sarr = []
         for r in res:
-            ids = [ Identifier(value=dig(r, sampleid), code=self.sidc()) ]
+            ids = []
+            if dig(r, sampleid) is not None:
+                ids.append(Identifier(id=dig(r, sampleid), code=self.sidc()))
             for idc in self._sampleidcs():
                 if idc in r and r[idc] is not None:
-                    ids.append( Identifier(value=dig(r, idc), code=idc.upper()) )
+                    ids.append( Identifier(id=dig(r, idc), code=idc.upper()) )
+            ids.append( Identifier(id=int(dig(r, sampleoid)), code="oid") ) # todo rename sampleoid?
+            pids = []
+            if r[parentoid] is not None:
+                pids.append(Identifier(id=int(r[parentoid]), code="oid"))
+            if dig(r, parentid) is not None:
+                pids.append(Identifier(id=dig(r, parentid), code=self.sidc()))
+            parent = None
+            if len(pids) > 0:
+                parent = Idable(ids=pids, mainidc=self.sidc())
+            patids = []
+            if dig(r, patientid) is not None:   # todo include patient oid?
+                patids.append(Identifier(id=dig(r, patientid), code=self.pidc()))
+            patient = None
+            if len(patids) > 0:
+                patient = Idable(ids=patids, mainidc=self.pidc())
             s = Sample(
                 category=dig(r, category),
                 samplingdate=dig(r, samplingdate),
                 concentration=dig(r, concentration),
                 cxxkitid=dig(r, cxxkitid),
                 derivaldate=dig(r, derivaldate),
-                ids = ids,
+                ids=ids,
                 initialamount=Amount(floatornull(dig(r, initialamount)), dig(r, initialunit)), # apparently the cast to float is explicitly needed
                 kitid=dig(r, kitid),
                 locationpath=dig(r, locationpath),
                 locationname=dig(r, locationname),
                 orga=dig(r, orga_code),
-                parentid=Identifier(value=dig(r, parentid), code=self.sidc()) if dig(r, parentid) is not None else None, 
-                patientid=Identifier(value=dig(r, patientid), code=self.pidc()),
+                parent=parent,
+                patient=patient,
                 project=dig(r, project_code),
                 receiptdate=dig(r, receiptdate),
                 receptacle=dig(r, receptacle_code),
                 repositiondate=dig(r, repositiondate),
                 restamount=Amount(floatornull(dig(r, restamount)), dig(r, restunit)),
                 secondprocessing=dig(r, secondprocessing_code),
+                secondprocessingdate=dig(r, secondprocessingdate),
                 sidc=self.sidc(),
                 stockprocessing=dig(r, stockprocessing_code),
+                stockprocessingdate=dig(r, stockprocessingdate),
                 trial=dig(r, trial_code),
                 type=dig(r, sampletype_code),
                 xposition=dig(r, xposition), 
@@ -450,11 +548,32 @@ class traction:
             )
             sarr.append(s)
         return sarr
-    def patient(self, patientids=None, sampleids=None, idc=None, trials=None, orgas=None, verbose=[], verbose_all=False, like=[], order_by=None, top=None, print_query=False):
+    def _get_parents(self, oid, out):
+        """
+         _get_parents collects the parent sample oids of a sample in the `out`
+         list, in order from root to leaf. take oids to include aliquotgroups
+         that usually don't have an idcontainer attached to them.
+        """
+        res = self.sample(oids=[oid])
+        if res[0].parent is not None:
+            pid = res[0].parent.get_id("oid")
+            out.insert(0, pid)
+            self._get_parents(pid, out)
+    def _get_childs(self, oid, out):
+        """
+         _get_childs collects the oids of the sample's children in the `out`
+         list, in order from root-to-leaf. take oids to include aliquotgroups.
+        """
+        res = self.sample(parentoids=[oid])
+        if len(res) > 0:
+            out.extend(get_ids(res, "oid"))
+            for child in res:
+                self._get_childs(child.get_id("oid"), out)
+    def patient(self, patientids=None, sampleids=None, idc=None, trials=None, orgas=None, verbose=[], verbose_all=False, like=[], order_by=None, top=None, print_query:bool=False, raw:bool=False):
         """
          patient gets patients and returns them as a list of Patient instances.
          
-         the parameters work analoguely to the sample method.
+         the parameters work analog to the sample method.
         """
         vaa = [orga_code]
         vaa.extend(self._patientidcs())        
@@ -500,12 +619,14 @@ class traction:
         if print_query:
            print(query)
         res = self.db.qfad(query, whereargs)
+        if raw:
+            return raw
         pats = []
         for r in res:
-            ids = [ Identifier(value=dig(r, patientid), code=self.pidc()) ]
+            ids = [ Identifier(id=dig(r, patientid), code=self.pidc()) ]
             for idc in self._patientidcs():
                 if idc in r and r[idc] is not None:
-                    ids.append( Identifier(value=dig(r, idc), code=idc.upper()) )
+                    ids.append( Identifier(id=dig(r, idc), code=idc.upper()) )
             pat = Patient(
               ids=ids,
               orga=dig(r, orga_code),
@@ -559,6 +680,7 @@ class traction:
         query += " where " + wherestr
         if print_query:
             print(query)
+            print(whereargs)
         results = self.db.qfad(query, whereargs)
         for i, finding in enumerate(results):
             query = f"""select recordedvalue.*, laborvalue.code as laborvalue_code, laborvalue.dtype as laborvalue_type, laborvalue.custom_catalog as laborvalue_catalog_oid, unit.code as laborvalue_unit
@@ -586,12 +708,13 @@ class traction:
         findings = []
         for res in results:
             finding = Finding(
-                creationdate=dig(res, "creationdate"),
+                findingdate=dig(res, "findingdate"),
                 method=res["method_code"],
                 methodname=res["shortname"],
-                patientid=Identifier(value=dig(res, patientid), code=self.pidc()) if dig(res, patientid) is not None else None, 
+                patient=Idable(id=dig(res, patientid), code=self.pidc(), mainidc=self.pidc()) if dig(res, patientid) is not None else None, 
                 recs=res[values], 
-                sampleid=Identifier(value=res[sampleid], code=self.sidc()), 
+                #sample=Idable(ids=[Identifier(id=res[sampleid], code=self.sidc())], mainidc=self.sidc()), 
+                sample=Idable(id=res[sampleid], code=self.sidc(), mainidc=self.sidc()),
                 sender=None
             )
             findings.append(finding)
@@ -717,7 +840,7 @@ inner join centraxx_laborvalue laborvalue
             for s in joins[verb]:
                 if not s in joina:
                     joina.append(s)
-        joinstr = "\n ".join(joina)
+        joinstr = " \n".join(joina)
         return joinstr
     def _append_idc_select(self, selecta, idc, verbose):
         """
@@ -759,12 +882,19 @@ inner join centraxx_laborvalue laborvalue
           else:
             print(f"error: idcontainer kind {self._idckind[item]} not supported.")
         return joina
-    def _where(self, sampleids=None, idc={}, patientids=None, trials=None, locationpaths=None, kitids=None, cxxkitids=None, categories=None, samplingdates=None, receiptdates=None, derivaldates=None, first_repositiondates=None, repositiondates=None, methods=None, like=[], verbose=[], wherearg:str=None): # -> (str, [])
+    def _where(self, idc={}, sampleoids:list=None, parentids=None, parentoids=None, patientids=None, trials=None, locationpaths=None, kitids=None, cxxkitids=None, categories=None, samplingdates=None, receiptdates=None, derivaldates=None, first_repositiondates=None, repositiondates=None, stockprocessingdates=None, secondprocessingdates=None, methods=None, like=[], verbose=[], wherearg:str=None): # -> (str, [])
         """
-         _where returns the wherestring and args array for the provided arguments (that are not None).
-         the user needs to make sure that whatever is referenced here is joined into the query before.
-         the names are assumed to be the tr constants, like e.g. tr.sampleid.
-         like is an array of tr constants of the arguments for which we check likeness. we only check likeness for the first passed string of an argument array. if for example like=[tr.locationpath], we check likeness of locationpaths[0].
+         _where returns the wherestring and args array for the provided
+         arguments (that are not None).
+         
+         the user needs to make sure that whatever is referenced here is joined
+         into the query before.
+         
+         the names are assumed to be the tr constants, like
+         e.g. tr.sampleid. like is an array of tr constants of the arguments
+         for which it checks likeness. we only check likeness for the first
+         passed string of an argument array. if for example
+         like=[tr.locationpath], it checks likeness of locationpaths[0].
          
          make sure only one of sampleids or extsampleids is passed?
         """
@@ -775,11 +905,16 @@ inner join centraxx_laborvalue laborvalue
           kitid: { "arr": kitids, "field": "samplekit.kitid" },
           cxxkitid: { "arr": cxxkitids, "field": "samplekit.cxxkitid" },
           category: { "arr": categories, "field": category }, # or `"field": "sample.dtype" to` include table?
+          parentid: { "arr": parentids, "field": "parentidc.psn" },
+          parentoid: { "arr": parentoids, "field": "sample.parent" },
+          sampleoid: { "arr": sampleoids, "field": "sample.oid" },          
           samplingdate: { "arr": samplingdates, "field": "sample.samplingdate", "type": "date" },
           receiptdate: { "arr": receiptdates, "field": "sample.receiptdate", "type": "date" },
           derivaldate: { "arr": derivaldates, "field": "sample.derivaldate", "type": "date" },
           first_repositiondate: { "arr": first_repositiondates, "field": "sample.first_repositiondate", "type": "date" },
-          repositiondate: { "arr": repositiondates, "field": "sample.repositiondate", "type": "date" }          
+          repositiondate: { "arr": repositiondates, "field": "sample.repositiondate", "type": "date" },
+          stockprocessingdate: { "arr": stockprocessingdates, "field": "sample.stockprocessingdate", "type": "date" },
+          secondprocessingdate: { "arr": secondprocessingdates, "field": "sample.secondprocessingdate", "type": "date" }
         }
         idckeys = [] if idc is None else idc.keys()
         idca = list(idckeys) + list(set(verbose).intersection(self.settings["idc"]))
@@ -810,9 +945,12 @@ inner join centraxx_laborvalue laborvalue
                 wherestrs.append(s)
                 whereargs.extend(row["arr"])
             elif row["arr"] is not None and "type" in row and row["type"] == "date":
-                s = "(" + row["field"] + " between % and %" + ")"
-                wherestrs.append(s)
-                whereargs.extend(row["arr"])
+                if row["arr"] == 'NULL':
+                    wherestrs.append("(" + row['field'] + " is NULL)")
+                else:
+                    s = f"(CAST(" + row['field'] + " as date) between ISNULL(?, " + row['field'] + ") and ISNULL(?, " + row['field'] + "))"
+                    wherestrs.append(s)
+                    whereargs.extend(row["arr"])
             else:
                 wherestr = "("
                 needsor = False

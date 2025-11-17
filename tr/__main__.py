@@ -7,6 +7,8 @@ import tr
 import simplejson as json
 import sys
 import jsonpickle
+import re
+from datetime import datetime
 def add_args(parser, settings):
     """
      add_args adds idc args from settings.
@@ -23,20 +25,38 @@ def getidc(args:dict, settings):
       if item.lower() in args and args[item.lower()] != None:
         out[item] = args[item.lower()].split(",")
     return out
-def datefromto(datestr):
+def datespan(datestr:str, format:str="%Y-%m-%d"):
     """
-     datefromto turns a passed datestring like `%YYYY-%mm-%dd:%YYY-%mm-%dd`
-     into a tuple of two and from dates.
+     datespan turns a passed date argument like
+     `%YYYY-%mm-%dd:%YYY-%mm-%dd` to a tuple of two dates. also just one
+     date can be passed, it needs to be preceeded by `=`, `>=` or `<=`, in
+     this case just the first or second element of the tuple is set.  also
+     'NULL' can be passed, in this case not a tuple is retuned, but just
+     the 'NULL' string.
     """
     if datestr is None:
         return None
+    if datestr == 'NULL':
+        return 'NULL'
+    res = re.subn(r'^>=', '', datestr)
+    if res[1] > 0:
+        dfrom = datetime.strptime(res[0], format)
+        return (dfrom, None)
+    res = re.subn(r'^<=', '', datestr)
+    if res[1] > 0:
+        dto = datetime.strptime(res[0], format)
+        return (None, dto)
+    res = re.subn(r'^=', '', datestr)
+    if res[1] > 0:
+        d = datetime.strptime(res[0], format)
+        return (d, d)
     a = datestr.split(":")
     if len(a) != 2:
-       raise Exception("date needs to be in format <from>:<to>, <from> or <to> can be left out.")
+       raise Exception("date needs to be in format >=from, <=to, =date or from:to.")
     dfrom = None
     dto = None
-    dfrom = datetime.strptime(a[0], "%Y-%m-%d")
-    dto = datetime.strptime(a[1], "%Y-%m-%d")    
+    dfrom = datetime.strptime(a[0], format)
+    dto = datetime.strptime(a[1], format)
     return (dfrom, dto)
 def main():
     """
@@ -58,6 +78,7 @@ def main():
     parser.add_argument("what", help="sample|patient|trial|finding|method|name. finding: messbefund; method: messprofil; name: get display names for a table.") # labval: messparameter
     parser.add_argument("--sampleid", required=False, help="sampleid(s)")
     parser.add_argument("--patientid", required=False, help="patientid(s)")
+    parser.add_argument("--parentid", required=False, help="sampleid(s) of parent samples")    
     parser.add_argument("--trial", required=False, help="trial code(s)")
     parser.add_argument("--locationpath", required=False, help="locationpath(s)")
     parser.add_argument("--kitid", required=False, help="kitid(s)")
@@ -69,6 +90,11 @@ def main():
     parser.add_argument("--derival-date", required=False, help="derival date from:to")    
     parser.add_argument("--first-reposition-date", required=False, help="first reposition date from:to")
     parser.add_argument("--reposition-date", required=False, help="reposition date from:to")
+    parser.add_argument("--stockprocessing-date", required=False, help="first stock processing date from:to")
+    parser.add_argument("--secondprocessing-date", required=False, help="second stock processing date from:to")        
+    parser.add_argument("--parents", required=False, help="include parents starting from the root", action="store_true")
+    parser.add_argument("--childs", required=False, help="include the childs up to the leafs", action="store_true")
+    parser.add_argument("--tree", required=False, help="include the whole tree for each sample", action="store_true")            
     parser.add_argument("--method", required=False, help="labormethod(s) (messprofil)")
     parser.add_argument("--table", required=False, help="the table to get names for codes for")
     parser.add_argument("--ml-table", required=False, help="if the table mapping from codes to in mytable to names is not called centraxx_mytable_ml_name, give its name here.")
@@ -94,15 +120,15 @@ def main():
     except TargetException as e: # is this referencable from other packages?
         print("traction: " + str(e))
         return 1
-    sampleids = extsampleids = patientids = trials = locationpaths = kitids = cxxkitids = categories = methods = orgunits = likes = None
+    sampleids = parentids = patientids = trials = locationpaths = kitids = cxxkitids = categories = methods = orgunits = likes = None
     if args.sampleid: # read sampleid from cmd line
         if "f" in args: # quickfix read from file if -f
             sampleids = open(args.sampleid).read().split("\n") # list
         sampleids = args.sampleid.split(",")
-#    if args.extsampleid: 
-#        if "f" in args: # quickfix read from file if -f
-#            extsampleids = open(args.extsampleid).read().split("\n") # list
-#        extsampleids = args.extsampleid.split(",")
+    if args.parentid: # read parentid from cmd line
+        if "f" in args: # quickfix read from file if -f
+            parentids = open(args.parentid).read().split("\n") # list
+        parentids = args.parentid.split(",")
     if args.patientid: 
         if "f" in args: # quickfix read from file if -f
             patientids = open(args.patientid).read().split("\n") # list
@@ -138,15 +164,52 @@ def main():
     if args.like:
         # don't read as file
         likes = args.like.split(",")
-        
-        
     if args.what == "sample":
-        sample = traction.sample(sampleids=sampleids, idc=getidc(vars(args), settings), patientids=patientids, trials=trials, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, categories=categories, samplingdates=datefromto(args.sampling_date), receiptdates=datefromto(args.receipt_date), derivaldates=datefromto(args.derival_date), first_repositiondates=datefromto(args.first_reposition_date), repositiondates=datefromto(args.reposition_date), verbose=verbose, verbose_all=args.verbose_all, like=likes, missing=args.missing, where=args.where, order_by=args.order_by, top=args.top, print_query=args.query) 
+        sample = traction.sample(
+               sampleids=sampleids,
+               idc=getidc(vars(args), settings),
+               parentids=parentids,
+               patientids=patientids,
+               trials=trials,
+               locationpaths=locationpaths,
+               kitids=kitids,
+               cxxkitids=cxxkitids,
+               categories=categories,
+               samplingdates=datespan(args.sampling_date),
+               receiptdates=datespan(args.receipt_date),
+               derivaldates=datespan(args.derival_date),
+               first_repositiondates=datespan(args.first_reposition_date),
+               repositiondates=datespan(args.reposition_date),
+               stockprocessingdates=datespan(args.stockprocessing_date),
+               secondprocessingdates=datespan(args.secondprocessing_date),
+               verbose=verbose,
+               verbose_all=args.verbose_all,
+               incl_parents=args.parents,
+               incl_childs=args.childs,
+               incl_tree=args.tree,
+               like=likes,
+               missing=args.missing,
+               where=args.where,
+               order_by=args.order_by,
+               top=args.top,
+               print_query=args.query,
+               raw=args.raw) 
         # print json
         #print(json.dumps(sample, default=str))
-        print(jsonpickle.encode(sample, unpicklable=False))
+        print(jsonpickle.encode(sample, unpicklable=False)) # somehow include_properties=True doesn't work
     if args.what == "patient":
-        patients = traction.patient(patientids=patientids, sampleids=sampleids, idc=getidc(vars(args), settings), trials=trials, orgas=orgunits, verbose=verbose, verbose_all=args.verbose_all, like=likes, order_by=args.order_by, top=args.top, print_query=args.query)
+        patients = traction.patient(patientids=patientids,
+            sampleids=sampleids,
+            idc=getidc(vars(args), settings),
+            trials=trials,
+            orgas=orgunits,
+            verbose=verbose,
+            verbose_all=args.verbose_all,
+            like=likes,
+            order_by=args.order_by,
+            top=args.top,
+            print_query=args.query,
+            raw=args.raw)
         #print(json.dumps(patients, default=str))
         print(jsonpickle.encode(patients, unpicklable=False))
     if args.what == "trial":
@@ -156,7 +219,13 @@ def main():
         res = traction.method(methods=methods)
         print(json.dumps(res, default=str))
     if args.what == "finding":
-        res = traction.finding(sampleids=sampleids, patientids=patientids, idc=getidc(vars(args), settings), methods=methods, trials=trials, print_query=args.query, raw=args.raw)
+        res = traction.finding(sampleids=sampleids,
+            patientids=patientids,
+            idc=getidc(vars(args), settings),
+            methods=methods,
+            trials=trials,
+            print_query=args.query,
+            raw=args.raw)
         print(jsonpickle.encode(res, unpicklable=False))
         #print(json.dumps(res, default=str))
     if args.what == "name":

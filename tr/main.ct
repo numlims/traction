@@ -4,7 +4,7 @@
 ``import``
 ``add_args``
 ``getidc``
-``datefromto``
+``datespan``
 ``main``
 
 
@@ -47,6 +47,7 @@ parse the arguments.
     parser.add_argument("what", help="sample|patient|trial|finding|method|name. finding: messbefund; method: messprofil; name: get display names for a table.") # labval: messparameter
     parser.add_argument("--sampleid", required=False, help="sampleid(s)")
     parser.add_argument("--patientid", required=False, help="patientid(s)")
+    parser.add_argument("--parentid", required=False, help="sampleid(s) of parent samples")    
     parser.add_argument("--trial", required=False, help="trial code(s)")
     parser.add_argument("--locationpath", required=False, help="locationpath(s)")
     parser.add_argument("--kitid", required=False, help="kitid(s)")
@@ -58,6 +59,11 @@ parse the arguments.
     parser.add_argument("--derival-date", required=False, help="derival date from:to")    
     parser.add_argument("--first-reposition-date", required=False, help="first reposition date from:to")
     parser.add_argument("--reposition-date", required=False, help="reposition date from:to")
+    parser.add_argument("--stockprocessing-date", required=False, help="first stock processing date from:to")
+    parser.add_argument("--secondprocessing-date", required=False, help="second stock processing date from:to")        
+    parser.add_argument("--parents", required=False, help="include parents starting from the root", action="store_true")
+    parser.add_argument("--childs", required=False, help="include the childs up to the leafs", action="store_true")
+    parser.add_argument("--tree", required=False, help="include the whole tree for each sample", action="store_true")            
     parser.add_argument("--method", required=False, help="labormethod(s) (messprofil)")
     parser.add_argument("--table", required=False, help="the table to get names for codes for")
     parser.add_argument("--ml-table", required=False, help="if the table mapping from codes to in mytable to names is not called centraxx_mytable_ml_name, give its name here.")
@@ -113,7 +119,7 @@ intercept target error.
 initialize the args arrays passed to from cli to traction.
 
 ``
-    sampleids = extsampleids = patientids = trials = locationpaths = kitids = cxxkitids = categories = methods = orgunits = likes = None
+    sampleids = parentids = patientids = trials = locationpaths = kitids = cxxkitids = categories = methods = orgunits = likes = None
 ``
 
 get the args. if -f flag is set, from file, else from command line.
@@ -126,10 +132,10 @@ patient, finding etc) a seperate?
         if "f" in args: # quickfix read from file if -f
             sampleids = open(args.sampleid).read().split("\n") # list
         sampleids = args.sampleid.split(",")
-#    if args.extsampleid: 
-#        if "f" in args: # quickfix read from file if -f
-#            extsampleids = open(args.extsampleid).read().split("\n") # list
-#        extsampleids = args.extsampleid.split(",")
+    if args.parentid: # read parentid from cmd line
+        if "f" in args: # quickfix read from file if -f
+            parentids = open(args.parentid).read().split("\n") # list
+        parentids = args.parentid.split(",")
     if args.patientid: 
         if "f" in args: # quickfix read from file if -f
             patientids = open(args.patientid).read().split("\n") # list
@@ -165,8 +171,6 @@ patient, finding etc) a seperate?
     if args.like:
         # don't read as file
         likes = args.like.split(",")
-        
-        
 ``
 
 get a sample.
@@ -174,12 +178,43 @@ get a sample.
 encode the json with jsonpickle to render the class attributes,
 json.dumps doesn't do that.
 
+also include the @property functions when rendering json, to quickly
+get to the sampleid. todo doesn't work.
+
 ``
     if args.what == "sample":
-        sample = traction.sample(sampleids=sampleids, idc=getidc(vars(args), settings), patientids=patientids, trials=trials, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, categories=categories, samplingdates=datefromto(args.sampling_date), receiptdates=datefromto(args.receipt_date), derivaldates=datefromto(args.derival_date), first_repositiondates=datefromto(args.first_reposition_date), repositiondates=datefromto(args.reposition_date), verbose=verbose, verbose_all=args.verbose_all, like=likes, missing=args.missing, where=args.where, order_by=args.order_by, top=args.top, print_query=args.query) 
+        sample = traction.sample(
+               sampleids=sampleids,
+               idc=getidc(vars(args), settings),
+               parentids=parentids,
+               patientids=patientids,
+               trials=trials,
+               locationpaths=locationpaths,
+               kitids=kitids,
+               cxxkitids=cxxkitids,
+               categories=categories,
+               samplingdates=datespan(args.sampling_date),
+               receiptdates=datespan(args.receipt_date),
+               derivaldates=datespan(args.derival_date),
+               first_repositiondates=datespan(args.first_reposition_date),
+               repositiondates=datespan(args.reposition_date),
+               stockprocessingdates=datespan(args.stockprocessing_date),
+               secondprocessingdates=datespan(args.secondprocessing_date),
+               verbose=verbose,
+               verbose_all=args.verbose_all,
+               incl_parents=args.parents,
+               incl_childs=args.childs,
+               incl_tree=args.tree,
+               like=likes,
+               missing=args.missing,
+               where=args.where,
+               order_by=args.order_by,
+               top=args.top,
+               print_query=args.query,
+               raw=args.raw) 
         # print json
         #print(json.dumps(sample, default=str))
-        print(jsonpickle.encode(sample, unpicklable=False))
+        print(jsonpickle.encode(sample, unpicklable=False)) # somehow include_properties=True doesn't work
 ``
 
 unpicklable=False to renders dates and seems to make the json output generally neater.
@@ -189,7 +224,18 @@ get a patient.
 
 ``
     if args.what == "patient":
-        patients = traction.patient(patientids=patientids, sampleids=sampleids, idc=getidc(vars(args), settings), trials=trials, orgas=orgunits, verbose=verbose, verbose_all=args.verbose_all, like=likes, order_by=args.order_by, top=args.top, print_query=args.query)
+        patients = traction.patient(patientids=patientids,
+            sampleids=sampleids,
+            idc=getidc(vars(args), settings),
+            trials=trials,
+            orgas=orgunits,
+            verbose=verbose,
+            verbose_all=args.verbose_all,
+            like=likes,
+            order_by=args.order_by,
+            top=args.top,
+            print_query=args.query,
+            raw=args.raw)
         #print(json.dumps(patients, default=str))
         print(jsonpickle.encode(patients, unpicklable=False))
 ``
@@ -214,7 +260,14 @@ get a finding.
 
 ``
     if args.what == "finding":
-        res = traction.finding(sampleids=sampleids, patientids=patientids, idc=getidc(vars(args), settings), methods=methods, trials=trials, print_query=args.query, raw=args.raw)
+        res = traction.finding(sampleids=sampleids,
+            patientids=patientids,
+            idc=getidc(vars(args), settings),
+            methods=methods,
+            trials=trials,
+            values=True, # todo make arg?
+            print_query=args.query,
+            raw=args.raw)
         print(jsonpickle.encode(res, unpicklable=False))
         #print(json.dumps(res, default=str))
 ``
@@ -240,7 +293,6 @@ import simplejson as json
 import sys
 import jsonpickle
 ``
-
 
 add_args adds idc args from settings.
 
@@ -269,19 +321,64 @@ whichever case it is in settings["idc"].
     return out
 ``
 
-datefromto turns a passed datestring like `%YYYY-%mm-%dd:%YYY-%mm-%dd`
-into a tuple of two and from dates.
+datespan turns a passed date argument like
+`%YYYY-%mm-%dd:%YYY-%mm-%dd` to a tuple of two dates. also just one
+date can be passed, it needs to be preceeded by `=`, `>=` or `<=`, in
+this case just the first or second element of the tuple is set.  also
+'NULL' can be passed, in this case not a tuple is retuned, but just
+the 'NULL' string.
 
-``/datefromto:
-def datefromto(datestr):
+``/datespan:
+def datespan(datestr:str, format:str="%Y-%m-%d"):
     ``.``
+``
+
+return None on None.
+
+``
+    if datestr is None:
+        return None
+``
+
+return 'NULL' on 'NULL'.
+
+``
+    if datestr == 'NULL':
+        return 'NULL'
+``
+
+check for leading greater equal, less equal or equal.
+
+if greater than only put in the first tuple member.
+
+``
+    res = re.subn(r'^>=', '', datestr)
+    if res[1] > 0:
+        dfrom = datetime.strptime(res[0], format)
+        return (dfrom, None)
+``
+
+if less than only put in the second tuple member.
+
+``
+    res = re.subn(r'^<=', '', datestr)
+    if res[1] > 0:
+        dto = datetime.strptime(res[0], format)
+        return (None, dto)
+``
+
+if equal put in the date for both tuple members.
+
+``
+    res = re.subn(r'^=', '', datestr)
+    if res[1] > 0:
+        d = datetime.strptime(res[0], format)
+        return (d, d)
 ``
 
 split on the colon.
 
 ``
-    if datestr is None:
-        return None
     a = datestr.split(":")
 ``
 
@@ -289,7 +386,7 @@ allow start or end date to be left out, but require the colon.
 
 ``
     if len(a) != 2:
-       raise Exception("date needs to be in format <from>:<to>, <from> or <to> can be left out.")
+       raise Exception("date needs to be in format >=from, <=to, =date or from:to.")
 ``
 
 parse the dates.
@@ -297,12 +394,19 @@ parse the dates.
 ``
     dfrom = None
     dto = None
-    dfrom = datetime.strptime(a[0], "%Y-%m-%d")
-    dto = datetime.strptime(a[1], "%Y-%m-%d")    
+    dfrom = datetime.strptime(a[0], format)
+    dto = datetime.strptime(a[1], format)
 ``
 
 return tuple.
 
 ``
     return (dfrom, dto)
+``
+
+import for datespan.
+
+``/import
+import re
+from datetime import datetime
 ``

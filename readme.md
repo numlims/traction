@@ -49,12 +49,24 @@ get all samples in a trial.
 traction <db> sample --trial "NUM RAPID_REVIVE"
 ```
 
+filter out just the sampleids with jq.
+
+```
+traction <db> sample --trial "NUM RAPID_REVIVE" | jq -r '.[] | .sampleid'
+```
+
 get all master samples where the kitid is NULL that don't have a dot
 at the end of their sample id (passed as an additional where clause
 with --where).
 
 ```
-traction <db> sample --cxxkitid NULL --category MASTER --where "sidc.psn not like '%.'"
+traction <db> sample --cxxkitid NULL --category MASTER --where "idc_SAMPLEID.psn not like '%.'"
+```
+
+get all the child samples of a sample.
+
+```
+traction <db> sample --sampleid abc --childs
 ```
 
 get all patients in the BSI or CNS module of SNID.
