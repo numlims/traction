@@ -16,6 +16,7 @@ commonly used getters (and setters?) for centrax db.
 ``sample class``
 ``patient class``
 ``finding class``
+
 ``rec``
 ``booleanrec``
 ``numberrec``
@@ -23,6 +24,9 @@ commonly used getters (and setters?) for centrax db.
 ``daterec``
 ``catalogrec``
 ``multirec``
+
+``idable_csv``
+
 class traction:
     ``init``
 
@@ -53,16 +57,20 @@ class traction:
     ``_sampleidcs``
     ``_patientidcs``
     ``_concrete_idcs``
+    
+    ``_fill_in_primary``
 
 ``
 
-keep a series of constants that you can use in function calls,
-e.g. sample(..., verbose=[tr.parentid, tr.locationpath]).
+at the package level are a series of constants that can be used in
+function calls, e.g. sample(..., verbose=[tr.parentid,
+tr.locationpath]).
 
 maybe keep the names in lowercase so that they are the same as the
 keys in the returned json?
 
 ``/const: #py
+appointment = "appointment"
 cxxkitid = "cxxkitid"
 samplingdate = "samplingdate" # entnahmedatum / extraction date. 
 concentration = "concentration"
@@ -71,28 +79,28 @@ category = "category" # MASTER, ALIQUOTGROUP, DERIVED. dtype in db.
 initialamount = "initialamount"
 initialunit = "initialunit"
 first_repositiondate = "first_repositiondate" # datum der ersten einlagerung / date of first storage (not in fhir). is identical to derivaldate. first_repositiondate in db.
-method_code = "method_code"
+method = "method"
 kitid = "kitid"
 locationname = "locationname"
 locationpath = "locationpath"
-orga_code = "orga_code"
+orga = "orga"
 parentid = "parentid"
 parentoid = "parentoid"
 patientid = "patientid"
-project_code = "project_code"
+project = "project"
 receiptdate = "receiptdate" # eingangsdatum / date of receipt. receiptdate in db.
-receptacle_code = "receptacle_code"
+receptacle = "receptacle"
 repositiondate = "repositiondate" # datum der letzten einlagerung / most recent storage date. 
 restamount = "restamount"
 restunit = "restunit"
 sampleid = "sampleid"
 sampleoid = "sampleoid"
-sampletype_code = "sampletype_code"
-secondprocessing_code = "secondprocessing_code"
+sampletype = "sampletype"
+secondprocessing = "secondprocessing"
 secondprocessingdate = "secondprocessingdate"
-stockprocessing_code = "stockprocessing_code"
+stockprocessing = "stockprocessing"
 stockprocessingdate = "stockprocessingdate"
-trial_code = "trial_code"
+trial = "trial"
 type = "type" # sampletype (EDTA, stool etc) in db. 
 values = "values"
 xposition = "xposition"
@@ -164,12 +172,16 @@ add a variable that holds the conf template.
 cnftemplate = """
 # settings for traction.
 
-# sampleid sets the idcontainertype code that is used when searching for sampleid
-sampleid: <an idcontainertype code, e.g. SAMPLEID>
-# patientid sets the idcontainertype code that is used when searching for patientid
-patientid: <an idcontainertype code, e.g. LIMSPSN>
+# sampleid sets the idcontainertype code that is used when searching for sampleid.
+# put in a code per db target.
+sampleid: 
+  <db target>: <an idcontainertype code, e.g. SAMPLEID>
+# patientid sets the idcontainertype code that is used when searching for patientid.
+# put in a code per db target.
+patientid: 
+  <db target>: <an idcontainertype code, e.g. LIMSPSN>
 
-# idc holds additional idcontainertype codes that will be queryable as command line flags 
+# idc holds additional idcontainertype codes that will be queryable as command line flags.
 idc:
  - <an idcontainertype code>
  - <another idcontainertype code>
@@ -194,7 +206,7 @@ to check via like as opposed to exact, put the respective fields into
 the like array, e.g. `like=[tr.locationpath]`.
 
 ``/sample: #py
-    def sample(self, sampleids:list=None, oids:list=None, idc=None, patientids:list=None, parentids:list=None, parentoids:list=None, locationpaths:list=None, trials:list=None, kitids:list=None, cxxkitids:list=None, categories:list=None, samplingdates=None, receiptdates=None, derivaldates=None, first_repositiondates=None, repositiondates=None, stockprocessingdates=None, secondprocessingdates=None, verbose=[], verbose_all=False, incl_parents:bool=False, incl_childs:bool=False, incl_tree:bool=False, like=[], missing=False, where=None, order_by=None, top=None, print_query:bool=False, raw:bool=False):
+    def sample(self, sampleids:list=None, oids:list=None, idc=None, patientids:list=None, parentids:list=None, parentoids:list=None, locationpaths:list=None, trials:list=None, kitids:list=None, cxxkitids:list=None, categories:list=None, samplingdates=None, receiptdates=None, derivaldates=None, first_repositiondates=None, repositiondates=None, stockprocessingdates=None, secondprocessingdates=None, verbose=[], verbose_all=False, primaryref:bool=False, incl_parents:bool=False, incl_childs:bool=False, incl_tree:bool=False, like=[], missing=False, where=None, order_by=None, top=None, print_query:bool=False, raw:bool=False):
         ``.``
 ``
 
@@ -205,9 +217,9 @@ for subsequent joins that depend on it.
 
 `` #py
         # print("try:" + tr.sampleid)
-        vaa = [cxxkitid, kitid, locationname, locationpath, orga_code, parentid,
-               project_code, receptacle_code, sampletype_code,
-               secondprocessing_code, stockprocessing_code, trial_code]
+        vaa = [cxxkitid, kitid, locationname, locationpath, orga, parentid, 
+               project, receptacle, sampletype,
+               secondprocessing, stockprocessing, trial]
 ``
 
 append the idcs for patient and sample to the vaa array.  
@@ -237,7 +249,7 @@ joined-in fields.
 
 `` #py
         if trials:
-            verbose.append(trial_code)
+            verbose.append(trial)
         if locationpaths:
             verbose.append(locationpath)
         if kitids:
@@ -262,40 +274,82 @@ make sure that the verbose array only contains keys from the verbose-all-array.
             return None # throw error?
 ``
 
+after the verbose array was filled walk the sample tree if needed.
+
+there are two cases where we walk the sample tree:
+
+(a) including other samples.
+
 if the sample's parents, children or it's whole tree should be
-included in the result, first get the sampleids that would be returned
-by this query, then add the sampleids of the parents / childs / tree
-(in order from root to leaf), and then run the query with its verboses
-for all the sampleids, without regarding the other parameters (so the
-parents and childs can fall out of the query parameters' bounds).
+included in the result, first run this call, take the sample oids
+returned, then add the oids of the parents / childs / tree samples (in
+order from root to leaf), and then run the query with its verboses for
+all the sample oids.
 
-do this after the verbose array was filled.
+(b) referencing the primary sample for each derived sample.
 
-should we include parents, childs or the whole tree?
+if each derived sample should reference its primary, also
+run the call, and then fill in the primary field for each sample.
+
+at first it was thought to do the primary referencing via verbose, but
+then each verbose all call would include the primary references, which
+might slow it down?
+
+check if we walk the sample tree.
 
 ``
-        if incl_parents or incl_childs or incl_tree:
+        if incl_parents or incl_childs or incl_tree or primaryref:
             ``incl``
 ``
 
-first get all the sample oids this call would return without including
-parents/childs/tree, by firing the call with all the arguments except
-incl_* and raw.
+we fire the call with all the arguments except incl_*, and raw.
 
-take oids to support aliquotgroups down the line.
+we pass only verbose if we add primary references, cause then we only
+run the call once. if we include tree samples later we don't pass
+verbose, cause we eventually run the call again for all tree samples,
+passing verbose here would slow it down.
+
+it shouldn't make a difference to pass verbose_all for primary, cause
+verbose should be filled in any case.
 
 ``/sample/incl:
-            res = self.sample(sampleids=sampleids, idc=idc, parentids=parentids, parentoids=parentoids, patientids=patientids, trials=trials, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, categories=categories, samplingdates=samplingdates, receiptdates=receiptdates, derivaldates=derivaldates, first_repositiondates=first_repositiondates, repositiondates=repositiondates, stockprocessingdates=stockprocessingdates, secondprocessingdates=secondprocessingdates, verbose=verbose, verbose_all=verbose_all, like=like, missing=missing, where=where, order_by=order_by, top=top, print_query=print_query)
+            verbosepass = []
+            if primaryref:
+                verbosepass = verbose
+``
+
+fire the call, then add to the result.
+
+``
+            res = self.sample(sampleids=sampleids, idc=idc, parentids=parentids, parentoids=parentoids, patientids=patientids, trials=trials, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, categories=categories, samplingdates=samplingdates, receiptdates=receiptdates, derivaldates=derivaldates, first_repositiondates=first_repositiondates, repositiondates=repositiondates, stockprocessingdates=stockprocessingdates, secondprocessingdates=secondprocessingdates, verbose=verbosepass, verbose_all=False, like=like, missing=missing, where=where, order_by=order_by, top=top, print_query=print_query)
+``
+
+proceed differently if primary info should be added or if samples from
+the tree should be included.
+
+``
+            if primaryref:
+                for sample in res:
+                    self._fill_in_primary(sample)
+                return res
+``
+
+when including samples from the tree, take all the sample oids.
+
+use oids to support aliquotgroups.
+
+``/sample/incl
+            
             s_oids = get_ids(res, "oid")
 ``
 
-here all the sampleids that eventually get queried land in.
+withincl holds all the sampleids that eventually get queried.
 
 ``
             withincl = []
 ``
 
-now put in the sampleids of parents, childs or the whole tree.
+now put in the sample oids of parents, childs or the whole tree.
 
 ``
             for s_oid in s_oids:
@@ -315,21 +369,21 @@ leaf. collect them into the pids list.
                    self._get_parents(s_oid, p_oids)
 ``
 
-put them in, followed by our sample id.
+put the parent oids in, followed by our sample oid.
 
 ``
                    withincl.extend(p_oids)
                    withincl.append(s_oid)
 ``
 
-if the child ids should be included, get them from sample to leaf.
+if the child oids should be included, get them from sample to leaf.
 
 ``/sample/incl/childs:
                   c_oids = []
                   self._get_childs(s_oid, c_oids)
 ``
 
-put them in, preceeded by our sample id.
+put the child oids in, preceeded by our sample oid.
 
 ``
                   withincl.append(s_oid)
@@ -348,14 +402,14 @@ children from there.
                       root = s_oid
 ``
 
-get the childs from root.
+get the child oids from root.
 
 ``
                   c_oids = []
                   self._get_childs(root, c_oids)
 ``
 
-append the root, then the childs.
+append the root oid, then the child oids.
 
 ``
                   withincl.append(root)
@@ -365,11 +419,12 @@ append the root, then the childs.
 after filling withincl, filter out recurring sampleids. keep each id
 where it first appeared in the array to preserve tree dependencies.
 
+
 ``/sample/incl
             withincl = list(dict.fromkeys(withincl))
 ``
 
-using dict.fromkeys depends on python dicts preserving insertion order
+using dict.fromkeys here depends on python dicts preserving insertion order
 since python 3.7.
 
 now run the query for all the sampleids with the verboses. the
@@ -379,9 +434,8 @@ original call, cause we used them already to get the sampleids, and
 here they could filter out parent/child/tree samples we'd like to keep.
 
 ``
-            return self.sample(oids=withincl, verbose=verbose, print_query=print_query, raw=raw)
+            return self.sample(oids=withincl, verbose=verbose, print_query=print_query, raw=raw) # todo pass verbose_all?
 ``
-
 
 put the sampleids and patientids into idc, to handle them as just
 another idcontainer for joining and in where.
@@ -410,14 +464,14 @@ rename the field of the main sample idcontainer to sampleid.
             kitid: [f"samplekit.kitid as '{kitid}'"],
             locationname: [f"samplelocation.locationid as '{locationname}'"], 
             locationpath: [f"samplelocation.locationpath as '{locationpath}'"],
-            sampletype_code: [f"sampletype.code as '{sampletype_code}'"],
-            stockprocessing_code: [f"stockprocessing.code as '{stockprocessing_code}'"],
-            secondprocessing_code: [f"secondprocessing.code as '{secondprocessing_code}'"],
-            project_code: [f"project.code as '{project_code}'"],
+            sampletype: [f"sampletype.code as '{sampletype}'"],
+            stockprocessing: [f"stockprocessing.code as '{stockprocessing}'"],
+            secondprocessing: [f"secondprocessing.code as '{secondprocessing}'"],
+            project: [f"project.code as '{project}'"],
             #patientid: [f"patidc.psn as '{patientid}'"],
-            receptacle_code: [f"receptable.code as '{receptacle_code}'"],
-            orga_code: [f"organisationunit.code as '{orga_code}'"],
-            trial_code: [f"flexistudy.code as '{trial_code}'"],
+            receptacle: [f"receptable.code as '{receptacle}'"],
+            orga: [f"organisationunit.code as '{orga}'"],
+            trial: [f"flexistudy.code as '{trial}'"],
         }
 ``
 
@@ -428,6 +482,7 @@ put sample.* first, that it doesn't overwrite field of the renames?
 ``
         lselects = [
           f"sample.amountrest as {restamount}",
+          f"sample.appointmentnumber as {appointment}",
           f"sample.dtype as {category}",
           f"sample.oid as {sampleoid}",
           f"sample.parent as {parentoid}",
@@ -448,13 +503,13 @@ pull the values from the join dict, jd.
             kitid: self.jd["sample_to_samplekit"],
             locationname: self.jd["sample_to_samplelocation"],
             locationpath: self.jd["sample_to_samplelocation"],
-            sampletype_code: self.jd["sample_to_sampletype"],
-            stockprocessing_code: self.jd["sample_to_stockprocessing"],
-            secondprocessing_code: self.jd["sample_to_secondprocessing"],
-            project_code: self.jd["sample_to_project"],
-            receptacle_code: self.jd["sample_to_receptacle"],
-            orga_code: self.jd["sample_to_orga"],
-            trial_code: self.jd["sample_to_trial"]
+            sampletype: self.jd["sample_to_sampletype"],
+            stockprocessing: self.jd["sample_to_stockprocessing"],
+            secondprocessing: self.jd["sample_to_secondprocessing"],
+            project: self.jd["sample_to_project"],
+            receptacle: self.jd["sample_to_receptacle"],
+            orga: self.jd["sample_to_orga"],
+            trial: self.jd["sample_to_trial"]
         }
 ``
 
@@ -494,9 +549,8 @@ stick together the query, get the result and return it.
         if print_query:
            print(query)
            print(whereargs)
-        #print(whereargs)
+
         res = self.db.qfad(query, whereargs)
-        #print(res)
 ``
 
 if raw is wished return the raw result.
@@ -509,8 +563,8 @@ if raw is wished return the raw result.
 the first implementation tried to take the tablenames/colums as keys
 for the returned json fields, but that doesn't quite work for
 patientpsn, where the key would be just 'idcontainer.psn'. so for now
-joined-in fields are renamed to 'sampleid', '*_code', 'patientid',
-'parentid' etc.
+joined-in fields are renamed to 'sampleid', 'patientid',
+'parentid' etc. // todo still true?
 
 turn the result to samples.
 
@@ -524,11 +578,13 @@ collect the sample's ids.
 
 ``
             ids = []
-            if dig(r, sampleid) is not None:
-                ids.append(Identifier(id=dig(r, sampleid), code=self.sidc()))
+            #if dig(r, sampleid) is not None:
+            #    ids.append(Identifier(id=dig(r, sampleid), code=self.sidc()))
             for idc in self._sampleidcs():
-                if idc in r and r[idc] is not None:
-                    ids.append( Identifier(id=dig(r, idc), code=idc.upper()) )
+                #print("idc:" + idc)
+                #print("r:" + str(r))
+                if idc.lower() in r and r[idc.lower()] is not None:
+                    ids.append( Identifier(id=dig(r, idc.lower()), code=idc.upper()) )
 ``
 
 include the oid.
@@ -567,6 +623,7 @@ build the sample.
 
 ``
             s = Sample(
+                appointment=dig(r, appointment),
                 category=dig(r, category),
                 samplingdate=dig(r, samplingdate),
                 concentration=dig(r, concentration),
@@ -577,21 +634,21 @@ build the sample.
                 kitid=dig(r, kitid),
                 locationpath=dig(r, locationpath),
                 locationname=dig(r, locationname),
-                orga=dig(r, orga_code),
+                orga=dig(r, orga),
                 parent=parent,
                 patient=patient,
-                project=dig(r, project_code),
+                project=dig(r, project),
                 receiptdate=dig(r, receiptdate),
-                receptacle=dig(r, receptacle_code),
+                receptacle=dig(r, receptacle),
                 repositiondate=dig(r, repositiondate),
                 restamount=Amount(floatornull(dig(r, restamount)), dig(r, restunit)),
-                secondprocessing=dig(r, secondprocessing_code),
+                secondprocessing=dig(r, secondprocessing),
                 secondprocessingdate=dig(r, secondprocessingdate),
                 sidc=self.sidc(),
-                stockprocessing=dig(r, stockprocessing_code),
+                stockprocessing=dig(r, stockprocessing),
                 stockprocessingdate=dig(r, stockprocessingdate),
-                trial=dig(r, trial_code),
-                type=dig(r, sampletype_code),
+                trial=dig(r, trial),
+                type=dig(r, sampletype),
                 xposition=dig(r, xposition), 
                 yposition=dig(r, yposition)
             )
@@ -630,26 +687,32 @@ the joindict entries that sample needs.
 ``
 
 _get_parents collects the parent sample oids of a sample in the `out`
-list, in order from root to leaf. take oids to include aliquotgroups
-that usually don't have an idcontainer attached to them.
+list, in order from root to leaf. take oids to include aliquotgroups,
+they don't necessarily have an idcontainer attached to them.
 
 ``/_get_parents:
     def _get_parents(self, oid, out):
         ``.``
 ``
 
-get the parent oid. insert it at the front of the out
-array, to keep the root-to-leaf direction.
+get the parent oid. query directly for performance (sample() would
+join in the sampleid idcontainer by default).
 
 ``
-        res = self.sample(oids=[oid])
-        if res[0].parent is not None:
-            pid = res[0].parent.get_id("oid")
+        res = self.db.qfad("select parent from centraxx_sample where oid = ?", oid)
+        pid = dig(res[0], "parent")
+``
+
+insert the parent at the front of the out array, to keep the root-to-leaf
+direction.
+
+``
+        if pid is not None:
             out.insert(0, pid)
             ``.``
 ``
 
-get the parent's parent.
+recurse to get the parent's parent.
 
 ``
             self._get_parents(pid, out)
@@ -663,24 +726,24 @@ list, in order from root-to-leaf. take oids to include aliquotgroups.
         ``.``
 ``
 
-get the children.
+get the children. query directly for performancs (sample() would join
+in the main sample idcontainer by default).
 
 ``
-        res = self.sample(parentoids=[oid])
+        res = self.db.qfad("select oid from centraxx_sample where parent = ?", oid)
 ``
 
 if there are children, append them.
 
 ``
-        if len(res) > 0:
-            out.extend(get_ids(res, "oid"))
+        for child in res:
+            out.append(child["oid"])
 ``
 
-get the children of the children.
+returse to get the children of the children.
 
 ``
-            for child in res:
-                self._get_childs(child.get_id("oid"), out)
+            self._get_childs(child["oid"], out)
 ``
 
 patient gets patients and returns them as a list of Patient instances.
@@ -695,7 +758,7 @@ the parameters work analog to the sample method.
 vaa (verbose-all-array) holds all possible verbose options for patient.
 
 `` #py
-        vaa = [orga_code]
+        vaa = [orga]
 ``
 
 append the idcs for patient to the vaa array.  don't append idcs for sample, cause then one patient with fifteen samples would come out as fifteen result rows?
@@ -732,9 +795,9 @@ but shouldn't be included in the output.
 `` #py
         silent = []
         if trials:
-            silent.append(trial_code)
+            silent.append(trial)
         if orgas:
-            silent.append(orga_code)
+            silent.append(orga)
 ``
 
 
@@ -770,8 +833,8 @@ the select statements for optional joins by key.
 `` #py
         selects = {
             self.pidc(): [f"idc_{self.pidc()}.psn as '{patientid}'"],
-            orga_code: [f"organisationunit.code as '{orga_code}'"],
-            trial_code: [f"flexistudy.code as '{trial_code}'"],
+            orga: [f"organisationunit.code as '{orga}'"],
+            trial: [f"flexistudy.code as '{trial}'"],
         }
 ``
 
@@ -782,8 +845,8 @@ pull the values from the join dict, jd.
 
 `` #py
         joins = {
-            orga_code: self.jd["patient_to_orga"],
-            trial_code: self.jd["patient_to_trial"]
+            orga: self.jd["patient_to_orga"],
+            trial: self.jd["patient_to_trial"]
         }
 ``
 
@@ -870,7 +933,7 @@ build the patient.
 ``
             pat = Patient(
               ids=ids,
-              orga=dig(r, orga_code),
+              orga=dig(r, orga),
               pidc=self.pidc()
             )
             pats.append(pat)
@@ -975,7 +1038,7 @@ get the join string for idcs.
 stick together the query.
 
 ``
-        query = f"""select laborfinding.oid as "laborfinding_oid", laborfinding.*, labormethod.code as {method_code}, {idcselectstr}
+        query = f"""select laborfinding.oid as "laborfinding_oid", laborfinding.*, labormethod.code as {method}, {idcselectstr}
         from centraxx_laborfinding as laborfinding
 
         -- go from laborfinding to sample
@@ -1066,7 +1129,7 @@ make findings from the results.
         for res in results:
             finding = Finding(
                 findingdate=dig(res, "findingdate"),
-                method=res["method_code"],
+                method=res["method"],
                 methodname=res["shortname"],
                 patient=Idable(id=dig(res, patientid), code=self.pidc(), mainidc=self.pidc()) if dig(res, patientid) is not None else None, 
                 recs=res["values"] if "values" in res else None, # todo None ok?
@@ -1098,7 +1161,7 @@ convert the boolean values from integer to boolean.
         out:Rec = None
         if recval["laborvalue_type"] == "BOOLEAN":
             val = True if recval["boolvalue"] == 1 else False
-            out = BooleanRec(method=finding["method_code"], labval=recval["laborvalue_code"], value=val)
+            out = BooleanRec(method=finding["method"], labval=recval["laborvalue_code"], value=val)
 ``
 
 take DECIMAL values from the numericvalue field.
@@ -1113,7 +1176,7 @@ if a number value isn't set, the db returns None (and not 0.0 or so).
             #print(recval["laborvalue_code"])
             #print(recval)
             value = float(recval["numericvalue"]) if recval["numericvalue"] is not None else None
-            out = NumberRec(method=finding["method_code"], labval=recval["laborvalue_code"], value=value, unit=recval["laborvalue_unit"])
+            out = NumberRec(method=finding["method"], labval=recval["laborvalue_code"], value=value, unit=recval["laborvalue_unit"])
 ``
 
 there are only four laborvalues for INTEGER, and they don't seem to be
@@ -1123,7 +1186,7 @@ handle both STRING and LONGSTRING as StringRec.
 
 ``
         elif recval["laborvalue_type"] == "STRING" or recval["laborvalue_type"] == "LONGSTRING":
-            out = StringRec(method=finding["method_code"], labval=recval["laborvalue_code"], value=recval["stringvalue"])
+            out = StringRec(method=finding["method"], labval=recval["laborvalue_code"], value=recval["stringvalue"])
 ``
 
 take DATE values from datevalue and LONGDATE values from
@@ -1131,9 +1194,9 @@ datevalueprecision, respectively.
 
 ``
         elif recval["laborvalue_type"] == "DATE":
-            out = DateRec(method=finding["method_code"], labval=recval["laborvalue_code"], value=recval["datevalue"])
+            out = DateRec(method=finding["method"], labval=recval["laborvalue_code"], value=recval["datevalue"])
         elif recval["laborvalue_type"] == "LONGDATE":
-            out = DateRec(method=finding["method_code"], labval=recval["laborvalue_code"], value=recval["datevalueprecision"])
+            out = DateRec(method=finding["method"], labval=recval["laborvalue_code"], value=recval["datevalueprecision"])
 ``
 
 for catalog, query the actual catalog entries. go from recordedvalue
@@ -1156,7 +1219,7 @@ to catalogentry via the recordedval_catentry table.
             for r in res:
                 entries.append(r["catalogentry_code"])
             
-            out = CatalogRec(method=finding["method_code"], labval=recval["laborvalue_code"], catalog=catalog_code, values=entries)
+            out = CatalogRec(method=finding["method"], labval=recval["laborvalue_code"], catalog=catalog_code, values=entries)
 ``
 
 for enumeration and option group, query the actual usage entries. go from recordedvalue
@@ -1176,7 +1239,7 @@ except without catalog code?
             for r in res:
                 entries.append(r["usageentry_code"])
             
-            out = MultiRec(method=finding["method_code"], labval=recval["laborvalue_code"], values=entries)
+            out = MultiRec(method=finding["method"], labval=recval["laborvalue_code"], values=entries)
 ``
 
 else throw an exception.
@@ -1202,7 +1265,7 @@ method (messprofil) gets method(s) and their labvals (messparameter).
 the query.
 
 ``
-        query = f"""select laborvalue.*, labormethod.code as "method_code"
+        query = f"""select laborvalue.*, labormethod.code as "method"
 from centraxx_labormethod labormethod
 inner join centraxx_crftemplate crf_t
     on labormethod.crf_template=crf_t.oid
@@ -1237,10 +1300,10 @@ key by method code.
 ``
         out = {}
         for row in res:
-          mc = row[method_code]
+          mc = row[method]
           if mc not in out:
             out[mc] = {}
-          del row[method_code]
+          del row[method]
           out[mc] = row
         
         return out
@@ -1335,18 +1398,20 @@ structure by code and lang and return.
         return out
 ``
 
-sidc returns the main id code by which samples are referenced from settings.
+sidc returns the main idc code by which samples are referenced as
+specified in the settings. 
 
 ``/sidc:
     def sidc(self) -> str:
-        return self.settings['sampleid']
+        return self.settings['sampleid'][self.db.target]
 ``
 
-pidc returns the main id code by which patients are referenced from settings.
+sidc returns the main idc code by which patients are referenced as
+specified in the settings. 
 
 ``/pidc:
     def pidc(self) -> str:
-        return self.settings['patientid']
+        return self.settings['patientid'][self.db.target]
 ``
 
 _sampleidcs returns the idcs from settings that are specific for sample.
@@ -1364,13 +1429,18 @@ idc:
 
 ``/_sampleidcs:
     def _sampleidcs(self) -> list:
-        #print(self._idckind)
+        ``.``
+``
+
+the settings can list idc codes that are not applicable to this target, skip them.
+
+``
         out = []
         for idc in self.settings["idc"]:
-            if self._idckind[idc] == "SAMPLE":
+            if idc in self._idckind and self._idckind[idc] == "SAMPLE":
                 out.append(idc)
         # include the main sample idcontainer
-        out.append(self.settings["sampleid"])
+        out.append(self.sidc())
         return out
 ``
 
@@ -1378,12 +1448,18 @@ patientidcs returns the idcs from settings that are specific for sample.
 
 ``/_patientidcs:
     def _patientidcs(self) -> list:
+        ``.``
+``
+
+the settings can list idc codes that are not applicable to this target, skip them.
+
+``
         out = []
         for idc in self.settings["idc"]:
-            if self._idckind[idc] == "PATIENT":
+            if idc in self._idckind and self._idckind[idc] == "PATIENT":
                 out.append(idc)
         # include the main patient idcontainer
-        out.append(self.settings["patientid"])
+        out.append(self.pidc())
         return out
 ``
 
@@ -1409,11 +1485,42 @@ fill in the concrete idcs when encountering patientid or sampleid.
         return out
 ``
 
+_fill_in_primary adds a reference to the given sample's primary sample,
+if there is one.
+
+``/_fill_in_primary:
+    def _fill_in_primary(self, sample:Sample):
+        ``.``
+``
+
+get the parent oids. 
+
+``
+        poids = []
+        self._get_parents(sample.id("oid"), poids)
+``
+
+the first parent is the primary, take it.
+
+``
+        if len(poids) > 0:
+            primary_oid = poids[0]
+            ``.``
+``
+
+query the primary to get its sampleid, reference it from the sample as
+Idable.
+
+``
+            primary = self.sample(oids=[primary_oid])[0]
+            sample.primary = Idable(ids=primary.ids, mainidc=primary.mainidc)
+``
+
 _selectstr filters the selects by the verbose array and returns the
 sql select string. selecta is for fields that should be selected
 regardless if they're in the verbose array or not.
 
-the idc argument assumes that the sample table is joined it.
+the idc argument assumes that the sample table is joined it. // todo is this still true?
 
 ``/_selectstr: #py
     def _selectstr(self, selects, verbose, selecta, idc):
@@ -1634,12 +1741,12 @@ field: the table and field where it should match.
 
 ``
         wheredict = { 
-          trial_code: { "arr": trials, "field": "flexistudy.code" },
+          trial: { "arr": trials, "field": "flexistudy.code" },
           locationpath: { "arr": locationpaths, "field": "samplelocation.locationpath" },
-          method_code: { "arr": methods, "field": "labormethod.code" },
+          method: { "arr": methods, "field": "labormethod.code" },
           kitid: { "arr": kitids, "field": "samplekit.kitid" },
           cxxkitid: { "arr": cxxkitids, "field": "samplekit.cxxkitid" },
-          category: { "arr": categories, "field": category }, # or `"field": "sample.dtype" to` include table?
+          category: { "arr": categories, "field": "sample.dtype" },
           parentid: { "arr": parentids, "field": "parentidc.psn" },
           parentoid: { "arr": parentoids, "field": "sample.parent" },
           sampleoid: { "arr": sampleoids, "field": "sample.oid" },          
@@ -1715,7 +1822,7 @@ key is one of the tr constant strings, e.g. tr.locationpath.
         for (key, row) in wheredict.items():
             if row["arr"] == None or len(row["arr"]) == 0:
                 continue
-                
+
             if likearr is not None and key in likearr:
                 ``like``
             elif row["arr"] is not None and "type" in row and row["type"] == "date":
@@ -1731,7 +1838,7 @@ if should we check for likeness for this key, put in a like clause.
 
 ``/_wherebuild/like:
                 # put in an or-chain of like checks over all elements
-                s = "(" + self._wherelikes(row["field"]) + ")"
+                s = "(" + self._wherelikes(row["field"], len(row["arr"])) + ")"
                 wherestrs.append(s)
                 whereargs.extend(row["arr"])
 ``
@@ -1841,13 +1948,14 @@ _wherelike gives a ?-parameterized sql where like expression.
 
 ``
 
-_wherelikes gives a ?-parameterized sql of or-joined where-like expressions.
+_wherelikes gives a ?-parameterized sql of or-joined where-like
+expressions, as many as given n.
 
 ``/_wherelikes:
-    def _wherelikes(self, fieldarr):
+    def _wherelikes(self, field, n):
         a = []
-        for f in fieldarr:
-            a.append(f + " like '%' + ? + '%'") # the sql takes literal plusses like here
+        for i in range(n):
+            a.append(field + " like '%' + ? + '%'") # the sql takes literal plusses like here
         return " or ".join(a)
 ``
 
@@ -1911,7 +2019,7 @@ Patient).
 
 ``/get_ids:
 def get_ids(idables:list, code:str=None) -> list:
-    return [ x.get_id(code) for x in idables ]
+    return [ x.id(code) for x in idables ]
 ``
 
 Idable holds a list of identifiers with idcontainer codes and
@@ -1922,6 +2030,8 @@ class Idable:
     ``init``
     ``identifier``
     ``id``
+    ``iddict``    
+    ``__str__``
 ``
 
 __init__ initializes an Idable from a list of Identifiers and a
@@ -1978,6 +2088,64 @@ given, the id value for the main idc is returned.
         return None 
 ``
 
+__str__ gives a human readable representation of Idable, here the
+id string.
+
+``/idable class/__str__:
+    def __str__(self):
+        if self.id() is not None:
+            return self.id()
+        return ""
+``
+
+iddict returns a copy of the __dict__ holding the given ids at the
+root level of the dict in addition to the classes attributes.  if no
+ids are given, all ids taken.  the ids and mainidc fields are cleared,
+exept when keep is true. if iddict is called on an inheriting class
+(e.g. Sample) the dict gives the inheriting classes attributes.
+
+``/idable class/iddict:
+    def iddict(self, *idcs):
+        ``.``
+``
+
+the first asterix before idcs indicates that any number of idcs can be
+passed.
+
+make a copy of the dict holding all attributes.
+
+``
+        d = self.__dict__.copy()
+``
+
+if no specific idcontainers are given, take all.
+
+``
+        if idcs == None or len(idcs) == 0:
+            idcs = [id.code for id in self.ids]
+``
+
+put the ids in the root level of the dict.
+
+``
+        for idc in idcs:
+            d[idc] = self.id(idc)
+``
+
+delete the ids and mainidc field from dict.
+
+``
+        del d["ids"]
+        del d["mainidc"]
+``
+
+return the dict.
+
+``
+        return d
+``
+        
+
 
 Sample holds a sample.
 
@@ -1992,10 +2160,17 @@ class Sample(Idable):
 
 declare the variables.
 
+appointment holds sample's visit (appointmentnumber in db).
+
+``/sample class/var:
+    appointment:str = None
+``
+
+
 category holds the sample's category, MASTER, ALIQUOTGROUP or
 DERIVED. called dtype in db.
 
-``/sample class/var:
+``
     category:str = None
 ``
 
@@ -2152,6 +2327,7 @@ __init__ initializes a sample.
 ``/sample class/init:
     def __init__(
          self,
+         appointment:str=None,
          category:str=None,
          cxxkitid:str=None,
          concentration=None, # str?
@@ -2193,6 +2369,7 @@ call super.
 fill in the parameters.
 
 ``
+        self.appointment = appointment
         self.category = category
         self.cxxkitid = cxxkitid
         self.concentration = concentration
@@ -2282,6 +2459,7 @@ Amount holds an amount.
 ``/amount class:
 class Amount:
     ``init``
+    ``__str__``
 ``
 
 __init__ initializes an amount.
@@ -2298,6 +2476,12 @@ remember the arguments.
         self.unit = unit
 ``
 
+__str__ gives the value and unit in human-readable format.
+
+``/amount class/__str__:
+    def __str__(self):
+        return str(self.value) + " " + self.unit
+``
 
 Patient holds a patient.
 
@@ -2609,3 +2793,58 @@ __init__ inits a CatalogRec.
         self.catalog = catalog
 ``
 
+idable_csv writes a list of Idables to the given csv file. the given
+idcontainers are included as columns. if no idcontainers are given, all
+are included.
+
+``/idable_csv:
+def idable_csv(idables:list, filename:str=None, *idcs) -> str:
+    ``.``
+``
+
+if no idables return. 
+
+``
+    if idables is None or len(idables) == 0: # todo throw error?
+        print("no idables")
+        return None
+``
+
+open the file.
+
+``
+    with open(filename, "w") as f:
+        ``write``
+``
+
+make a csv writer.
+
+``./write:
+        writer = csv.writer(f)
+``
+
+take as colum names the keys of the iddict from the first idable.
+
+``
+        writer.writerow(list(idables[0].iddict(*idcs).keys()))
+``
+
+write the list of dict items for each idable.
+
+``
+        for idable in idables:
+            d = idable.iddict()
+            writer.writerow(list(d.values()))
+``
+
+return the name of the file.
+
+``
+    return filename
+``
+
+import csv.
+
+``/import
+import csv
+``

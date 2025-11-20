@@ -91,22 +91,25 @@ def main():
     parser.add_argument("--first-reposition-date", required=False, help="first reposition date from:to")
     parser.add_argument("--reposition-date", required=False, help="reposition date from:to")
     parser.add_argument("--stockprocessing-date", required=False, help="first stock processing date from:to")
-    parser.add_argument("--secondprocessing-date", required=False, help="second stock processing date from:to")        
+    parser.add_argument("--secondprocessing-date", required=False, help="second stock processing date from:to")
+    parser.add_argument("--primary-ref", required=False, help="reference the primary of each derived, without including it", action="store_true")    
     parser.add_argument("--parents", required=False, help="include parents starting from the root", action="store_true")
     parser.add_argument("--childs", required=False, help="include the childs up to the leafs", action="store_true")
     parser.add_argument("--tree", required=False, help="include the whole tree for each sample", action="store_true")            
     parser.add_argument("--method", required=False, help="labormethod(s) (messprofil)")
     parser.add_argument("--table", required=False, help="the table to get names for codes for")
     parser.add_argument("--ml-table", required=False, help="if the table mapping from codes to in mytable to names is not called centraxx_mytable_ml_name, give its name here.")
-    parser.add_argument("--verbose", help="comma-separated tr constants for additional info, e.g. 'patientid,locationpath'") # -v?  nargs=1?
+    parser.add_argument("--verbose", help="comma-separated tr constants that should be joined in, e.g. 'patientid,locationpath'") # -v?  nargs=1?
     parser.add_argument("--verbose-all", help="join in all additional info, takes longer", action="store_true") # -a?
-    parser.add_argument("--like", required=False, help="list of arguments where to check for like instead of equal")
+    parser.add_argument("--like", required=False, help="comma seperated list of tr constants where to check for like instead of equal")
+    parser.add_argument("-f", required=False, help="comma seperated list of tr constants where files are passed")
     parser.add_argument("--missing", help="get missing. not yet implemented.", action="store_true") # -m?
     parser.add_argument("--where", required=False, help="additional sql where string")
     parser.add_argument("--order-by", required=False, help="order by on sql query level")
     parser.add_argument("--top", required=False, help="first n results on sql query level")    
     parser.add_argument("--query", required=False, help="print the query", action="store_true")
     parser.add_argument("--raw", help="return raw results", action="store_true")
+    parser.add_argument("--csv", required=False, help="write results to csv file")
     add_args(parser, settings)
     args = parser.parse_args()
 
@@ -184,6 +187,7 @@ def main():
                secondprocessingdates=datespan(args.secondprocessing_date),
                verbose=verbose,
                verbose_all=args.verbose_all,
+               primaryref=args.primary_ref,
                incl_parents=args.parents,
                incl_childs=args.childs,
                incl_tree=args.tree,
@@ -193,10 +197,14 @@ def main():
                order_by=args.order_by,
                top=args.top,
                print_query=args.query,
-               raw=args.raw) 
-        # print json
-        #print(json.dumps(sample, default=str))
-        print(jsonpickle.encode(sample, unpicklable=False)) # somehow include_properties=True doesn't work
+               raw=args.raw)
+               
+        if args.csv is not None:
+            outfile = tr.idable_csv(sample, args.csv) # rename csv?
+            if outfile is not None:
+                print(outfile)
+        else:
+            print(jsonpickle.encode(sample, unpicklable=False)) # somehow include_properties=True doesn't work
     if args.what == "patient":
         patients = traction.patient(patientids=patientids,
             sampleids=sampleids,

@@ -30,8 +30,32 @@ pip install traction-<version>.whl
 for database connection setup see
 [dbcq](https://github.com/numlims/dbcq?tab=readme-ov-file#db-connection).
 
-after the first traction run set your default idcontainer codes for
-sample and patient in `~/.traction/settings.yaml`. 
+run traction once:
+
+```
+traction
+```
+
+then edit `~/.traction/settings.yaml` to set your default idcontainer
+codes for sample and patient.
+
+.traction/settings.yaml looks like this:
+
+```
+# sampleid sets the idcontainertype code that is used when searching for sampleid.
+# put in a code per db target.
+sampleid: 
+  <db target>: <an idcontainertype code, e.g. SAMPLEID>
+# patientid sets the idcontainertype code that is used when searching for patientid.
+# put in a code per db target.
+patientid: 
+  <db target>: <an idcontainertype code, e.g. LIMSPSN>
+
+# idc holds additional idcontainertype codes that will be queryable as command line flags.
+idc:
+ - <an idcontainertype code>
+ - <another idcontainertype code>
+```
 
 ## more usage
 
