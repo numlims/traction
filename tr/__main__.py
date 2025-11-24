@@ -29,8 +29,8 @@ def datespan(datestr:str, format:str="%Y-%m-%d"):
     """
      datespan turns a passed date argument like
      `%YYYY-%mm-%dd:%YYY-%mm-%dd` to a tuple of two dates. also just one
-     date can be passed, it needs to be preceeded by `=`, `>=` or `<=`, in
-     this case just the first or second element of the tuple is set.  also
+     date can be passed, it needs to be preceeded by `=`, `>=` or `<=`,
+     then just the first or second element of the tuple is set.  also
      'NULL' can be passed, in this case not a tuple is retuned, but just
      the 'NULL' string.
     """
@@ -58,6 +58,39 @@ def datespan(datestr:str, format:str="%Y-%m-%d"):
     dfrom = datetime.strptime(a[0], format)
     dto = datetime.strptime(a[1], format)
     return (dfrom, dto)
+def lfpof(name:str, passed, files:list=None):
+    """
+     lfpof (list from param or file) reads values passed to a flag as comma
+     seperated list or from file if the value is proceeded with f:.  if the
+     files flag is passed, all params given to it are read from file, and
+     all others as comma seperated list, irrespective of f:.
+     
+     if the flag was not set, None is returned.
+    """
+    if passed is None:
+        if files is not None and name in files:
+            raise Exception(f"error: {name} is listed in --files, please pass a file path to --{name}")
+        else:
+            return None
+    if files is not None:
+        if name in files:
+            return lff(passed)
+        else:
+            return passed.split(",")
+    else:
+        res = re.subn(r'^f:', '', passed)
+        if res[1] > 0: # count
+            return lff(res[0])
+        else:
+            return passed.split(",")
+def lff(path):
+    """
+     lff (list from file) reads the contents of a file and returns them as
+     list by line.
+    """
+    with open(path) as f:
+        return f.read().split("\n") 
+
 def main():
     """
      main holds a cli for traction. it takes a database target and
@@ -84,7 +117,7 @@ def main():
     parser.add_argument("--kitid", required=False, help="kitid(s)")
     parser.add_argument("--cxxkitid", required=False, help="cxxkitid(s)")
     parser.add_argument("--category", required=False, help="MASTER|DERIVED|ALIQUOTGROUP")
-    parser.add_argument("--orgunit", required=False, help="organisation unit")
+    parser.add_argument("--orga", required=False, help="organisation unit")
     parser.add_argument("--sampling-date", required=False, help="sampling date from:to")
     parser.add_argument("--receipt-date", required=False, help="receipt date from:to")
     parser.add_argument("--derival-date", required=False, help="derival date from:to")    
@@ -102,7 +135,7 @@ def main():
     parser.add_argument("--verbose", help="comma-separated tr constants that should be joined in, e.g. 'patientid,locationpath'") # -v?  nargs=1?
     parser.add_argument("--verbose-all", help="join in all additional info, takes longer", action="store_true") # -a?
     parser.add_argument("--like", required=False, help="comma seperated list of tr constants where to check for like instead of equal")
-    parser.add_argument("-f", required=False, help="comma seperated list of tr constants where files are passed")
+    parser.add_argument("--files", required=False, help="comma seperated list for which flags files are passed")
     parser.add_argument("--missing", help="get missing. not yet implemented.", action="store_true") # -m?
     parser.add_argument("--where", required=False, help="additional sql where string")
     parser.add_argument("--order-by", required=False, help="order by on sql query level")
@@ -123,49 +156,21 @@ def main():
     except TargetException as e: # is this referencable from other packages?
         print("traction: " + str(e))
         return 1
-    sampleids = parentids = patientids = trials = locationpaths = kitids = cxxkitids = categories = methods = orgunits = likes = None
-    if args.sampleid: # read sampleid from cmd line
-        if "f" in args: # quickfix read from file if -f
-            sampleids = open(args.sampleid).read().split("\n") # list
-        sampleids = args.sampleid.split(",")
-    if args.parentid: # read parentid from cmd line
-        if "f" in args: # quickfix read from file if -f
-            parentids = open(args.parentid).read().split("\n") # list
-        parentids = args.parentid.split(",")
-    if args.patientid: 
-        if "f" in args: # quickfix read from file if -f
-            patientids = open(args.patientid).read().split("\n") # list
-        patientids = args.patientid.split(",")
-    if args.trial: 
-        if "f" in args: # quickfix read from file if -f
-            trials = open(args.trial).read().split("\n") # list
-        trials = args.trial.split(",")        
-    if args.locationpath: 
-        if "f" in args: # quickfix read from file if -f
-            locationpaths = open(args.locationpath).read().split("\n") # list
-        locationpaths = args.locationpath.split(",")
-    if args.method: 
-        if "f" in args: # quickfix read from file if -f
-            methods = open(args.method).read().split("\n") # list
-        methods = args.method.split(",")
-    if args.kitid: 
-        if "f" in args: # quickfix read from file if -f
-            kitids = open(args.kitid).read().split("\n") # list
-        kitids = args.kitid.split(",")
-    if args.cxxkitid: 
-        if "f" in args: # quickfix read from file if -f
-            cxxkitids = open(args.cxxkitid).read().split("\n") # list
-        cxxkitids = args.cxxkitid.split(",")
-    if args.category: 
-        if "f" in args: # quickfix read from file if -f
-            categories = open(args.category).read().split("\n") # list
-        categories = args.category.split(",")
-    if args.orgunit: 
-        if "f" in args: # quickfix read from file if -f
-            orgunits = open(args.orgunit).read().split("\n") # list
-        orgunits = args.orgunit.split(",")
+    files = None
+    if args.files is not None:
+        files = args.files.split(",")
+    sampleids = lfpof(tr.sampleid, args.sampleid, files)
+    parentids = lfpof(tr.parentid, args.parentid, files)
+    patientids = lfpof(tr.patientid, args.patientid, files)
+    trials = lfpof(tr.trial, args.trial, files)
+    locationpaths = lfpof(tr.locationpath, args.locationpath, files)
+    methods = lfpof(tr.method, args.method, files)
+    kitids = lfpof(tr.kitid, args.method, files)
+    cxxkitids = lfpof(tr.cxxkitid, args.cxxkitid, files)
+    categories = lfpof(tr.category, args.category, files)
+    orgas = lfpof(tr.orga, args.orga, files)
+    likes = None
     if args.like:
-        # don't read as file
         likes = args.like.split(",")
     if args.what == "sample":
         sample = traction.sample(
@@ -178,6 +183,7 @@ def main():
                kitids=kitids,
                cxxkitids=cxxkitids,
                categories=categories,
+               orgas=orgas,
                samplingdates=datespan(args.sampling_date),
                receiptdates=datespan(args.receipt_date),
                derivaldates=datespan(args.derival_date),
@@ -210,7 +216,7 @@ def main():
             sampleids=sampleids,
             idc=getidc(vars(args), settings),
             trials=trials,
-            orgas=orgunits,
+            orgas=orgas,
             verbose=verbose,
             verbose_all=args.verbose_all,
             like=likes,

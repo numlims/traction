@@ -418,7 +418,7 @@ class traction:
             "patient_to_sample": ["left join centraxx_sample sample on sample.patientcontainer = patientcontainer.oid"]
         }
 
-    def sample(self, sampleids:list=None, oids:list=None, idc=None, patientids:list=None, parentids:list=None, parentoids:list=None, locationpaths:list=None, trials:list=None, kitids:list=None, cxxkitids:list=None, categories:list=None, samplingdates=None, receiptdates=None, derivaldates=None, first_repositiondates=None, repositiondates=None, stockprocessingdates=None, secondprocessingdates=None, verbose=[], verbose_all=False, primaryref:bool=False, incl_parents:bool=False, incl_childs:bool=False, incl_tree:bool=False, like=[], missing=False, where=None, order_by=None, top=None, print_query:bool=False, raw:bool=False):
+    def sample(self, sampleids:list=None, oids:list=None, idc=None, patientids:list=None, parentids:list=None, parentoids:list=None, locationpaths:list=None, trials:list=None, kitids:list=None, cxxkitids:list=None, categories:list=None, orgas:list=None, samplingdates=None, receiptdates=None, derivaldates=None, first_repositiondates=None, repositiondates=None, stockprocessingdates=None, secondprocessingdates=None, verbose=[], verbose_all=False, primaryref:bool=False, incl_parents:bool=False, incl_childs:bool=False, incl_tree:bool=False, like=[], missing=False, where=None, order_by=None, top=None, print_query:bool=False, raw:bool=False):
         """
          sample gets sample(s) and returns them as a list of Sample instances.
          
