@@ -6,17 +6,20 @@ from dip import dig, dis
 #from json import JSONEncoder
 import jsonpickle
 import csv
+address = "address"
 appointment = "appointment"
-cxxkitid = "cxxkitid"
-samplingdate = "samplingdate" # entnahmedatum / extraction date. 
-concentration = "concentration"
-derivaldate = "derivaldate" # aufteilungsdatum / date of distribution
 category = "category" # MASTER, ALIQUOTGROUP, DERIVED. dtype in db.
+concentration = "concentration"
+cxxkitid = "cxxkitid"
+derivaldate = "derivaldate" # aufteilungsdatum / date of distribution
+email = "email"
 initialamount = "initialamount"
 initialunit = "initialunit"
 first_repositiondate = "first_repositiondate" # datum der ersten einlagerung / date of first storage (not in fhir). is identical to derivaldate. first_repositiondate in db.
 method = "method"
 kitid = "kitid"
+lastlogin = "lastlogin"
+login = "login"
 locationname = "locationname"
 locationpath = "locationpath"
 orga = "orga"
@@ -32,12 +35,14 @@ restunit = "restunit"
 sampleid = "sampleid"
 sampleoid = "sampleoid"
 sampletype = "sampletype"
+samplingdate = "samplingdate" # entnahmedatum / extraction date.
 secondprocessing = "secondprocessing"
 secondprocessingdate = "secondprocessingdate"
 stockprocessing = "stockprocessing"
 stockprocessingdate = "stockprocessingdate"
 trial = "trial"
-type = "type" # sampletype (EDTA, stool etc) in db. 
+type = "type" # sampletype (EDTA, stool etc) in db.
+username = "username"
 values = "values"
 xposition = "xposition"
 yposition = "yposition"
@@ -287,7 +292,8 @@ class Finding:
     recs:map={} # of Rec, by code
     sample:Idable
     sender:str=None
-    def __init__(self,
+    def __init__(
+        self,
         findingdate:datetime=None,
         method:str=None,
         methodname:str=None,
@@ -303,6 +309,14 @@ class Finding:
         self.recs = recs
         self.sample = sample
         self.sender = sender
+class User:
+    def __init__(self,
+      lastlogin:datetime=None,
+      email:str=None,
+      username:str=None):
+        self.lastlogin = lastlogin
+        self.email = email
+        self.username = username
 
 class Rec:
     method:str = None
@@ -416,6 +430,9 @@ class traction:
             "patient_to_orga": ["left join centraxx_patientorgunit patientorgunit on patientcontainer.oid=patientorgunit.patientcontainer_oid", "left join centraxx_organisationunit organisationunit on patientorgunit.orgunit_oid=organisationunit.oid"],
             "patient_to_trial": ["left join centraxx_patientstudy as patientstudy on patientstudy.patientcontainer = patientcontainer.oid", "left join centraxx_flexistudy as flexistudy on flexistudy.oid = patientstudy.flexistudy"],
             "patient_to_sample": ["left join centraxx_sample sample on sample.patientcontainer = patientcontainer.oid"]
+            ,
+            "participant_to_address": ["left join centraxx_participantaddress participantaddress on participantaddress.participant = participant.oid", "left join centraxx_address address on address.oid = participantaddress.oid"],
+            "participant_to_credential": ["left join centraxx_credential credential on credential.participant = participant.oid"]
         }
 
     def sample(self, sampleids:list=None, oids:list=None, idc=None, patientids:list=None, parentids:list=None, parentoids:list=None, locationpaths:list=None, trials:list=None, kitids:list=None, cxxkitids:list=None, categories:list=None, orgas:list=None, samplingdates=None, receiptdates=None, derivaldates=None, first_repositiondates=None, repositiondates=None, stockprocessingdates=None, secondprocessingdates=None, verbose=[], verbose_all=False, primaryref:bool=False, incl_parents:bool=False, incl_childs:bool=False, incl_tree:bool=False, like=[], missing=False, where=None, order_by=None, top=None, print_query:bool=False, raw:bool=False):
@@ -818,6 +835,25 @@ inner join centraxx_laborvalue laborvalue
           out[mc] = row
         
         return out
+    def user(self, usernames:list=None, emails:list=None, lastlogin=None, verbose:list=[]):
+        """
+        """
+        vaa = [tr.address, tr.login]
+        if usernames:
+            verbose.append(tr.username)
+        if emails:
+            verbose.append(tr.address)
+        if lastlogin:
+            verbose.append(tr.login)
+        out = []
+        for r in res:
+            user = User(
+                email=dig(r, tr.email),
+                lastlogin=dig(r, tr.lastlogin),
+                username=dig(r, tr.username),
+            )
+            out.append(user)
+        return out
     def name(self, table:str, code:str=None, lang:str=None, ml_table:str=None):
         """
          name gives the multilingual names for a code or all codes in a table.
@@ -868,6 +904,7 @@ inner join centraxx_laborvalue laborvalue
                out[code] = {}
             out[code][lang] = line["name"]
         return out
+    
     def sidc(self) -> str:
         """
          sidc returns the main idc code by which samples are referenced as

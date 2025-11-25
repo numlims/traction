@@ -61,10 +61,28 @@ idc:
 
 **command line**
 
+get a sample.
+
+```
+traction <db> sample --sampleid abc
+```
+
+get samples from file.
+
+```
+traction <db> sample --sampleid f:mysampleids.txt
+```
+
 get the samples of a patient:
 
 ```
 traction <db> sample --patientid lims_565551365
+```
+
+get the samples of a patient that were taken after a specific date.
+
+```
+traction <db> sample --patientid lims_565551365 --sampling-date ">=2025-11-24"
 ```
 
 get all samples in a trial.
@@ -73,7 +91,7 @@ get all samples in a trial.
 traction <db> sample --trial "NUM RAPID_REVIVE"
 ```
 
-filter out just the sampleids with jq.
+filter out the just the sampleids with jq.
 
 ```
 traction <db> sample --trial "NUM RAPID_REVIVE" | jq -r '.[] | .sampleid'

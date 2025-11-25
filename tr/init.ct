@@ -16,6 +16,7 @@ commonly used getters (and setters?) for centrax db.
 ``sample class``
 ``patient class``
 ``finding class``
+``user class``
 
 ``rec``
 ``booleanrec``
@@ -37,7 +38,9 @@ class traction:
     ``trial``
     ``finding``
     ``method``
+    ``user``
     ``name``
+    
     ``sidc``
     ``pidc``
 
@@ -70,17 +73,20 @@ maybe keep the names in lowercase so that they are the same as the
 keys in the returned json?
 
 ``/const: #py
+address = "address"
 appointment = "appointment"
-cxxkitid = "cxxkitid"
-samplingdate = "samplingdate" # entnahmedatum / extraction date. 
-concentration = "concentration"
-derivaldate = "derivaldate" # aufteilungsdatum / date of distribution
 category = "category" # MASTER, ALIQUOTGROUP, DERIVED. dtype in db.
+concentration = "concentration"
+cxxkitid = "cxxkitid"
+derivaldate = "derivaldate" # aufteilungsdatum / date of distribution
+email = "email"
 initialamount = "initialamount"
 initialunit = "initialunit"
 first_repositiondate = "first_repositiondate" # datum der ersten einlagerung / date of first storage (not in fhir). is identical to derivaldate. first_repositiondate in db.
 method = "method"
 kitid = "kitid"
+lastlogin = "lastlogin"
+login = "login"
 locationname = "locationname"
 locationpath = "locationpath"
 orga = "orga"
@@ -96,12 +102,14 @@ restunit = "restunit"
 sampleid = "sampleid"
 sampleoid = "sampleoid"
 sampletype = "sampletype"
+samplingdate = "samplingdate" # entnahmedatum / extraction date.
 secondprocessing = "secondprocessing"
 secondprocessingdate = "secondprocessingdate"
 stockprocessing = "stockprocessing"
 stockprocessingdate = "stockprocessingdate"
 trial = "trial"
-type = "type" # sampletype (EDTA, stool etc) in db. 
+type = "type" # sampletype (EDTA, stool etc) in db.
+username = "username"
 values = "values"
 xposition = "xposition"
 yposition = "yposition"
@@ -156,6 +164,8 @@ init jd here, cause it needs to reference self at one point for joining in an id
             ``jd sample_to``
             ,
             ``jd patient_to``
+            ,
+            ``jd participant_to``
         }
 ``
 
@@ -1307,6 +1317,56 @@ key by method code.
           out[mc] = row
         
         return out
+``
+
+``/user:
+    def user(self, usernames:list=None, emails:list=None, lastlogin=None, verbose:list=[]):
+        ``.``
+``
+
+verbose all array holds the possible verbose options.
+
+``
+        vaa = [tr.address, tr.login]
+``
+
+put the keys for the given arguments into the verbose array for joining them in.
+
+tr.address and tr.login are catch-alls for address and login related fields.#bm
+
+``
+        if usernames:
+            verbose.append(tr.username)
+        if emails:
+            verbose.append(tr.address)
+        if lastlogin:
+            verbose.append(tr.login)
+``
+
+turn the result into user instances.
+
+``
+        out = []
+        for r in res:
+            user = User(
+                email=dig(r, tr.email),
+                lastlogin=dig(r, tr.lastlogin),
+                username=dig(r, tr.username),
+            )
+            out.append(user)
+``
+
+return.
+
+``
+        return out
+``
+
+the join dict entries for user.
+
+``/init/jd participant_to:
+            "participant_to_address": ["left join centraxx_participantaddress participantaddress on participantaddress.participant = participant.oid", "left join centraxx_address address on address.oid = participantaddress.oid"],
+            "participant_to_credential": ["left join centraxx_credential credential on credential.participant = participant.oid"]
 ``
 
 name gives the multilingual names for a code or all codes in a table.
@@ -2577,7 +2637,8 @@ sender holds the sender.
 __init__ initializes a finding.
 
 ``/finding class/init:
-    def __init__(self,
+    def __init__(
+        self,
         findingdate:datetime=None,
         method:str=None,
         methodname:str=None,
@@ -2600,7 +2661,31 @@ remember the arguments.
         self.sample = sample
         self.sender = sender
 ``
-    
+
+User holds a cxx user.
+
+``/user class:
+class User:
+    ``init``
+``
+
+__init__ inits a User.
+
+``/user class/init:
+    def __init__(self,
+      lastlogin:datetime=None,
+      email:str=None,
+      username:str=None):
+        ``.``
+``
+
+remember the arguments.
+
+``
+        self.lastlogin = lastlogin
+        self.email = email
+        self.username = username
+``
 
 Rec is the base class for recorded values like StringRec, etc.
 

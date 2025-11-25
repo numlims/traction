@@ -108,7 +108,7 @@ def main():
     # in any case take the database target
     parser.add_argument("db", help="db target")
 
-    parser.add_argument("what", help="sample|patient|trial|finding|method|name. finding: messbefund; method: messprofil; name: get display names for a table.") # labval: messparameter
+    parser.add_argument("what", help="sample|patient|trial|finding|method|user|name. finding: messbefund; method: messprofil; name: get display names for a table.") # labval: messparameter
     parser.add_argument("--sampleid", required=False, help="sampleid(s)")
     parser.add_argument("--patientid", required=False, help="patientid(s)")
     parser.add_argument("--parentid", required=False, help="sampleid(s) of parent samples")    
@@ -132,6 +132,9 @@ def main():
     parser.add_argument("--method", required=False, help="labormethod(s) (messprofil)")
     parser.add_argument("--table", required=False, help="the table to get names for codes for")
     parser.add_argument("--ml-table", required=False, help="if the table mapping from codes to in mytable to names is not called centraxx_mytable_ml_name, give its name here.")
+    parser.add_argument("--username", required=False, help="the username of user(s).")
+    parser.add_argument("--email", required=False, help="the email address of user(s).")                
+    parser.add_argument("--last-login", required=False, help="the date of the user's last login.")
     parser.add_argument("--verbose", help="comma-separated tr constants that should be joined in, e.g. 'patientid,locationpath'") # -v?  nargs=1?
     parser.add_argument("--verbose-all", help="join in all additional info, takes longer", action="store_true") # -a?
     parser.add_argument("--like", required=False, help="comma seperated list of tr constants where to check for like instead of equal")
@@ -169,6 +172,8 @@ def main():
     cxxkitids = lfpof(tr.cxxkitid, args.cxxkitid, files)
     categories = lfpof(tr.category, args.category, files)
     orgas = lfpof(tr.orga, args.orga, files)
+    usernames = lfpof(tr.username, args.username, files)
+    emails = lfpof(tr.email, args.email, files)        
     likes = None
     if args.like:
         likes = args.like.split(",")
@@ -243,6 +248,9 @@ def main():
             raw=args.raw)
         print(jsonpickle.encode(res, unpicklable=False))
         #print(json.dumps(res, default=str))
+    if args.what == "user":
+        res = traction.user(username=usernames, emails=emails, lastlogin=datespan(args.last_login), verbose=verbose)
+        print(jsonpickle.encode(res, unpicklable=False))        
     if args.what == "name":
         # res = traction.name("laborfinding")
         res = traction.name(args.table, args.ml_table)
