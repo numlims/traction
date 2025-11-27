@@ -15,6 +15,7 @@ dependencies = [
   "cnf @ https://github.com/numlims/cnf/archive/refs/tags/v0.0.1.zip",
   "dbcq @ https://github.com/numlims/dbcq/archive/refs/tags/v0.0.6.zip",
   "dip @ https://github.com/numlims/dip/archive/refs/tags/v0.0.2.zip",
+  "jsonpickle",
   "simplejson",
   "tbl @ https://github.com/numlims/tbl/archive/refs/tags/v0.0.3.zip"
 ]
