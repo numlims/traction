@@ -2090,6 +2090,7 @@ class Idable:
     ``init``
     ``identifier``
     ``id``
+    ``set_id``
     ``iddict``    
     ``__str__``
 ``
@@ -2145,7 +2146,27 @@ given, the id value for the main idc is returned.
     def id(self, code:str=None) -> str:
         if self.identifier(code) is not None:
             return self.identifier(code).id
-        return None 
+        return None
+``
+
+``/idable class/set_id:
+    def set_id(self, code:str=None, id:str=None)
+        ``.``
+``
+
+find the identifier, else create it.
+
+``
+        for identifier in self.ids:
+            if identifier.code == code:
+                identifier.id = id
+                return
+``
+
+if not set until now, create it.
+
+``
+       self.ids.append( Idable(id=id, code=code) )
 ``
 
 __str__ gives a human readable representation of Idable, here the
