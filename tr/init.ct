@@ -268,6 +268,8 @@ joined-in fields.
             verbose.append(cxxkitid)
         if parentids:
             verbose.append(parentid)
+        if orgas:
+            verbose.append(orga)
 ``
 
 on verbose_all include all constants in the verbose array.
@@ -541,7 +543,7 @@ put together the select string and join string for the query.
 get the where string.
 
 `` #py
-        (wherestr, whereargs) = self._where(idc=idc, sampleoids=oids, parentids=parentids, parentoids=parentoids, trials=trials, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, categories=categories, samplingdates=samplingdates, receiptdates=receiptdates, derivaldates=derivaldates, first_repositiondates=first_repositiondates, repositiondates=repositiondates, stockprocessingdates=stockprocessingdates, secondprocessingdates=secondprocessingdates, verbose=verbose, like=like, wherearg=where) 
+        (wherestr, whereargs) = self._where(idc=idc, sampleoids=oids, parentids=parentids, parentoids=parentoids, trials=trials, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, categories=categories, orgas=orgas, samplingdates=samplingdates, receiptdates=receiptdates, derivaldates=derivaldates, first_repositiondates=first_repositiondates, repositiondates=repositiondates, stockprocessingdates=stockprocessingdates, secondprocessingdates=secondprocessingdates, verbose=verbose, like=like, wherearg=where) 
 ``
 
 get the top string.
@@ -761,7 +763,7 @@ patient gets patients and returns them as a list of Patient instances.
 the parameters work analog to the sample method.
 
 ``/patient: #py
-    def patient(self, patientids=None, sampleids=None, idc=None, trials=None, orgas=None, verbose=[], verbose_all=False, like=[], order_by=None, top=None, print_query:bool=False, raw:bool=False):
+    def patient(self, patientids=None, sampleids=None, idc=None, trials=None, orgas:list=None, verbose=[], verbose_all=False, like=[], order_by=None, top=None, print_query:bool=False, raw:bool=False):
         ``.``
 ``
 
@@ -797,6 +799,13 @@ on verbose_all include all constants in the verbose array.
 `` #py
         if verbose_all == True:
             verbose = vaa
+``
+
+put the keys for the arguments into the verbose array.
+
+``
+        if orgas is not None:
+            verbose.append(orga)
 ``
 
 make an array of silent joins for fields that might get queried after
@@ -885,7 +894,7 @@ silent.
 get the where string.
 
 `` #py
-        (wherestr, whereargs) = self._where(trials=trials, idc=idc, verbose=verbose, like=like)
+        (wherestr, whereargs) = self._where(orgas=orgas, trials=trials, idc=idc, verbose=verbose, like=like)
         #print(whereargs)
 ``
 
@@ -1789,7 +1798,7 @@ like=[tr.locationpath], it checks likeness of locationpaths[0].
 make sure only one of sampleids or extsampleids is passed?
 
 ``/_where:
-    def _where(self, idc={}, sampleoids:list=None, parentids=None, parentoids=None, patientids=None, trials=None, locationpaths=None, kitids=None, cxxkitids=None, categories=None, samplingdates=None, receiptdates=None, derivaldates=None, first_repositiondates=None, repositiondates=None, stockprocessingdates=None, secondprocessingdates=None, methods=None, like=[], verbose=[], wherearg:str=None): # -> (str, [])
+    def _where(self, idc={}, sampleoids:list=None, parentids:list=None, parentoids:list=None, patientids:list=None, trials:list=None, locationpaths:list=None, kitids:list=None, cxxkitids:list=None, categories:list=None, orgas:list=None, samplingdates=None, receiptdates=None, derivaldates=None, first_repositiondates=None, repositiondates=None, stockprocessingdates=None, secondprocessingdates=None, methods=None, like=[], verbose=[], wherearg:str=None): # -> (str, [])
         ``.``
 ``
 
@@ -1807,6 +1816,7 @@ field: the table and field where it should match.
           kitid: { "arr": kitids, "field": "samplekit.kitid" },
           cxxkitid: { "arr": cxxkitids, "field": "samplekit.cxxkitid" },
           category: { "arr": categories, "field": "sample.dtype" },
+          orga: { "arr": orgas, "field": "organisationunit.code" },
           parentid: { "arr": parentids, "field": "parentidc.psn" },
           parentoid: { "arr": parentoids, "field": "sample.parent" },
           sampleoid: { "arr": sampleoids, "field": "sample.oid" },          
@@ -1879,7 +1889,13 @@ where clauses for joins where the "arr" field is set.
 key is one of the tr constant strings, e.g. tr.locationpath.
 
 ``
-        for (key, row) in wheredict.items():
+
+        for key, row in wheredict.items():
+            #print("key:" + key)
+
+            # somehow printing here stops the keys from being iterated in the loop. why?
+            #print("field: " + row["field"])
+            
             if row["arr"] == None or len(row["arr"]) == 0:
                 continue
 
@@ -2150,7 +2166,7 @@ given, the id value for the main idc is returned.
 ``
 
 ``/idable class/set_id:
-    def set_id(self, code:str=None, id:str=None)
+    def set_id(self, code:str=None, id:str=None):
         ``.``
 ``
 
@@ -2166,7 +2182,7 @@ find the identifier, else create it.
 if not set until now, create it.
 
 ``
-       self.ids.append( Idable(id=id, code=code) )
+        self.ids.append( Idable(id=id, code=code) )
 ``
 
 __str__ gives a human readable representation of Idable, here the

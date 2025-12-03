@@ -109,43 +109,43 @@ def main():
     parser.add_argument("db", help="db target")
 
     parser.add_argument("what", help="sample|patient|trial|finding|method|user|name. finding: messbefund; method: messprofil; name: get display names for a table.") # labval: messparameter
-    parser.add_argument("--sampleid", required=False, help="sampleid(s)")
-    parser.add_argument("--patientid", required=False, help="patientid(s)")
-    parser.add_argument("--parentid", required=False, help="sampleid(s) of parent samples")    
-    parser.add_argument("--trial", required=False, help="trial code(s)")
-    parser.add_argument("--locationpath", required=False, help="locationpath(s)")
-    parser.add_argument("--kitid", required=False, help="kitid(s)")
-    parser.add_argument("--cxxkitid", required=False, help="cxxkitid(s)")
-    parser.add_argument("--category", required=False, help="MASTER|DERIVED|ALIQUOTGROUP")
-    parser.add_argument("--orga", required=False, help="organisation unit")
-    parser.add_argument("--sampling-date", required=False, help="sampling date from:to")
-    parser.add_argument("--receipt-date", required=False, help="receipt date from:to")
-    parser.add_argument("--derival-date", required=False, help="derival date from:to")    
-    parser.add_argument("--first-reposition-date", required=False, help="first reposition date from:to")
-    parser.add_argument("--reposition-date", required=False, help="reposition date from:to")
-    parser.add_argument("--stockprocessing-date", required=False, help="first stock processing date from:to")
-    parser.add_argument("--secondprocessing-date", required=False, help="second stock processing date from:to")
-    parser.add_argument("--primary-ref", required=False, help="reference the primary of each derived, without including it", action="store_true")    
-    parser.add_argument("--parents", required=False, help="include parents starting from the root", action="store_true")
-    parser.add_argument("--childs", required=False, help="include the childs up to the leafs", action="store_true")
-    parser.add_argument("--tree", required=False, help="include the whole tree for each sample", action="store_true")            
-    parser.add_argument("--method", required=False, help="labormethod(s) (messprofil)")
-    parser.add_argument("--table", required=False, help="the table to get names for codes for")
-    parser.add_argument("--ml-table", required=False, help="if the table mapping from codes to in mytable to names is not called centraxx_mytable_ml_name, give its name here.")
-    parser.add_argument("--username", required=False, help="the username of user(s).")
-    parser.add_argument("--email", required=False, help="the email address of user(s).")                
-    parser.add_argument("--last-login", required=False, help="the date of the user's last login.")
+    parser.add_argument("--sampleid", help="sampleid(s)")
+    parser.add_argument("--patientid", help="patientid(s)")
+    parser.add_argument("--parentid", help="sampleid(s) of parent samples")    
+    parser.add_argument("--trial", help="trial code(s)")
+    parser.add_argument("--locationpath", help="locationpath(s)")
+    parser.add_argument("--kitid", help="kitid(s)")
+    parser.add_argument("--cxxkitid", help="cxxkitid(s)")
+    parser.add_argument("--category", help="MASTER|DERIVED|ALIQUOTGROUP")
+    parser.add_argument("--orga", help="organisation unit")
+    parser.add_argument("--sampling-date", help="sampling date from:to")
+    parser.add_argument("--receipt-date", help="receipt date from:to")
+    parser.add_argument("--derival-date", help="derival date from:to")    
+    parser.add_argument("--first-reposition-date", help="first reposition date from:to")
+    parser.add_argument("--reposition-date", help="reposition date from:to")
+    parser.add_argument("--stockprocessing-date", help="first stock processing date from:to")
+    parser.add_argument("--secondprocessing-date", help="second stock processing date from:to")
+    parser.add_argument("--primary-ref", help="reference the primary of each derived, without including it", action="store_true")    
+    parser.add_argument("--parents", help="include parents starting from the root", action="store_true")
+    parser.add_argument("--childs", help="include the childs up to the leafs", action="store_true")
+    parser.add_argument("--tree", help="include the whole tree for each sample", action="store_true")            
+    parser.add_argument("--method", help="labormethod(s) (messprofil)")
+    parser.add_argument("--table", help="the table to get names for codes for")
+    parser.add_argument("--ml-table", help="if the table mapping from codes to in mytable to names is not called centraxx_mytable_ml_name, give its name here.")
+    parser.add_argument("--username", help="the username of user(s).")
+    parser.add_argument("--email", help="the email address of user(s).")                
+    parser.add_argument("--last-login", help="the date of the user's last login.")
     parser.add_argument("--verbose", help="comma-separated tr constants that should be joined in, e.g. 'patientid,locationpath'") # -v?  nargs=1?
     parser.add_argument("--verbose-all", help="join in all additional info, takes longer", action="store_true") # -a?
-    parser.add_argument("--like", required=False, help="comma seperated list of tr constants where to check for like instead of equal")
-    parser.add_argument("--files", required=False, help="comma seperated list for which flags files are passed")
+    parser.add_argument("--like", help="comma seperated list of tr constants where to check for like instead of equal")
+    parser.add_argument("--files", help="comma seperated list for which flags files are passed")
     parser.add_argument("--missing", help="get missing. not yet implemented.", action="store_true") # -m?
-    parser.add_argument("--where", required=False, help="additional sql where string")
-    parser.add_argument("--order-by", required=False, help="order by on sql query level")
-    parser.add_argument("--top", required=False, help="first n results on sql query level")    
-    parser.add_argument("--query", required=False, help="print the query", action="store_true")
+    parser.add_argument("--where", help="additional sql where string")
+    parser.add_argument("--order-by", help="order by on sql query level")
+    parser.add_argument("--top", help="first n results on sql query level")    
+    parser.add_argument("--query", help="print the query", action="store_true")
     parser.add_argument("--raw", help="return raw results", action="store_true")
-    parser.add_argument("--csv", required=False, help="write results to csv file")
+    parser.add_argument("--csv", help="write results to csv file")
     add_args(parser, settings)
     args = parser.parse_args()
 
@@ -215,8 +215,8 @@ def main():
             if outfile is not None:
                 print(outfile)
         else:
-            print(jsonpickle.encode(sample, unpicklable=False)) # somehow include_properties=True doesn't work
-    if args.what == "patient":
+            print(jsonpickle.encode(sample, unpicklable=False, indent=4)) # somehow include_properties=True doesn't work
+    elif args.what == "patient":
         patients = traction.patient(patientids=patientids,
             sampleids=sampleids,
             idc=getidc(vars(args), settings),
@@ -230,14 +230,14 @@ def main():
             print_query=args.query,
             raw=args.raw)
         #print(json.dumps(patients, default=str))
-        print(jsonpickle.encode(patients, unpicklable=False))
-    if args.what == "trial":
+        print(jsonpickle.encode(patients, unpicklable=False, indent=4))
+    elif args.what == "trial":
         res = traction.trial()
         print(json.dumps(res, default=str))
-    if args.what == "method":
+    elif args.what == "method":
         res = traction.method(methods=methods)
         print(json.dumps(res, default=str))
-    if args.what == "finding":
+    elif args.what == "finding":
         res = traction.finding(sampleids=sampleids,
             patientids=patientids,
             idc=getidc(vars(args), settings),
@@ -248,13 +248,16 @@ def main():
             raw=args.raw)
         print(jsonpickle.encode(res, unpicklable=False))
         #print(json.dumps(res, default=str))
-    if args.what == "user":
+    elif args.what == "user":
         res = traction.user(username=usernames, emails=emails, lastlogin=datespan(args.last_login), verbose=verbose)
         print(jsonpickle.encode(res, unpicklable=False))        
-    if args.what == "name":
+    elif args.what == "name":
         # res = traction.name("laborfinding")
         res = traction.name(args.table, args.ml_table)
         print(json.dumps(res, default=str))
+    else:
+        print(f"error: {args.what} not recognized. see traction -h.")
+        return 1
 
 
 sys.exit(main())

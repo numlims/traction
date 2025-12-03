@@ -206,7 +206,7 @@ get to the sampleid. todo doesn't work.
             if outfile is not None:
                 print(outfile)
         else:
-            print(jsonpickle.encode(sample, unpicklable=False)) # somehow include_properties=True doesn't work
+            print(jsonpickle.encode(sample, unpicklable=False, indent=4)) # somehow include_properties=True doesn't work
 ``
 
 unpicklable=False to renders dates and seems to make the json output
@@ -215,7 +215,7 @@ generally neater.
 get a patient.
 
 ``
-    if args.what == "patient":
+    elif args.what == "patient":
         patients = traction.patient(patientids=patientids,
             sampleids=sampleids,
             idc=getidc(vars(args), settings),
@@ -229,13 +229,13 @@ get a patient.
             print_query=args.query,
             raw=args.raw)
         #print(json.dumps(patients, default=str))
-        print(jsonpickle.encode(patients, unpicklable=False))
+        print(jsonpickle.encode(patients, unpicklable=False, indent=4))
 ``
 
 get a trial.
 
 ``
-    if args.what == "trial":
+    elif args.what == "trial":
         res = traction.trial()
         print(json.dumps(res, default=str))
 ``
@@ -243,7 +243,7 @@ get a trial.
 get method(s) and their labvals.
 
 ``
-    if args.what == "method":
+    elif args.what == "method":
         res = traction.method(methods=methods)
         print(json.dumps(res, default=str))
 ``
@@ -251,7 +251,7 @@ get method(s) and their labvals.
 get a finding.
 
 ``
-    if args.what == "finding":
+    elif args.what == "finding":
         res = traction.finding(sampleids=sampleids,
             patientids=patientids,
             idc=getidc(vars(args), settings),
@@ -267,7 +267,7 @@ get a finding.
 get user(s)
 
 ``
-    if args.what == "user":
+    elif args.what == "user":
         res = traction.user(username=usernames, emails=emails, lastlogin=datespan(args.last_login), verbose=verbose)
         print(jsonpickle.encode(res, unpicklable=False))        
 ``
@@ -276,10 +276,18 @@ get user(s)
 get a name.
 
 ``
-    if args.what == "name":
+    elif args.what == "name":
         # res = traction.name("laborfinding")
         res = traction.name(args.table, args.ml_table)
         print(json.dumps(res, default=str))
+``
+
+if what is unrecognized  give an error.
+
+``
+    else:
+        print(f"error: {args.what} not recognized. see traction -h.")
+        return 1
 ``
 
 import.

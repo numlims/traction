@@ -136,7 +136,15 @@ class Idable:
         """
         if self.identifier(code) is not None:
             return self.identifier(code).id
-        return None 
+        return None
+    def set_id(self, code:str=None, id:str=None):
+        """
+        """
+        for identifier in self.ids:
+            if identifier.code == code:
+                identifier.id = id
+                return
+        self.ids.append( Idable(id=id, code=code) )
     def iddict(self, *idcs):
         """
          iddict returns a copy of the __dict__ holding the given ids at the
@@ -473,6 +481,8 @@ class traction:
             verbose.append(cxxkitid)
         if parentids:
             verbose.append(parentid)
+        if orgas:
+            verbose.append(orga)
         if verbose_all == True:
             verbose = vaa
         if not _checkverbose(verbose, vaa): 
@@ -564,7 +574,7 @@ class traction:
             joins[pidc] = self.jd["sample_to_patient"]
         selectstr = self._selectstr(jselects, verbose, lselects, idc)  
         joinstr = self._joinstr(joins, verbose, idc)  
-        (wherestr, whereargs) = self._where(idc=idc, sampleoids=oids, parentids=parentids, parentoids=parentoids, trials=trials, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, categories=categories, samplingdates=samplingdates, receiptdates=receiptdates, derivaldates=derivaldates, first_repositiondates=first_repositiondates, repositiondates=repositiondates, stockprocessingdates=stockprocessingdates, secondprocessingdates=secondprocessingdates, verbose=verbose, like=like, wherearg=where) 
+        (wherestr, whereargs) = self._where(idc=idc, sampleoids=oids, parentids=parentids, parentoids=parentoids, trials=trials, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, categories=categories, orgas=orgas, samplingdates=samplingdates, receiptdates=receiptdates, derivaldates=derivaldates, first_repositiondates=first_repositiondates, repositiondates=repositiondates, stockprocessingdates=stockprocessingdates, secondprocessingdates=secondprocessingdates, verbose=verbose, like=like, wherearg=where) 
         topstr = self._top(top)
         query = f"select {topstr} {selectstr} from centraxx_sample sample \n{joinstr} \nwhere {wherestr}"
         if order_by is not None:
@@ -653,7 +663,7 @@ class traction:
         for child in res:
             out.append(child["oid"])
             self._get_childs(child["oid"], out)
-    def patient(self, patientids=None, sampleids=None, idc=None, trials=None, orgas=None, verbose=[], verbose_all=False, like=[], order_by=None, top=None, print_query:bool=False, raw:bool=False):
+    def patient(self, patientids=None, sampleids=None, idc=None, trials=None, orgas:list=None, verbose=[], verbose_all=False, like=[], order_by=None, top=None, print_query:bool=False, raw:bool=False):
         """
          patient gets patients and returns them as a list of Patient instances.
          
@@ -666,6 +676,8 @@ class traction:
         verbose = self._concrete_idcs(verbose)
         if verbose_all == True:
             verbose = vaa
+        if orgas is not None:
+            verbose.append(orga)
         silent = []
         if trials:
             silent.append(trial)
@@ -694,7 +706,7 @@ class traction:
             joins[sidc] = self.jd["patient_to_sample"]
         selectstr = self._selectstr(selects, verbose, ["patientcontainer.*"], idc)  
         joinstr = self._joinstr(joins, verbose + silent, idc)  
-        (wherestr, whereargs) = self._where(trials=trials, idc=idc, verbose=verbose, like=like)
+        (wherestr, whereargs) = self._where(orgas=orgas, trials=trials, idc=idc, verbose=verbose, like=like)
         #print(whereargs)
         topstr = self._top(top)
         query = f"select distinct {topstr} {selectstr} from centraxx_patientcontainer patientcontainer \n{joinstr} \nwhere {wherestr}"
@@ -987,7 +999,7 @@ inner join centraxx_laborvalue laborvalue
           else:
             print(f"error: idcontainer kind {self._idckind[item]} not supported.")
         return joina
-    def _where(self, idc={}, sampleoids:list=None, parentids=None, parentoids=None, patientids=None, trials=None, locationpaths=None, kitids=None, cxxkitids=None, categories=None, samplingdates=None, receiptdates=None, derivaldates=None, first_repositiondates=None, repositiondates=None, stockprocessingdates=None, secondprocessingdates=None, methods=None, like=[], verbose=[], wherearg:str=None): # -> (str, [])
+    def _where(self, idc={}, sampleoids:list=None, parentids:list=None, parentoids:list=None, patientids:list=None, trials:list=None, locationpaths:list=None, kitids:list=None, cxxkitids:list=None, categories:list=None, orgas:list=None, samplingdates=None, receiptdates=None, derivaldates=None, first_repositiondates=None, repositiondates=None, stockprocessingdates=None, secondprocessingdates=None, methods=None, like=[], verbose=[], wherearg:str=None): # -> (str, [])
         """
          _where returns the wherestring and args array for the provided
          arguments (that are not None).
@@ -1010,6 +1022,7 @@ inner join centraxx_laborvalue laborvalue
           kitid: { "arr": kitids, "field": "samplekit.kitid" },
           cxxkitid: { "arr": cxxkitids, "field": "samplekit.cxxkitid" },
           category: { "arr": categories, "field": "sample.dtype" },
+          orga: { "arr": orgas, "field": "organisationunit.code" },
           parentid: { "arr": parentids, "field": "parentidc.psn" },
           parentoid: { "arr": parentoids, "field": "sample.parent" },
           sampleoid: { "arr": sampleoids, "field": "sample.oid" },          
@@ -1040,7 +1053,13 @@ inner join centraxx_laborvalue laborvalue
         """
         wherestrs = []
         whereargs = []
-        for (key, row) in wheredict.items():
+
+        for key, row in wheredict.items():
+            #print("key:" + key)
+
+            # somehow printing here stops the keys from being iterated in the loop. why?
+            #print("field: " + row["field"])
+            
             if row["arr"] == None or len(row["arr"]) == 0:
                 continue
 
