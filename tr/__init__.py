@@ -3,8 +3,10 @@ from dbcq import *
 import cnf
 from datetime import datetime
 from dip import dig, dis
-#from json import JSONEncoder
-import jsonpickle
+from tram import Sample, Idable, Amount, Identifier
+from tram import Patient
+from tram import Finding
+from tram import Rec, BooleanRec, NumberRec, StringRec, DateRec, MultiRec, CatalogRec
 import csv
 address = "address"
 appointment = "appointment"
@@ -87,298 +89,6 @@ def get_ids(idables:list, code:str=None) -> list:
      Patient).
     """
     return [ x.id(code) for x in idables ]
-
-class Identifier:
-    def __init__(self, id=None, code:str=None):
-        """
-         __init__ initializes an identifier.
-        """
-        self.id = id
-        self.code = code
-class Amount:
-    def __init__(self, value:float=None, unit:str=None):
-        """
-         __init__ initializes an amount.
-        """
-        self.value = value
-        self.unit = unit
-    def __str__(self):
-        """
-         __str__ gives the value and unit in human-readable format.
-        """
-        return str(self.value) + " " + self.unit
-class Idable:
-    def __init__(self, ids:list=None, mainidc:str=None, id=None, code:str=None):
-        """
-         __init__ initializes an Idable from a list of Identifiers and a
-         mainidc string.
-        """
-        self.ids = ids
-        if self.ids is None:
-            self.ids = []
-        self.mainidc = mainidc
-        if id is not None:
-            self.ids.append(Identifier(id=id, code=code))
-    def identifier(self, code:str=None) -> Identifier:
-        """
-         identifier returns the Identifier for the given code, if no code
-         given, the Identifier for the main idc returned.
-        """
-        if code == None:
-            code = self.mainidc
-        for identifier in self.ids:
-            if identifier.code == code:
-                return identifier
-    def id(self, code:str=None) -> str:
-        """
-         id returns the id value for the given code, if no code
-         given, the id value for the main idc is returned.
-        """
-        if self.identifier(code) is not None:
-            return self.identifier(code).id
-        return None 
-    def iddict(self, *idcs):
-        """
-         iddict returns a copy of the __dict__ holding the given ids at the
-         root level of the dict in addition to the classes attributes.  if no
-         ids are given, all ids taken.  the ids and mainidc fields are cleared,
-         exept when keep is true. if iddict is called on an inheriting class
-         (e.g. Sample) the dict gives the inheriting classes attributes.
-        """
-        d = self.__dict__.copy()
-        if idcs == None or len(idcs) == 0:
-            idcs = [id.code for id in self.ids]
-        for idc in idcs:
-            d[idc] = self.id(idc)
-        del d["ids"]
-        del d["mainidc"]
-        return d
-    def __str__(self):
-        """
-         __str__ gives a human readable representation of Idable, here the
-         id string.
-        """
-        if self.id() is not None:
-            return self.id()
-        return ""
-class Sample(Idable):
-    appointment:str = None
-    category:str = None
-    concentration=None
-    derivaldate:datetime=None
-    receiptdate:datetime=None
-    first_repositiondate:datetime=None
-    initialamount:Amount=None
-    locationname:str=None
-    locationpath:str=None
-    orga:str = None
-    parent:Idable=None 
-    patient:Idable = None
-    project:str = None
-    receptacle:str=None
-    restamount:Amount=None
-    samplingdate:datetime=None
-    secondprocessing:str=None
-    secondprocessingdate:datetime=None
-    stockprocessing:str=None
-    stockprocessingdate:datetime=None
-    repositiondate:datetime=None
-    trial:str=None
-    type:str=None
-    xposition:int=None
-    yposition:int=None
-    def __init__(
-         self,
-         appointment:str=None,
-         category:str=None,
-         cxxkitid:str=None,
-         concentration=None, # str?
-         derivaldate:datetime=None,
-         first_repositiondate:datetime=None,
-         ids:list=None, # of Identifier         
-         initialamount:Amount=None,
-         kitid:str=None,
-         locationpath:str=None,
-         locationname:str=None,
-         orga:str=None,
-         parent:Idable=None,
-         patient:Idable=None,
-         project:str=None,
-         receptacle:str=None, 
-         restamount:Amount=None,
-         samplingdate:datetime=None,
-         secondprocessing:str=None,
-         secondprocessingdate:datetime=None,         
-         stockprocessing:str=None,
-         stockprocessingdate:datetime=None,         
-         receiptdate:datetime=None,         
-         repositiondate:datetime=None,
-         sidc:str=None,
-         trial:str=None,
-         type:str=None,
-         xposition:int=None, 
-         yposition:int=None
-         ):
-        Idable.__init__(self, ids, sidc)
-        self.appointment = appointment
-        self.category = category
-        self.cxxkitid = cxxkitid
-        self.concentration = concentration
-        self.derivaldate = derivaldate
-        self.receiptdate = receiptdate
-        self.first_repositiondate = first_repositiondate
-        self.initialamount = initialamount
-        self.kitid = kitid
-        self.locationpath = locationpath
-        self.locationname = locationname
-        self.orga = orga
-        self.parent = parent
-        self.patient = patient
-        self.project = project
-        self.receptacle = receptacle
-        self.repositiondate = repositiondate
-        self.restamount = restamount
-        self.secondprocessing = secondprocessing
-        self.secondprocessingdate = secondprocessingdate        
-        self.stockprocessing = stockprocessing
-        self.stockprocessingdate = stockprocessingdate        
-        self.samplingdate = samplingdate        
-        self.trial = trial
-        self.type = type
-        self.xposition = xposition
-        self.yposition = yposition
-    def default(self, o):
-        """
-         default returns the json dict.
-        """
-        return o.__dict__
-    @property
-    def sampleid(self):
-        """
-         sampleid is a shorthand to get the sampleid so it isn't buried in a
-         dict when displaying the object as json.
-        """
-        return "bla" # self.get_id()
-    def __getstate__(self):
-        """
-         __getstate__ returns what gets jsonpickled. include sampleid and
-         patientid in root level, for quicker access.
-        """
-        state = self.__dict__.copy() # is this slow?
-        state[sampleid] = self.id()
-        state[patientid] = self.patient.id() if self.patient else None
-        return state
-class Patient(Idable):
-    def __init__(
-      self,
-      ids:list=None,
-      orga:str=None,
-      pidc:str=None
-    ):
-        Idable.__init__(self, ids, pidc)
-        self.orga = orga
-    def __getstate__(self):
-        """
-         __getstate__ returns what gets jsonpickled. include the patientid at the root level, for quicker access.
-        """
-        state = self.__dict__.copy() # is this slow?
-        state[patientid] = self.id()
-        return state
-class Finding:
-    method:str=None
-    findingdate:datetime=None
-    methodname:str=None
-    patient:Idable=None
-    recs:map={} # of Rec, by code
-    sample:Idable
-    sender:str=None
-    def __init__(
-        self,
-        findingdate:datetime=None,
-        method:str=None,
-        methodname:str=None,
-        patient:Idable=None,        
-        recs:map={}, # of Rec, by code
-        sample:Idable=None,
-        sender:str=None,
-    ):
-        self.findingdate = findingdate
-        self.method = method
-        self.methodname = methodname
-        self.patient = patient
-        self.recs = recs
-        self.sample = sample
-        self.sender = sender
-class User:
-    def __init__(self,
-      lastlogin:datetime=None,
-      email:str=None,
-      username:str=None):
-        self.lastlogin = lastlogin
-        self.email = email
-        self.username = username
-
-class Rec:
-    method:str = None
-    labval:str = None
-    type:str = None
-    def __init__(self, method:str=None, labval:str=None):
-        """
-         __init__ inits a Rec.
-        """
-        self.labval = labval
-class BooleanRec(Rec):
-    value:bool = None
-    def __init__(self, method:str=None, labval:str=None, value:bool=None):
-        """
-         __init__ inits a BooleanRec.
-        """
-        Rec.__init__(self, method=method, labval=labval)
-        self.value = value
-class NumberRec(Rec):
-    value:float = None
-    unit:str = None
-    def __init__(self, method:str=None, labval:str=None, value:float=None, unit:str=None):
-        """
-         __init__ inits a NumberRec.
-        """
-        Rec.__init__(self, method=method, labval=labval)
-        self.value = value
-        self.unit = unit
-class StringRec(Rec):
-    value:str = None
-    def __init__(self, method:str=None, labval:str=None, value:str=None):
-        """
-         __init__ inits a StringRec.
-        """
-        Rec.__init__(self, method=method, labval=labval)
-        self.value = value
-class DateRec(Rec):
-    value:datetime = None
-    def __init__(self, method:str=None, labval:str=None, value:datetime=None):
-        """
-         __init__ inits a DateRec.
-        """
-        Rec.__init__(self, method=method, labval=labval)
-        self.value = value
-class CatalogRec(Rec):
-    values:str = None
-    catalog:str = None
-    def __init__(self, method:str=None, labval:str=None, values:list=None, catalog:str=None):
-        """
-         __init__ inits a CatalogRec.
-        """
-        Rec.__init__(self, method=method, labval=labval)
-        self.values = values
-        self.catalog = catalog
-class MultiRec(Rec):
-    values:str = None
-    def __init__(self, method:str=None, labval:str=None, values:list=None):
-        """
-         __init__ inits a MultiRec.
-        """
-        Rec.__init__(self, method=method, labval=labval)
-        self.values = values
 
 def idable_csv(idables:list, filename:str=None, *idcs) -> str:
     """
@@ -473,6 +183,8 @@ class traction:
             verbose.append(cxxkitid)
         if parentids:
             verbose.append(parentid)
+        if orgas:
+            verbose.append(orga)
         if verbose_all == True:
             verbose = vaa
         if not _checkverbose(verbose, vaa): 
@@ -564,7 +276,7 @@ class traction:
             joins[pidc] = self.jd["sample_to_patient"]
         selectstr = self._selectstr(jselects, verbose, lselects, idc)  
         joinstr = self._joinstr(joins, verbose, idc)  
-        (wherestr, whereargs) = self._where(idc=idc, sampleoids=oids, parentids=parentids, parentoids=parentoids, trials=trials, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, categories=categories, samplingdates=samplingdates, receiptdates=receiptdates, derivaldates=derivaldates, first_repositiondates=first_repositiondates, repositiondates=repositiondates, stockprocessingdates=stockprocessingdates, secondprocessingdates=secondprocessingdates, verbose=verbose, like=like, wherearg=where) 
+        (wherestr, whereargs) = self._where(idc=idc, sampleoids=oids, parentids=parentids, parentoids=parentoids, trials=trials, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, categories=categories, orgas=orgas, samplingdates=samplingdates, receiptdates=receiptdates, derivaldates=derivaldates, first_repositiondates=first_repositiondates, repositiondates=repositiondates, stockprocessingdates=stockprocessingdates, secondprocessingdates=secondprocessingdates, verbose=verbose, like=like, wherearg=where) 
         topstr = self._top(top)
         query = f"select {topstr} {selectstr} from centraxx_sample sample \n{joinstr} \nwhere {wherestr}"
         if order_by is not None:
@@ -608,7 +320,7 @@ class traction:
                 concentration=dig(r, concentration),
                 cxxkitid=dig(r, cxxkitid),
                 derivaldate=dig(r, derivaldate),
-                ids=ids,
+                ids=Idable(ids=ids, mainidc=self.sidc()),
                 initialamount=Amount(floatornull(dig(r, initialamount)), dig(r, initialunit)), # apparently the cast to float is explicitly needed
                 kitid=dig(r, kitid),
                 locationpath=dig(r, locationpath),
@@ -623,7 +335,6 @@ class traction:
                 restamount=Amount(floatornull(dig(r, restamount)), dig(r, restunit)),
                 secondprocessing=dig(r, secondprocessing),
                 secondprocessingdate=dig(r, secondprocessingdate),
-                sidc=self.sidc(),
                 stockprocessing=dig(r, stockprocessing),
                 stockprocessingdate=dig(r, stockprocessingdate),
                 trial=dig(r, trial),
@@ -653,7 +364,7 @@ class traction:
         for child in res:
             out.append(child["oid"])
             self._get_childs(child["oid"], out)
-    def patient(self, patientids=None, sampleids=None, idc=None, trials=None, orgas=None, verbose=[], verbose_all=False, like=[], order_by=None, top=None, print_query:bool=False, raw:bool=False):
+    def patient(self, patientids=None, sampleids=None, idc=None, trials=None, orgas:list=None, verbose=[], verbose_all=False, like=[], order_by=None, top=None, print_query:bool=False, raw:bool=False):
         """
          patient gets patients and returns them as a list of Patient instances.
          
@@ -666,6 +377,8 @@ class traction:
         verbose = self._concrete_idcs(verbose)
         if verbose_all == True:
             verbose = vaa
+        if orgas is not None:
+            verbose.append(orga)
         silent = []
         if trials:
             silent.append(trial)
@@ -694,7 +407,7 @@ class traction:
             joins[sidc] = self.jd["patient_to_sample"]
         selectstr = self._selectstr(selects, verbose, ["patientcontainer.*"], idc)  
         joinstr = self._joinstr(joins, verbose + silent, idc)  
-        (wherestr, whereargs) = self._where(trials=trials, idc=idc, verbose=verbose, like=like)
+        (wherestr, whereargs) = self._where(orgas=orgas, trials=trials, idc=idc, verbose=verbose, like=like)
         #print(whereargs)
         topstr = self._top(top)
         query = f"select distinct {topstr} {selectstr} from centraxx_patientcontainer patientcontainer \n{joinstr} \nwhere {wherestr}"
@@ -712,9 +425,8 @@ class traction:
                 if idc in r and r[idc] is not None:
                     ids.append( Identifier(id=dig(r, idc), code=idc.upper()) )
             pat = Patient(
-              ids=ids,
-              orga=dig(r, orga),
-              pidc=self.pidc()
+              ids=Idable(ids=ids, mainidc=self.pidc()),
+              orga=dig(r, orga)
             )
             pats.append(pat)
         return pats
@@ -987,7 +699,7 @@ inner join centraxx_laborvalue laborvalue
           else:
             print(f"error: idcontainer kind {self._idckind[item]} not supported.")
         return joina
-    def _where(self, idc={}, sampleoids:list=None, parentids=None, parentoids=None, patientids=None, trials=None, locationpaths=None, kitids=None, cxxkitids=None, categories=None, samplingdates=None, receiptdates=None, derivaldates=None, first_repositiondates=None, repositiondates=None, stockprocessingdates=None, secondprocessingdates=None, methods=None, like=[], verbose=[], wherearg:str=None): # -> (str, [])
+    def _where(self, idc={}, sampleoids:list=None, parentids:list=None, parentoids:list=None, patientids:list=None, trials:list=None, locationpaths:list=None, kitids:list=None, cxxkitids:list=None, categories:list=None, orgas:list=None, samplingdates=None, receiptdates=None, derivaldates=None, first_repositiondates=None, repositiondates=None, stockprocessingdates=None, secondprocessingdates=None, methods=None, like=[], verbose=[], wherearg:str=None): # -> (str, [])
         """
          _where returns the wherestring and args array for the provided
          arguments (that are not None).
@@ -1010,6 +722,7 @@ inner join centraxx_laborvalue laborvalue
           kitid: { "arr": kitids, "field": "samplekit.kitid" },
           cxxkitid: { "arr": cxxkitids, "field": "samplekit.cxxkitid" },
           category: { "arr": categories, "field": "sample.dtype" },
+          orga: { "arr": orgas, "field": "organisationunit.code" },
           parentid: { "arr": parentids, "field": "parentidc.psn" },
           parentoid: { "arr": parentoids, "field": "sample.parent" },
           sampleoid: { "arr": sampleoids, "field": "sample.oid" },          
@@ -1040,7 +753,13 @@ inner join centraxx_laborvalue laborvalue
         """
         wherestrs = []
         whereargs = []
-        for (key, row) in wheredict.items():
+
+        for key, row in wheredict.items():
+            #print("key:" + key)
+
+            # somehow printing here stops the keys from being iterated in the loop. why?
+            #print("field: " + row["field"])
+            
             if row["arr"] == None or len(row["arr"]) == 0:
                 continue
 

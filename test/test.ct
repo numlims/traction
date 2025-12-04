@@ -33,6 +33,13 @@ get the patient for a sample.
     assert len(res) == 1
 ``
 
+get the findings for the sample.
+
+``
+    res = trac.finding(sampleids=[sampleid])
+    assert len(res) == 1
+``
+
 import.
 
 ``/import:
