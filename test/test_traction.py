@@ -9,3 +9,5 @@ def test_run():
     assert len(res) == 1
     res = trac.patient(sampleids=[sampleid])
     assert len(res) == 1
+    res = trac.finding(sampleids=[sampleid])
+    assert len(res) == 1

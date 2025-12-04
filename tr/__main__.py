@@ -233,10 +233,10 @@ def main():
         print(jsonpickle.encode(patients, unpicklable=False, indent=4))
     elif args.what == "trial":
         res = traction.trial()
-        print(json.dumps(res, default=str))
+        print(json.dumps(res, default=str, indent=4))
     elif args.what == "method":
         res = traction.method(methods=methods)
-        print(json.dumps(res, default=str))
+        print(json.dumps(res, default=str, indent=4))
     elif args.what == "finding":
         res = traction.finding(sampleids=sampleids,
             patientids=patientids,
@@ -247,14 +247,14 @@ def main():
             print_query=args.query,
             raw=args.raw)
         print(jsonpickle.encode(res, unpicklable=False))
-        #print(json.dumps(res, default=str))
+        #print(json.dumps(res, default=str, indent=4))
     elif args.what == "user":
         res = traction.user(username=usernames, emails=emails, lastlogin=datespan(args.last_login), verbose=verbose)
-        print(jsonpickle.encode(res, unpicklable=False))        
+        print(jsonpickle.encode(res, unpicklable=False, indent=4))
     elif args.what == "name":
         # res = traction.name("laborfinding")
         res = traction.name(args.table, args.ml_table)
-        print(json.dumps(res, default=str))
+        print(json.dumps(res, default=str, indent=4))
     else:
         print(f"error: {args.what} not recognized. see traction -h.")
         return 1
