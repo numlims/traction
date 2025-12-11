@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta" # name of the python object that fronten
 
 [project]
 name = "traction"
-version = "0.1.2"
+version = "0.1.3"
 authors = [
   { name="numlims", email="numlims@med.uni-greifswald.de"}
 ]
@@ -12,13 +12,14 @@ description = "samples and patients in centraxx"
 readme = "readme.md"
 requires-python = ">=3.8"
 dependencies = [
-  "cnf @ https://github.com/numlims/cnf/archive/refs/tags/v0.0.1.zip",
-  "dbcq @ https://github.com/numlims/dbcq/archive/refs/tags/v0.0.6.zip",
-  "dip @ https://github.com/numlims/dip/archive/refs/tags/v0.0.2.zip",
+  #"dbcq @ https://github.com/numlims/dbcq/archive/refs/tags/v0.0.6.zip", # avoid version numbers in this and sub packages, so that if dbcq is used in another package the newest dbcq is installed both times.
+  "cnf @ git+https://github.com/numlims/cnf.git",
+  "dbcq @ git+https://github.com/numlims/dbcq.git",
+  "dip @ git+https://github.com/numlims/dip.git",
   "jsonpickle",
   "simplejson",
-  "tbl @ https://github.com/numlims/tbl/archive/refs/tags/v0.0.3.zip",
-  "tram @ https://github.com/numlims/tram/archive/refs/tags/v0.0.1.zip"  
+  "tbl @ git+https://github.com/numlims/tbl.git",
+  "tram @ git+https://github.com/numlims/tram.git"
 ]
 classifiers = [
   "Programming Language :: Python :: 3"
