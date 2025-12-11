@@ -245,8 +245,9 @@ def main():
             trials=trials,
             values=True, # todo make arg?
             print_query=args.query,
+            verbose_all=args.verbose_all,
             raw=args.raw)
-        print(jsonpickle.encode(res, unpicklable=False))
+        print(jsonpickle.encode(res, unpicklable=False, indent=4))
         #print(json.dumps(res, default=str, indent=4))
     elif args.what == "user":
         res = traction.user(username=usernames, emails=emails, lastlogin=datespan(args.last_login), verbose=verbose)

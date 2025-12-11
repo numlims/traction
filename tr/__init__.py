@@ -417,7 +417,7 @@ class traction:
            print(query)
         res = self.db.qfad(query, whereargs)
         if raw:
-            return raw
+            return res
         pats = []
         for r in res:
             ids = [ Identifier(id=dig(r, patientid), code=self.pidc()) ]
@@ -429,6 +429,7 @@ class traction:
               orga=dig(r, orga)
             )
             pats.append(pat)
+            #print("pat: " + str(pat))
         return pats
     def trial(self):
         """
@@ -444,6 +445,9 @@ class traction:
          
          you can pass these to verbose: tr.patientid  // maybe also tr.values?
         """
+        vaa = [patientid]
+        if verbose_all == True:
+            verbose = vaa
         if self.sidc() not in verbose:
             verbose.append(self.sidc())
         verbose = self._concrete_idcs(verbose)

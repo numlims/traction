@@ -757,7 +757,9 @@ vaa (verbose-all-array) holds all possible verbose options for patient.
         vaa = [orga]
 ``
 
-append the idcs for patient to the vaa array.  don't append idcs for sample, cause then one patient with fifteen samples would come out as fifteen result rows?
+append the idcs for patient to the vaa array.  don't append idcs for
+sample, cause then one patient with fifteen samples would come out as
+fifteen result rows?
 
 ``
         vaa.extend(self._patientidcs())        
@@ -911,7 +913,7 @@ if raw is wished, return raw.
 
 ``
         if raw:
-            return raw
+            return res
 ``
 
 make patients from the result.
@@ -939,6 +941,7 @@ build the patient.
               orga=dig(r, orga)
             )
             pats.append(pat)
+            #print("pat: " + str(pat))
 ``
 
 return.
@@ -990,9 +993,22 @@ you can pass these to verbose: tr.patientid  // maybe also tr.values?
         ``ret``
 ``
 
-for now always include the sampleid.
+vaa (verbose-all-array) holds all possible verbose options for patient.
 
 ``/finding/findings: #py
+        vaa = [patientid]
+``
+
+on verbose_all include all constants in the verbose array.
+
+`` #py
+        if verbose_all == True:
+            verbose = vaa
+``
+
+for now always include the sampleid.
+
+``
         if self.sidc() not in verbose:
             verbose.append(self.sidc())
 ``
@@ -1396,7 +1412,8 @@ ml_table: if the name of the table connecting to multilingualentry is not simlpy
         ``.``
 ``
 
-interlacing the table name assumes that the referencing pattern for multilingual entries stays the same across table names.
+interlacing the table name assumes that the referencing pattern for
+multilingual entries stays the same across table names.
 
 ``
         query = "select [" + table + "].code, multilingual.value as name, multilingual.lang as lang"
@@ -1433,7 +1450,7 @@ restrict the query to specific lang or code if given.
             args.append(lang)
 ``
 
-only add sql-where if needed
+only add sql-where if needed.
 
 ``
         if len(wherestrings) > 0:
@@ -1497,7 +1514,8 @@ idc:
         ``.``
 ``
 
-the settings can list idc codes that are not applicable to this target, skip them.
+the settings can list idc codes that are not applicable to this
+target, skip them.
 
 ``
         out = []
@@ -1509,7 +1527,8 @@ the settings can list idc codes that are not applicable to this target, skip the
         return out
 ``
 
-patientidcs returns the idcs from settings that are specific for sample.
+patientidcs returns the idcs from settings that are specific for
+sample.
 
 ``/_patientidcs:
     def _patientidcs(self) -> list:
