@@ -244,6 +244,7 @@ def main():
             methods=methods,
             trials=trials,
             values=True, # todo make arg?
+            top=args.top,
             print_query=args.query,
             verbose_all=args.verbose_all,
             raw=args.raw)

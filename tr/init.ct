@@ -987,7 +987,7 @@ sampleids or method.  it returns a list of Finding instances.
 you can pass these to verbose: tr.patientid  // maybe also tr.values?
 
 ``/finding: #py
-    def finding(self, sampleids=None, patientids=None, idc=None, methods=None, trials=None, values:bool=True, verbose=[], verbose_all:bool=False, print_query:bool=False, raw:bool=False):
+    def finding(self, sampleids=None, patientids=None, idc=None, methods=None, trials=None, values:bool=True, verbose=[], verbose_all:bool=False, top:int=None, print_query:bool=False, raw:bool=False):
         ``findings``
         ``values``
         ``ret``
@@ -996,7 +996,7 @@ you can pass these to verbose: tr.patientid  // maybe also tr.values?
 vaa (verbose-all-array) holds all possible verbose options for patient.
 
 ``/finding/findings: #py
-        vaa = [patientid]
+        vaa = [patientid] # include trial?
 ``
 
 on verbose_all include all constants in the verbose array.
@@ -1004,6 +1004,13 @@ on verbose_all include all constants in the verbose array.
 `` #py
         if verbose_all == True:
             verbose = vaa
+``
+
+put the keys for the arguments into the verbose array.
+
+``
+        if trials is not None:
+            verbose.append(trial)
 ``
 
 for now always include the sampleid.
@@ -1048,7 +1055,9 @@ for any patient idc, join in patientcontainer, which is needed by
 _append_idc_joins.
 
 ``
-        joins = {}
+        joins = {
+            trial: self.jd["sample_to_trial"]
+        }
         for pidc in self._patientidcs():
             joins[pidc] = self.jd["sample_to_patient"]
 ``
@@ -1059,10 +1068,16 @@ get the join string for idcs.
         idcjoinstr = self._joinstr(joins, verbose, idc)
 ``
 
-stick together the query.
+get the top string.
 
 ``
-        query = f"""select laborfinding.oid as "laborfinding_oid", laborfinding.*, labormethod.code as {method}, {idcselectstr}
+        topstr = self._top(top)
+``
+
+stick together the query.#bm
+
+``
+        query = f"""select {topstr} laborfinding.oid as "laborfinding_oid", laborfinding.*, labormethod.code as {method}, {idcselectstr}
         from centraxx_laborfinding as laborfinding
 
         -- go from laborfinding to sample
@@ -1353,7 +1368,7 @@ verbose all array holds the possible verbose options.
 
 put the keys for the given arguments into the verbose array for joining them in.
 
-tr.address and tr.login are catch-alls for address and login related fields.#bm
+tr.address and tr.login are catch-alls for address and login related fields.
 
 ``
         if usernames:

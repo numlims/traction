@@ -438,16 +438,18 @@ class traction:
         query = "select code from centraxx_flexistudy"
         res = self.db.qfad(query)
         return res
-    def finding(self, sampleids=None, patientids=None, idc=None, methods=None, trials=None, values:bool=True, verbose=[], verbose_all:bool=False, print_query:bool=False, raw:bool=False):
+    def finding(self, sampleids=None, patientids=None, idc=None, methods=None, trials=None, values:bool=True, verbose=[], verbose_all:bool=False, top:int=None, print_query:bool=False, raw:bool=False):
         """
          finding gets the laborfindings ("messbefund" / "begleitschein") for
          sampleids or method.  it returns a list of Finding instances.
          
          you can pass these to verbose: tr.patientid  // maybe also tr.values?
         """
-        vaa = [patientid]
+        vaa = [patientid] # include trial?
         if verbose_all == True:
             verbose = vaa
+        if trials is not None:
+            verbose.append(trial)
         if self.sidc() not in verbose:
             verbose.append(self.sidc())
         verbose = self._concrete_idcs(verbose)
@@ -463,11 +465,14 @@ class traction:
             self.pidc(): [f"idc_{self.pidc()}.psn as '{patientid}'"],                   
         }
         idcselectstr = self._selectstr(selects, verbose, [], idc)  
-        joins = {}
+        joins = {
+            trial: self.jd["sample_to_trial"]
+        }
         for pidc in self._patientidcs():
             joins[pidc] = self.jd["sample_to_patient"]
         idcjoinstr = self._joinstr(joins, verbose, idc)
-        query = f"""select laborfinding.oid as "laborfinding_oid", laborfinding.*, labormethod.code as {method}, {idcselectstr}
+        topstr = self._top(top)
+        query = f"""select {topstr} laborfinding.oid as "laborfinding_oid", laborfinding.*, labormethod.code as {method}, {idcselectstr}
         from centraxx_laborfinding as laborfinding
 
         -- go from laborfinding to sample
