@@ -137,6 +137,7 @@ def main():
     parser.add_argument("--last-login", help="the date of the user's last login.")
     parser.add_argument("--verbose", help="comma-separated tr constants that should be joined in, e.g. 'patientid,locationpath'") # -v?  nargs=1?
     parser.add_argument("--verbose-all", help="join in all additional info, takes longer", action="store_true") # -a?
+    parser.add_argument("--names", help="add display names", action="store_true") 
     parser.add_argument("--like", help="comma seperated list of tr constants where to check for like instead of equal")
     parser.add_argument("--files", help="comma seperated list for which flags files are passed")
     parser.add_argument("--missing", help="get missing. not yet implemented.", action="store_true") # -m?
@@ -244,6 +245,7 @@ def main():
             methods=methods,
             trials=trials,
             values=True, # todo make arg?
+            names=args.names,
             top=args.top,
             print_query=args.query,
             verbose_all=args.verbose_all,

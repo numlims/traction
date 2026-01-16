@@ -144,6 +144,9 @@ class traction:
             "participant_to_address": ["left join centraxx_participantaddress participantaddress on participantaddress.participant = participant.oid", "left join centraxx_address address on address.oid = participantaddress.oid"],
             "participant_to_credential": ["left join centraxx_credential credential on credential.participant = participant.oid"]
         }
+        self.names_labval = None
+        self.names_catalogentry = None
+        self.names_usageentry = None
 
     def sample(self, sampleids:list=None, oids:list=None, idc=None, patientids:list=None, parentids:list=None, parentoids:list=None, locationpaths:list=None, trials:list=None, kitids:list=None, cxxkitids:list=None, categories:list=None, orgas:list=None, samplingdates=None, receiptdates=None, derivaldates=None, first_repositiondates=None, repositiondates=None, stockprocessingdates=None, secondprocessingdates=None, verbose=[], verbose_all=False, primaryref:bool=False, incl_parents:bool=False, incl_childs:bool=False, incl_tree:bool=False, like=[], missing=False, where=None, order_by=None, top=None, print_query:bool=False, raw:bool=False):
         """
@@ -438,7 +441,7 @@ class traction:
         query = "select code from centraxx_flexistudy"
         res = self.db.qfad(query)
         return res
-    def finding(self, sampleids=None, patientids=None, idc=None, methods=None, trials=None, values:bool=True, verbose=[], verbose_all:bool=False, top:int=None, print_query:bool=False, raw:bool=False):
+    def finding(self, sampleids=None, patientids=None, idc=None, methods=None, trials=None, values:bool=True, verbose=[], verbose_all:bool=False, names:bool=False, top:int=None, print_query:bool=False, raw:bool=False):
         """
          finding gets the laborfindings ("messbefund" / "begleitschein") for
          sampleids or method.  it returns a list of Finding instances.
@@ -487,6 +490,8 @@ class traction:
             print(query)
             print(whereargs)
         results = self.db.qfad(query, whereargs)
+        if names is True:
+            self.names_laborvalue = self.name(table="laborvalue")
         for i, finding in enumerate(results):
             if values != True: # todo put this outside of the loop?
                 continue
@@ -508,7 +513,7 @@ class traction:
             recvals = self.db.qfad(query, finding['laborfinding_oid'])
             valsbycode = {}
             for recval in recvals:
-              valsbycode[recval["laborvalue_code"]] = self._make_rec(recval, finding)
+              valsbycode[recval["laborvalue_code"]] = self._make_rec(recval, finding, names)
             results[i]["values"] = valsbycode
         if raw:
             return results
@@ -857,9 +862,9 @@ inner join centraxx_laborvalue laborvalue
         for row in res:
           self._idcoid[row["code"]] = row["oid"]
           self._idckind[row["code"]] = row["kind"]
-    def _make_rec(self, recval, finding) -> Rec:
+    def _make_rec(self, recval, finding, names:bool=False) -> Rec:
         """
-         _make_rec makes a recorded value instance from db results.
+         _make_rec makes a recorded value instance for finding from db results with display names if wished.
         """
         out:Rec = None
         if recval["laborvalue_type"] == "BOOLEAN":
@@ -888,22 +893,38 @@ inner join centraxx_laborvalue laborvalue
             join centraxx_catalogentry as catalogentry on catalogentry.oid = recordedval_catentry.catalogentry_oid
             where recordedvalue.oid = ?"""
             res = self.db.qfad(query, recval['oid'])
+            # get the catalogentry names if they are not already loaded, and cache them. maybe it's faster to load the whole names map once instead of joining them in each time?
+            if names is True and self.names_catalogentry is None:
+                self.names_catalogentry = self.name(table="catalogentry")
             entries = []
+            value_name = {}
             for r in res:
-                entries.append(r["catalogentry_code"])
+                code = r["catalogentry_code"]
+                entries.append(code)
+                if names is True:
+                    value_name[code] = self.names_catalogentry[code]#bm
             
-            out = CatalogRec(method=finding["method"], labval=recval["laborvalue_code"], catalog=catalog_code, values=entries)
+            out = CatalogRec(method=finding["method"], labval=recval["laborvalue_code"], catalog=catalog_code, value=entries, value_name=value_name)
         elif recval["laborvalue_type"] == "ENUMERATION" or recval["laborvalue_type"] == "OPTIONGROUP":
             query = f"""select usageentry.code as 'usageentry_code' from centraxx_recordedvalue as recordedvalue
             join centraxx_recordedval_usagentry as recordedval_usagentry on recordedval_usagentry.recordedvalue_oid = recordedvalue.oid
             join centraxx_usageentry as usageentry on usageentry.oid = recordedval_usagentry.usageentry_oid
-            where recordedvalue.oid = ?"""
+            where recordedvalue.oid = ?"""            
             res = self.db.qfad(query, recval['oid'])
+
+            # get the usageentry names if they are not already loaded, and cache them. maybe it's faster to load the whole names map once instead of joining them in each time?
+            if names is True and self.names_usageentry is None:
+                self.names_usageentry = self.name(table="usageentry")
+
             entries = []
+            value_name = {}
             for r in res:
-                entries.append(r["usageentry_code"])
+                code = r["usageentry_code"]
+                entries.append(code)
+                if names is True:
+                    value_name[code] = self.names_usageentry[code]
             
-            out = MultiRec(method=finding["method"], labval=recval["laborvalue_code"], values=entries)
+            out = MultiRec(method=finding["method"], labval=recval["laborvalue_code"], value=entries, value_name=value_name)
         else:
             raise Exception(f"no record class for laborvalue of type {recval['laborvalue_type']}")
         return out

@@ -153,6 +153,14 @@ init jd here, cause it needs to reference self at one point for joining in an id
         }
 ``
 
+set the display name caches.
+
+``
+        self.names_labval = None
+        self.names_catalogentry = None
+        self.names_usageentry = None
+``
+
 import dbcq and cnf.
 
 ``/import: #py
@@ -987,7 +995,7 @@ sampleids or method.  it returns a list of Finding instances.
 you can pass these to verbose: tr.patientid  // maybe also tr.values?
 
 ``/finding: #py
-    def finding(self, sampleids=None, patientids=None, idc=None, methods=None, trials=None, values:bool=True, verbose=[], verbose_all:bool=False, top:int=None, print_query:bool=False, raw:bool=False):
+    def finding(self, sampleids=None, patientids=None, idc=None, methods=None, trials=None, values:bool=True, verbose=[], verbose_all:bool=False, names:bool=False, top:int=None, print_query:bool=False, raw:bool=False):
         ``findings``
         ``values``
         ``ret``
@@ -1108,7 +1116,20 @@ for each of the findings, pull in the recorded values.
 
 maybe only on --verbose = ["values"]
 
+if names should be loaded, get the laborvalue display names. load them
+once to avoid joining them in each time, is that quicker?
+
+catalogentry and usageentry display names are loaded in _make_rec if
+needed.
+
 ``/finding/values:
+        if names is True:
+            self.names_laborvalue = self.name(table="laborvalue")
+``
+
+now iterate the findings and get their recorded values.
+
+``
         for i, finding in enumerate(results):
             if values != True: # todo put this outside of the loop?
                 continue
@@ -1145,7 +1166,7 @@ laborvalue_code (the messparam code).
             recvals = self.db.qfad(query, finding['laborfinding_oid'])
             valsbycode = {}
             for recval in recvals:
-              valsbycode[recval["laborvalue_code"]] = self._make_rec(recval, finding)
+              valsbycode[recval["laborvalue_code"]] = self._make_rec(recval, finding, names)
 ``
 
 put the values to the finding.
@@ -1191,10 +1212,10 @@ from tram import Finding
 from tram import Rec, BooleanRec, NumberRec, StringRec, DateRec, MultiRec, CatalogRec
 ``
 
-_make_rec makes a recorded value instance from db results.
+_make_rec makes a recorded value instance for finding from db results with display names if wished.
 
 ``/_make_rec:
-    def _make_rec(self, recval, finding) -> Rec:
+    def _make_rec(self, recval, finding, names:bool=False) -> Rec:
         ``.``
 ``
 
@@ -1261,11 +1282,18 @@ to catalogentry via the recordedval_catentry table.
             join centraxx_catalogentry as catalogentry on catalogentry.oid = recordedval_catentry.catalogentry_oid
             where recordedvalue.oid = ?"""
             res = self.db.qfad(query, recval['oid'])
+            # get the catalogentry names if they are not already loaded, and cache them. maybe it's faster to load the whole names map once instead of joining them in each time?
+            if names is True and self.names_catalogentry is None:
+                self.names_catalogentry = self.name(table="catalogentry")
             entries = []
+            value_name = {}
             for r in res:
-                entries.append(r["catalogentry_code"])
+                code = r["catalogentry_code"]
+                entries.append(code)
+                if names is True:
+                    value_name[code] = self.names_catalogentry[code]#bm
             
-            out = CatalogRec(method=finding["method"], labval=recval["laborvalue_code"], catalog=catalog_code, values=entries)
+            out = CatalogRec(method=finding["method"], labval=recval["laborvalue_code"], catalog=catalog_code, value=entries, value_name=value_name)
 ``
 
 for enumeration and option group, query the actual usage entries. go from recordedvalue
@@ -1279,13 +1307,22 @@ except without catalog code?
             query = f"""select usageentry.code as 'usageentry_code' from centraxx_recordedvalue as recordedvalue
             join centraxx_recordedval_usagentry as recordedval_usagentry on recordedval_usagentry.recordedvalue_oid = recordedvalue.oid
             join centraxx_usageentry as usageentry on usageentry.oid = recordedval_usagentry.usageentry_oid
-            where recordedvalue.oid = ?"""
+            where recordedvalue.oid = ?"""            
             res = self.db.qfad(query, recval['oid'])
+
+            # get the usageentry names if they are not already loaded, and cache them. maybe it's faster to load the whole names map once instead of joining them in each time?
+            if names is True and self.names_usageentry is None:
+                self.names_usageentry = self.name(table="usageentry")
+
             entries = []
+            value_name = {}
             for r in res:
-                entries.append(r["usageentry_code"])
+                code = r["usageentry_code"]
+                entries.append(code)
+                if names is True:
+                    value_name[code] = self.names_usageentry[code]
             
-            out = MultiRec(method=finding["method"], labval=recval["laborvalue_code"], values=entries)
+            out = MultiRec(method=finding["method"], labval=recval["laborvalue_code"], value=entries, value_name=value_name)
 ``
 
 else throw an exception.
