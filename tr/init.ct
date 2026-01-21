@@ -1348,7 +1348,7 @@ method (messprofil) gets method(s) and their labvals (messparameter).
 the query.
 
 ``
-        query = f"""select laborvalue.*, labormethod.code as "method"
+        query = f"""select laborvalue.code as labval, labormethod.code as "method"
 from centraxx_labormethod labormethod
 inner join centraxx_crftemplate crf_t
     on labormethod.crf_template=crf_t.oid
@@ -1378,19 +1378,29 @@ return the result.
         res = self.db.qfad(query, whereargs)
 ``
 
-key by method code.
+if raw, return result as is.
+
+`
+        if raw:
+            return res
+`
+
+collect the labvals by method.
 
 ``
-        out = {}
+        bymethod = {}
         for row in res:
-          mc = row[method]
-          if mc not in out:
-            out[mc] = {}
-          del row[method]
-          out[mc] = row
-        
-        return out
+            if row["method"] not in bymethod:
+                bymethod[row["method"]] = []
+            bymethod[row["method"]].append(row["labval"])
 ``
+
+return.
+
+``
+        return bymethod
+``
+
 
 ``/user:
     def user(self, usernames:list=None, emails:list=None, lastlogin=None, verbose:list=[]):

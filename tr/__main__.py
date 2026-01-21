@@ -141,7 +141,6 @@ def main():
     parser.add_argument("--like", help="comma seperated list of tr constants where to check for like instead of equal")
     parser.add_argument("--files", help="comma seperated list for which flags files are passed")
     parser.add_argument("--missing", help="get missing. not yet implemented.", action="store_true") # -m?
-    parser.add_argument("--where", help="additional sql where string")
     parser.add_argument("--order-by", help="order by on sql query level")
     parser.add_argument("--top", help="first n results on sql query level")    
     parser.add_argument("--query", help="print the query", action="store_true")
@@ -205,7 +204,6 @@ def main():
                incl_tree=args.tree,
                like=likes,
                missing=args.missing,
-               where=args.where,
                order_by=args.order_by,
                top=args.top,
                print_query=args.query,

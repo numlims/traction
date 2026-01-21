@@ -534,7 +534,7 @@ class traction:
         """
          method (messprofil) gets method(s) and their labvals (messparameter).
         """
-        query = f"""select laborvalue.*, labormethod.code as "method"
+        query = f"""select laborvalue.code as labval, labormethod.code as "method"
 from centraxx_labormethod labormethod
 inner join centraxx_crftemplate crf_t
     on labormethod.crf_template=crf_t.oid
@@ -552,15 +552,12 @@ inner join centraxx_laborvalue laborvalue
           query += " where " + wherestr
         # print(query)
         res = self.db.qfad(query, whereargs)
-        out = {}
+        bymethod = {}
         for row in res:
-          mc = row[method]
-          if mc not in out:
-            out[mc] = {}
-          del row[method]
-          out[mc] = row
-        
-        return out
+            if row["method"] not in bymethod:
+                bymethod[row["method"]] = []
+            bymethod[row["method"]].append(row["labval"])
+        return bymethod
     def user(self, usernames:list=None, emails:list=None, lastlogin=None, verbose:list=[]):
         """
         """
