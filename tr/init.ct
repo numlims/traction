@@ -208,8 +208,20 @@ to check via like as opposed to exact, put the respective fields into
 the like array, e.g. `like=[tr.locationpath]`.
 
 ``/sample: #py
-    def sample(self, sampleids:list=None, oids:list=None, idc=None, patientids:list=None, parentids:list=None, parentoids:list=None, locationpaths:list=None, trials:list=None, kitids:list=None, cxxkitids:list=None, categories:list=None, orgas:list=None, samplingdates=None, receiptdates=None, derivaldates=None, first_repositiondates=None, repositiondates=None, stockprocessingdates=None, secondprocessingdates=None, verbose=[], verbose_all=False, primaryref:bool=False, incl_parents:bool=False, incl_childs:bool=False, incl_tree:bool=False, like=[], missing=False, where=None, order_by=None, top=None, print_query:bool=False, raw:bool=False):
+    def sample(self, sampleids:list=None, oids:list=None, idc=None, patientids:list=None, parentids:list=None, parentoids:list=None, locationpaths:list=None, trials:list=None, kitids:list=None, cxxkitids:list=None, categories:list=None, orgas:list=None, samplingdates=None, receiptdates=None, derivaldates=None, first_repositiondates=None, repositiondates=None, stockprocessingdates=None, secondprocessingdates=None, verbose:list=None, verbose_all=False, primaryref:bool=False, incl_parents:bool=False, incl_childs:bool=False, incl_tree:bool=False, like:list=None, missing=False, order_by=None, top=None, print_query:bool=False, raw:bool=False):
         ``.``
+``
+
+init arrays.  don't set them as mutable default parameters
+(e.g. verbose=[]), cause they would then retain their values across
+method calls. see
+https://www.geeksforgeeks.org/python/use-mutable-default-value-as-an-argument-in-python/
+
+``
+        if verbose is None:
+            verbose = []
+        if like is None:
+            like = []
 ``
 
 these are all possible verbose options (verbose-all-array).
@@ -325,7 +337,7 @@ verbose should be filled in any case.
 fire the call, then add to the result.
 
 ``
-            res = self.sample(sampleids=sampleids, idc=idc, parentids=parentids, parentoids=parentoids, patientids=patientids, trials=trials, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, categories=categories, samplingdates=samplingdates, receiptdates=receiptdates, derivaldates=derivaldates, first_repositiondates=first_repositiondates, repositiondates=repositiondates, stockprocessingdates=stockprocessingdates, secondprocessingdates=secondprocessingdates, verbose=verbosepass, verbose_all=False, like=like, missing=missing, where=where, order_by=order_by, top=top, print_query=print_query)
+            res = self.sample(sampleids=sampleids, idc=idc, parentids=parentids, parentoids=parentoids, patientids=patientids, trials=trials, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, categories=categories, samplingdates=samplingdates, receiptdates=receiptdates, derivaldates=derivaldates, first_repositiondates=first_repositiondates, repositiondates=repositiondates, stockprocessingdates=stockprocessingdates, secondprocessingdates=secondprocessingdates, verbose=verbosepass, verbose_all=False, like=like, missing=missing, order_by=order_by, top=top, print_query=print_query)
 ``
 
 proceed differently if primary info should be added or if samples from
@@ -535,7 +547,7 @@ put together the select string and join string for the query.
 get the where string.
 
 `` #py
-        (wherestr, whereargs) = self._where(idc=idc, sampleoids=oids, parentids=parentids, parentoids=parentoids, trials=trials, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, categories=categories, orgas=orgas, samplingdates=samplingdates, receiptdates=receiptdates, derivaldates=derivaldates, first_repositiondates=first_repositiondates, repositiondates=repositiondates, stockprocessingdates=stockprocessingdates, secondprocessingdates=secondprocessingdates, verbose=verbose, like=like, wherearg=where) 
+        (wherestr, whereargs) = self._where(idc=idc, sampleoids=oids, parentids=parentids, parentoids=parentoids, trials=trials, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, categories=categories, orgas=orgas, samplingdates=samplingdates, receiptdates=receiptdates, derivaldates=derivaldates, first_repositiondates=first_repositiondates, repositiondates=repositiondates, stockprocessingdates=stockprocessingdates, secondprocessingdates=secondprocessingdates, verbose=verbose, like=like) 
 ``
 
 get the top string.
@@ -755,8 +767,17 @@ patient gets patients and returns them as a list of Patient instances.
 the parameters work analog to the sample method.
 
 ``/patient: #py
-    def patient(self, patientids=None, sampleids=None, idc=None, trials=None, orgas:list=None, verbose=[], verbose_all=False, like=[], order_by=None, top=None, print_query:bool=False, raw:bool=False):
+    def patient(self, patientids=None, sampleids=None, idc=None, trials=None, orgas:list=None, verbose:list=None, verbose_all=False, like:list=None, order_by=None, top=None, print_query:bool=False, raw:bool=False):
         ``.``
+``
+
+init arrays to avoid mutable default parameters.
+
+``
+        if verbose is None:
+            verbose = []
+        if like is None:
+            like = []
 ``
 
 vaa (verbose-all-array) holds all possible verbose options for patient.
@@ -995,10 +1016,18 @@ sampleids or method.  it returns a list of Finding instances.
 you can pass these to verbose: tr.patientid  // maybe also tr.values?
 
 ``/finding: #py
-    def finding(self, sampleids=None, patientids=None, idc=None, methods=None, trials=None, values:bool=True, verbose=[], verbose_all:bool=False, names:bool=False, top:int=None, print_query:bool=False, raw:bool=False):
+    def finding(self, sampleids=None, patientids=None, idc=None, methods=None, trials=None, values:bool=True, verbose:list=None, verbose_all:bool=False, names:bool=False, top:int=None, print_query:bool=False, raw:bool=False):
+        ``init``
         ``findings``
         ``values``
         ``ret``
+``
+
+init arrays to avoid multiple default parameters.
+
+``/finding/init:
+        if verbose is None:
+            verbose = []
 ``
 
 vaa (verbose-all-array) holds all possible verbose options for patient.
@@ -1403,9 +1432,17 @@ return.
 
 
 ``/user:
-    def user(self, usernames:list=None, emails:list=None, lastlogin=None, verbose:list=[]):
+    def user(self, usernames:list=None, emails:list=None, lastlogin=None, verbose:list=None):
         ``.``
 ``
+
+init arrays to avoid multiple default parameters.
+
+``
+        if verbose is None:
+            verbose = []
+``
+        
 
 verbose all array holds the possible verbose options.
 
@@ -1875,8 +1912,17 @@ like=[tr.locationpath], it checks likeness of locationpaths[0].
 make sure only one of sampleids or extsampleids is passed?
 
 ``/_where:
-    def _where(self, idc={}, sampleoids:list=None, parentids:list=None, parentoids:list=None, patientids:list=None, trials:list=None, locationpaths:list=None, kitids:list=None, cxxkitids:list=None, categories:list=None, orgas:list=None, samplingdates=None, receiptdates=None, derivaldates=None, first_repositiondates=None, repositiondates=None, stockprocessingdates=None, secondprocessingdates=None, methods=None, like=[], verbose=[], wherearg:str=None): # -> (str, [])
+    def _where(self, idc={}, sampleoids:list=None, parentids:list=None, parentoids:list=None, patientids:list=None, trials:list=None, locationpaths:list=None, kitids:list=None, cxxkitids:list=None, categories:list=None, orgas:list=None, samplingdates=None, receiptdates=None, derivaldates=None, first_repositiondates=None, repositiondates=None, stockprocessingdates=None, secondprocessingdates=None, methods=None, like=None, verbose=None): # -> (str, [])
         ``.``
+``
+
+init arrays to avoid mutable default parameters.
+
+``
+        if like is None:
+            like = []
+        if verbose is None:
+            verbose = []
 ``
 
 put the where-info for each field that could appear in the verbose
@@ -1932,13 +1978,6 @@ args array.
         wherestr = " and ".join(wherearr)
 ``
 
-add the where string passed as argument.
-
-``
-        if wherearg is not None:
-           wherestr += " and (" + wherearg + ")"
-``
-
 return.
 
 ``
@@ -1948,8 +1987,17 @@ return.
 _wherebuild builds wherestrings and fills whereargs.
 
 ``/_wherebuild:
-    def _wherebuild(self, wheredict, likearr=[], verbose=[]): # ([]string, [])
+    def _wherebuild(self, wheredict, likearr:list=None, verbose:list=None): # ([]string, [])
         ``.``
+``
+
+init arrays to avoid mutable default parameters.
+
+``
+        if likearr is None:
+            likearr = []
+        if verbose is None:
+            verbose = []
 ``
 
 add where clauses to wherestrs and their respective arguments to

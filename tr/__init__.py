@@ -148,7 +148,7 @@ class traction:
         self.names_catalogentry = None
         self.names_usageentry = None
 
-    def sample(self, sampleids:list=None, oids:list=None, idc=None, patientids:list=None, parentids:list=None, parentoids:list=None, locationpaths:list=None, trials:list=None, kitids:list=None, cxxkitids:list=None, categories:list=None, orgas:list=None, samplingdates=None, receiptdates=None, derivaldates=None, first_repositiondates=None, repositiondates=None, stockprocessingdates=None, secondprocessingdates=None, verbose=[], verbose_all=False, primaryref:bool=False, incl_parents:bool=False, incl_childs:bool=False, incl_tree:bool=False, like=[], missing=False, where=None, order_by=None, top=None, print_query:bool=False, raw:bool=False):
+    def sample(self, sampleids:list=None, oids:list=None, idc=None, patientids:list=None, parentids:list=None, parentoids:list=None, locationpaths:list=None, trials:list=None, kitids:list=None, cxxkitids:list=None, categories:list=None, orgas:list=None, samplingdates=None, receiptdates=None, derivaldates=None, first_repositiondates=None, repositiondates=None, stockprocessingdates=None, secondprocessingdates=None, verbose:list=None, verbose_all=False, primaryref:bool=False, incl_parents:bool=False, incl_childs:bool=False, incl_tree:bool=False, like:list=None, missing=False, order_by=None, top=None, print_query:bool=False, raw:bool=False):
         """
          sample gets sample(s) and returns them as a list of Sample instances.
          
@@ -167,6 +167,10 @@ class traction:
          to check via like as opposed to exact, put the respective fields into
          the like array, e.g. `like=[tr.locationpath]`.
         """
+        if verbose is None:
+            verbose = []
+        if like is None:
+            like = []
         # print("try:" + tr.sampleid)
         vaa = [cxxkitid, kitid, locationname, locationpath, orga, parentid, 
                project, receptacle, sampletype,
@@ -196,7 +200,7 @@ class traction:
             verbosepass = []
             if primaryref:
                 verbosepass = verbose
-            res = self.sample(sampleids=sampleids, idc=idc, parentids=parentids, parentoids=parentoids, patientids=patientids, trials=trials, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, categories=categories, samplingdates=samplingdates, receiptdates=receiptdates, derivaldates=derivaldates, first_repositiondates=first_repositiondates, repositiondates=repositiondates, stockprocessingdates=stockprocessingdates, secondprocessingdates=secondprocessingdates, verbose=verbosepass, verbose_all=False, like=like, missing=missing, where=where, order_by=order_by, top=top, print_query=print_query)
+            res = self.sample(sampleids=sampleids, idc=idc, parentids=parentids, parentoids=parentoids, patientids=patientids, trials=trials, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, categories=categories, samplingdates=samplingdates, receiptdates=receiptdates, derivaldates=derivaldates, first_repositiondates=first_repositiondates, repositiondates=repositiondates, stockprocessingdates=stockprocessingdates, secondprocessingdates=secondprocessingdates, verbose=verbosepass, verbose_all=False, like=like, missing=missing, order_by=order_by, top=top, print_query=print_query)
             if primaryref:
                 for sample in res:
                     self._fill_in_primary(sample)
@@ -279,7 +283,7 @@ class traction:
             joins[pidc] = self.jd["sample_to_patient"]
         selectstr = self._selectstr(jselects, verbose, lselects, idc)  
         joinstr = self._joinstr(joins, verbose, idc)  
-        (wherestr, whereargs) = self._where(idc=idc, sampleoids=oids, parentids=parentids, parentoids=parentoids, trials=trials, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, categories=categories, orgas=orgas, samplingdates=samplingdates, receiptdates=receiptdates, derivaldates=derivaldates, first_repositiondates=first_repositiondates, repositiondates=repositiondates, stockprocessingdates=stockprocessingdates, secondprocessingdates=secondprocessingdates, verbose=verbose, like=like, wherearg=where) 
+        (wherestr, whereargs) = self._where(idc=idc, sampleoids=oids, parentids=parentids, parentoids=parentoids, trials=trials, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, categories=categories, orgas=orgas, samplingdates=samplingdates, receiptdates=receiptdates, derivaldates=derivaldates, first_repositiondates=first_repositiondates, repositiondates=repositiondates, stockprocessingdates=stockprocessingdates, secondprocessingdates=secondprocessingdates, verbose=verbose, like=like) 
         topstr = self._top(top)
         query = f"select {topstr} {selectstr} from centraxx_sample sample \n{joinstr} \nwhere {wherestr}"
         if order_by is not None:
@@ -367,12 +371,16 @@ class traction:
         for child in res:
             out.append(child["oid"])
             self._get_childs(child["oid"], out)
-    def patient(self, patientids=None, sampleids=None, idc=None, trials=None, orgas:list=None, verbose=[], verbose_all=False, like=[], order_by=None, top=None, print_query:bool=False, raw:bool=False):
+    def patient(self, patientids=None, sampleids=None, idc=None, trials=None, orgas:list=None, verbose:list=None, verbose_all=False, like:list=None, order_by=None, top=None, print_query:bool=False, raw:bool=False):
         """
          patient gets patients and returns them as a list of Patient instances.
          
          the parameters work analog to the sample method.
         """
+        if verbose is None:
+            verbose = []
+        if like is None:
+            like = []
         vaa = [orga]
         vaa.extend(self._patientidcs())        
         if not self.pidc() in verbose:
@@ -441,13 +449,15 @@ class traction:
         query = "select code from centraxx_flexistudy"
         res = self.db.qfad(query)
         return res
-    def finding(self, sampleids=None, patientids=None, idc=None, methods=None, trials=None, values:bool=True, verbose=[], verbose_all:bool=False, names:bool=False, top:int=None, print_query:bool=False, raw:bool=False):
+    def finding(self, sampleids=None, patientids=None, idc=None, methods=None, trials=None, values:bool=True, verbose:list=None, verbose_all:bool=False, names:bool=False, top:int=None, print_query:bool=False, raw:bool=False):
         """
          finding gets the laborfindings ("messbefund" / "begleitschein") for
          sampleids or method.  it returns a list of Finding instances.
          
          you can pass these to verbose: tr.patientid  // maybe also tr.values?
         """
+        if verbose is None:
+            verbose = []
         vaa = [patientid] # include trial?
         if verbose_all == True:
             verbose = vaa
@@ -558,9 +568,11 @@ inner join centraxx_laborvalue laborvalue
                 bymethod[row["method"]] = []
             bymethod[row["method"]].append(row["labval"])
         return bymethod
-    def user(self, usernames:list=None, emails:list=None, lastlogin=None, verbose:list=[]):
+    def user(self, usernames:list=None, emails:list=None, lastlogin=None, verbose:list=None):
         """
         """
+        if verbose is None:
+            verbose = []
         vaa = [tr.address, tr.login]
         if usernames:
             verbose.append(tr.username)
@@ -710,7 +722,7 @@ inner join centraxx_laborvalue laborvalue
           else:
             print(f"error: idcontainer kind {self._idckind[item]} not supported.")
         return joina
-    def _where(self, idc={}, sampleoids:list=None, parentids:list=None, parentoids:list=None, patientids:list=None, trials:list=None, locationpaths:list=None, kitids:list=None, cxxkitids:list=None, categories:list=None, orgas:list=None, samplingdates=None, receiptdates=None, derivaldates=None, first_repositiondates=None, repositiondates=None, stockprocessingdates=None, secondprocessingdates=None, methods=None, like=[], verbose=[], wherearg:str=None): # -> (str, [])
+    def _where(self, idc={}, sampleoids:list=None, parentids:list=None, parentoids:list=None, patientids:list=None, trials:list=None, locationpaths:list=None, kitids:list=None, cxxkitids:list=None, categories:list=None, orgas:list=None, samplingdates=None, receiptdates=None, derivaldates=None, first_repositiondates=None, repositiondates=None, stockprocessingdates=None, secondprocessingdates=None, methods=None, like=None, verbose=None): # -> (str, [])
         """
          _where returns the wherestring and args array for the provided
          arguments (that are not None).
@@ -726,6 +738,10 @@ inner join centraxx_laborvalue laborvalue
          
          make sure only one of sampleids or extsampleids is passed?
         """
+        if like is None:
+            like = []
+        if verbose is None:
+            verbose = []
         wheredict = { 
           trial: { "arr": trials, "field": "flexistudy.code" },
           locationpath: { "arr": locationpaths, "field": "samplelocation.locationpath" },
@@ -755,13 +771,15 @@ inner join centraxx_laborvalue laborvalue
         (wherearr, whereargs) = self._wherebuild(wheredict, like, verbose)
 
         wherestr = " and ".join(wherearr)
-        if wherearg is not None:
-           wherestr += " and (" + wherearg + ")"
         return (wherestr, whereargs)
-    def _wherebuild(self, wheredict, likearr=[], verbose=[]): # ([]string, [])
+    def _wherebuild(self, wheredict, likearr:list=None, verbose:list=None): # ([]string, [])
         """
          _wherebuild builds wherestrings and fills whereargs.
         """
+        if likearr is None:
+            likearr = []
+        if verbose is None:
+            verbose = []
         wherestrs = []
         whereargs = []
 
