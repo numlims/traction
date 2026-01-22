@@ -23,6 +23,7 @@ class traction:
     ``finding``
     ``method``
     ``user``
+    ``usageentry``
     ``name``
     
     ``sidc``
@@ -1489,6 +1490,43 @@ the join dict entries for user.
             "participant_to_credential": ["left join centraxx_credential credential on credential.participant = participant.oid"]
 ``
 
+usageentry gives the usageentries.
+
+``/usageentry:
+    def usageentry(self):
+        ``.``
+``
+
+get the usageentries.
+
+``
+        query = "select code from centraxx_usageentry"
+        res = self.db.qfad(query)
+``
+
+get the names (todo cache)?
+
+``
+        names = self.name(table="usageentry")
+``
+
+put the names to the codes.
+
+``
+        out = {}
+        for row in res:
+            code = row["code"]
+            out[code] = {}
+            out[code]["name_de"] = dig(names, code + "/de")
+            out[code]["name_en"] = dig(names, code + "/en")            
+``
+
+return.
+
+``
+        return out
+``
+
 name gives the multilingual names for a code or all codes in a table.
 
 the result is keyed by code and language like this:
@@ -2160,15 +2198,28 @@ expressions, as many as given n.
         return " or ".join(a)
 ``
 
-_top returns the top string, for, e.g. `select top 100 * from table`, if
+_top returns an injection-safe top string, for, e.g. `select top 100 * from table`, if
 top is None return an empty string.
 
 ``/_top:
     def _top(self, top):
+        ``.``
+``
+
+pass the top param as a literal for injection-safety.
+
+``
         if top is not None:
+           #return sql.SQL("top {top}").format(top=sql.Literal(top))
            return f"top {top}"
         return ""
-``                             
+``
+
+import pspycopg2. see https://realpython.com/prevent-python-sql-injection/
+
+``/import
+#from pspycopg2 import sql
+``
 
 _idcinit makes a mapping of idcontainers from their code (lower-case) to respective oid and kind.
 

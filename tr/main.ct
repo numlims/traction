@@ -47,7 +47,7 @@ parse the arguments.
     # in any case take the database target
     parser.add_argument("db", help="db target")
 
-    parser.add_argument("what", help="sample|patient|trial|finding|method|user|name. finding: messbefund; method: messprofil; name: get display names for a table.") # labval: messparameter
+    parser.add_argument("what", help="sample|patient|trial|finding|method|user|usageentry|name. finding: messbefund; method: messprofil; name: get display names for a table.") # labval: messparameter
     parser.add_argument("--sampleid", help="sampleid(s)")
     parser.add_argument("--patientid", help="patientid(s)")
     parser.add_argument("--parentid", help="sampleid(s) of parent samples")    
@@ -274,6 +274,13 @@ get user(s)
         print(jsonpickle.encode(res, unpicklable=False, indent=4))
 ``
 
+get usageentries.
+
+``
+    elif args.what == "usageentry":
+        res = traction.usageentry()
+        print(jsonpickle.encode(res, unpicklable=False, indent=4))
+``
 
 get a name.
 

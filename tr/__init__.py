@@ -7,6 +7,7 @@ from tram import Sample, Idable, Amount, Identifier
 from tram import Patient
 from tram import Finding
 from tram import Rec, BooleanRec, NumberRec, StringRec, DateRec, MultiRec, CatalogRec
+#from pspycopg2 import sql
 import csv
 address = "address"
 appointment = "appointment"
@@ -589,6 +590,20 @@ inner join centraxx_laborvalue laborvalue
             )
             out.append(user)
         return out
+    def usageentry(self):
+        """
+         usageentry gives the usageentries.
+        """
+        query = "select code from centraxx_usageentry"
+        res = self.db.qfad(query)
+        names = self.name(table="usageentry")
+        out = {}
+        for row in res:
+            code = row["code"]
+            out[code] = {}
+            out[code]["name_de"] = dig(names, code + "/de")
+            out[code]["name_en"] = dig(names, code + "/en")            
+        return out
     def name(self, table:str, code:str=None, lang:str=None, ml_table:str=None):
         """
          name gives the multilingual names for a code or all codes in a table.
@@ -860,10 +875,11 @@ inner join centraxx_laborvalue laborvalue
         return " or ".join(a)
     def _top(self, top):
         """
-         _top returns the top string, for, e.g. `select top 100 * from table`, if
+         _top returns an injection-safe top string, for, e.g. `select top 100 * from table`, if
          top is None return an empty string.
         """
         if top is not None:
+           #return sql.SQL("top {top}").format(top=sql.Literal(top))
            return f"top {top}"
         return ""
     def _idcinit(self):
