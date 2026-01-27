@@ -108,7 +108,7 @@ def main():
     # in any case take the database target
     parser.add_argument("db", help="db target")
 
-    parser.add_argument("what", help="sample|patient|trial|finding|method|user|usageentry|name. finding: messbefund; method: messprofil; name: get display names for a table.") # labval: messparameter
+    parser.add_argument("what", help="sample|patient|trial|finding|method|user|catalogentry|usageentry|name. finding: messbefund; method: messprofil; name: get display names for a table.") # labval: messparameter
     parser.add_argument("--sampleid", help="sampleid(s)")
     parser.add_argument("--patientid", help="patientid(s)")
     parser.add_argument("--parentid", help="sampleid(s) of parent samples")    
@@ -252,6 +252,9 @@ def main():
         #print(json.dumps(res, default=str, indent=4))
     elif args.what == "user":
         res = traction.user(username=usernames, emails=emails, lastlogin=datespan(args.last_login), verbose=verbose)
+        print(jsonpickle.encode(res, unpicklable=False, indent=4))
+    elif args.what == "catalogentry":
+        res = traction.catalogentry()
         print(jsonpickle.encode(res, unpicklable=False, indent=4))
     elif args.what == "usageentry":
         res = traction.usageentry()

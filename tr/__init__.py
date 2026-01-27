@@ -288,7 +288,8 @@ class traction:
         topstr = self._top(top)
         query = f"select {topstr} {selectstr} from centraxx_sample sample \n{joinstr} \nwhere {wherestr}"
         if order_by is not None:
-            query += f" order by {order_by}"
+            query += f" order by {order_by}"#bm
+            # query += sql.SQL(" order by {order_by}").format({ order_by = sql.Identifier(order_by) } )
         if print_query:
            print(query)
            print(whereargs)
@@ -563,12 +564,25 @@ inner join centraxx_laborvalue laborvalue
           query += " where " + wherestr
         # print(query)
         res = self.db.qfad(query, whereargs)
-        bymethod = {}
+        methodnames = self.name(table="labormethod")
+        labvalnames = self.name(table="laborvalue")
+        out = {}
         for row in res:
-            if row["method"] not in bymethod:
-                bymethod[row["method"]] = []
-            bymethod[row["method"]].append(row["labval"])
-        return bymethod
+            methodcode = row["method"]
+            if methodcode not in out:
+                out[methodcode] = {}
+                out[methodcode]["code"] = methodcode
+                out[methodcode]["name_de"] = dig(methodnames, methodcode + "/de")
+                out[methodcode]["name_en"] = dig(methodnames, methodcode + "/en")
+                out[methodcode]["labvals"] = {}
+            labvalcode = row["labval"]
+
+            labval = {}
+            labval["code"] = labvalcode
+            labval["name_de"] = dig(labvalnames, labvalcode + "/de")
+            labval["name_en"] = dig(labvalnames, labvalcode + "/en")            
+            out[methodcode]["labvals"][labvalcode] = labval
+        return out
     def user(self, usernames:list=None, emails:list=None, lastlogin=None, verbose:list=None):
         """
         """
@@ -590,6 +604,33 @@ inner join centraxx_laborvalue laborvalue
             )
             out.append(user)
         return out
+    def catalogentry(self):
+        """
+         catalogentry gives the catalogentries per catalog.
+        """
+        query = """select catalogentry.code as 'entry_code', catalog.code as 'catalog_code' from centraxx_catalogentry catalogentry
+join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
+        res = self.db.qfad(query)
+        catnames = self.name(table="catalog")
+        entrynames = self.name(table="catalogentry")
+        out = {}
+        for row in res:
+            entrycode = dig(row, "entry_code")
+            catcode = dig(row, "catalog_code")
+            # create the catalog
+            if not catcode in out:
+                out[catcode] = {}
+                out[catcode]["code"] = catcode
+                out[catcode]["name_de"] = dig(catnames, catcode + "/de")
+                out[catcode]["name_en"] = dig(catnames, catcode + "/en")
+                out[catcode]["entries"] = {}
+            # add the entry
+            entry = {}
+            entry["code"] = entrycode
+            entry["name_de"] = dig(entrynames, entrycode + "/de")
+            entry["name_en"] = dig(entrynames, entrycode + "/en")        
+            out[catcode]["entries"][entrycode] = entry
+        return out
     def usageentry(self):
         """
          usageentry gives the usageentries.
@@ -602,7 +643,8 @@ inner join centraxx_laborvalue laborvalue
             code = row["code"]
             out[code] = {}
             out[code]["name_de"] = dig(names, code + "/de")
-            out[code]["name_en"] = dig(names, code + "/en")            
+            out[code]["name_en"] = dig(names, code + "/en")
+            out[code]["code"] = code
         return out
     def name(self, table:str, code:str=None, lang:str=None, ml_table:str=None):
         """
@@ -900,18 +942,18 @@ inner join centraxx_laborvalue laborvalue
         out:Rec = None
         if recval["laborvalue_type"] == "BOOLEAN":
             val = True if recval["boolvalue"] == 1 else False
-            out = BooleanRec(method=finding["method"], labval=recval["laborvalue_code"], value=val)
+            out = BooleanRec(method=finding["method"], labval=recval["laborvalue_code"], rec=val)
         elif recval["laborvalue_type"] == "DECIMAL":
             #print(recval["laborvalue_code"])
             #print(recval)
             value = float(recval["numericvalue"]) if recval["numericvalue"] is not None else None
-            out = NumberRec(method=finding["method"], labval=recval["laborvalue_code"], value=value, unit=recval["laborvalue_unit"])
+            out = NumberRec(method=finding["method"], labval=recval["laborvalue_code"], rec=value, unit=recval["laborvalue_unit"])
         elif recval["laborvalue_type"] == "STRING" or recval["laborvalue_type"] == "LONGSTRING":
-            out = StringRec(method=finding["method"], labval=recval["laborvalue_code"], value=recval["stringvalue"])
+            out = StringRec(method=finding["method"], labval=recval["laborvalue_code"], rec=recval["stringvalue"])
         elif recval["laborvalue_type"] == "DATE":
-            out = DateRec(method=finding["method"], labval=recval["laborvalue_code"], value=recval["datevalue"])
+            out = DateRec(method=finding["method"], labval=recval["laborvalue_code"], rec=recval["datevalue"])
         elif recval["laborvalue_type"] == "LONGDATE":
-            out = DateRec(method=finding["method"], labval=recval["laborvalue_code"], value=recval["datevalueprecision"])
+            out = DateRec(method=finding["method"], labval=recval["laborvalue_code"], rec=recval["datevalueprecision"])
         elif recval["laborvalue_type"] == "CATALOG":
             # get the catalog code
             query = f"""select catalog.code as 'catalog_code' from centraxx_catalog as catalog
@@ -935,7 +977,7 @@ inner join centraxx_laborvalue laborvalue
                 if names is True:
                     value_name[code] = self.names_catalogentry[code]#bm
             
-            out = CatalogRec(method=finding["method"], labval=recval["laborvalue_code"], catalog=catalog_code, value=entries, value_name=value_name)
+            out = CatalogRec(method=finding["method"], labval=recval["laborvalue_code"], catalog=catalog_code, rec=entries, rec_name=value_name)
         elif recval["laborvalue_type"] == "ENUMERATION" or recval["laborvalue_type"] == "OPTIONGROUP":
             query = f"""select usageentry.code as 'usageentry_code' from centraxx_recordedvalue as recordedvalue
             join centraxx_recordedval_usagentry as recordedval_usagentry on recordedval_usagentry.recordedvalue_oid = recordedvalue.oid
@@ -955,7 +997,7 @@ inner join centraxx_laborvalue laborvalue
                 if names is True:
                     value_name[code] = self.names_usageentry[code]
             
-            out = MultiRec(method=finding["method"], labval=recval["laborvalue_code"], value=entries, value_name=value_name)
+            out = MultiRec(method=finding["method"], labval=recval["laborvalue_code"], rec=entries, rec_name=value_name)
         else:
             raise Exception(f"no record class for laborvalue of type {recval['laborvalue_type']}")
         return out
