@@ -39,7 +39,7 @@ traction
 then edit `~/.traction/settings.yaml` to set your default idcontainer
 codes for sample and patient.
 
-.traction/settings.yaml looks like this:
+the `settings.yaml` looks like this:
 
 ```
 # sampleid sets the idcontainertype code that is used when searching for sampleid.

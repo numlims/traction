@@ -1,6 +1,6 @@
 # traction
 
-commonly used getters (and setters?) for centrax db.
+commonly used getters (and setters?) for centraxx db.
 
 ``//__init__.py: #py
 ``import``
@@ -9,22 +9,6 @@ commonly used getters (and setters?) for centrax db.
 ``_checkverbose``
 ``floatornull``
 ``get_ids``
-
-``identifier class``
-``amount class``
-``idable class``
-``sample class``
-``patient class``
-``finding class``
-``user class``
-
-``rec``
-``booleanrec``
-``numberrec``
-``stringrec``
-``daterec``
-``catalogrec``
-``multirec``
 
 ``idable_csv``
 
@@ -39,6 +23,8 @@ class traction:
     ``finding``
     ``method``
     ``user``
+    ``catalogentry``
+    ``usageentry``
     ``name``
     
     ``sidc``
@@ -169,6 +155,14 @@ init jd here, cause it needs to reference self at one point for joining in an id
         }
 ``
 
+set the display name caches.
+
+``
+        self.names_labval = None
+        self.names_catalogentry = None
+        self.names_usageentry = None
+``
+
 import dbcq and cnf.
 
 ``/import: #py
@@ -216,8 +210,20 @@ to check via like as opposed to exact, put the respective fields into
 the like array, e.g. `like=[tr.locationpath]`.
 
 ``/sample: #py
-    def sample(self, sampleids:list=None, oids:list=None, idc=None, patientids:list=None, parentids:list=None, parentoids:list=None, locationpaths:list=None, trials:list=None, kitids:list=None, cxxkitids:list=None, categories:list=None, orgas:list=None, samplingdates=None, receiptdates=None, derivaldates=None, first_repositiondates=None, repositiondates=None, stockprocessingdates=None, secondprocessingdates=None, verbose=[], verbose_all=False, primaryref:bool=False, incl_parents:bool=False, incl_childs:bool=False, incl_tree:bool=False, like=[], missing=False, where=None, order_by=None, top=None, print_query:bool=False, raw:bool=False):
+    def sample(self, sampleids:list=None, oids:list=None, idc=None, patientids:list=None, parentids:list=None, parentoids:list=None, locationpaths:list=None, trials:list=None, kitids:list=None, cxxkitids:list=None, categories:list=None, orgas:list=None, samplingdates=None, receiptdates=None, derivaldates=None, first_repositiondates=None, repositiondates=None, stockprocessingdates=None, secondprocessingdates=None, verbose:list=None, verbose_all=False, primaryref:bool=False, incl_parents:bool=False, incl_childs:bool=False, incl_tree:bool=False, like:list=None, missing=False, order_by=None, top=None, print_query:bool=False, raw:bool=False):
         ``.``
+``
+
+init arrays.  don't set them as mutable default parameters
+(e.g. verbose=[]), cause they would then retain their values across
+method calls. see
+https://www.geeksforgeeks.org/python/use-mutable-default-value-as-an-argument-in-python/
+
+``
+        if verbose is None:
+            verbose = []
+        if like is None:
+            like = []
 ``
 
 these are all possible verbose options (verbose-all-array).
@@ -268,6 +274,8 @@ joined-in fields.
             verbose.append(cxxkitid)
         if parentids:
             verbose.append(parentid)
+        if orgas:
+            verbose.append(orga)
 ``
 
 on verbose_all include all constants in the verbose array.
@@ -331,7 +339,7 @@ verbose should be filled in any case.
 fire the call, then add to the result.
 
 ``
-            res = self.sample(sampleids=sampleids, idc=idc, parentids=parentids, parentoids=parentoids, patientids=patientids, trials=trials, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, categories=categories, samplingdates=samplingdates, receiptdates=receiptdates, derivaldates=derivaldates, first_repositiondates=first_repositiondates, repositiondates=repositiondates, stockprocessingdates=stockprocessingdates, secondprocessingdates=secondprocessingdates, verbose=verbosepass, verbose_all=False, like=like, missing=missing, where=where, order_by=order_by, top=top, print_query=print_query)
+            res = self.sample(sampleids=sampleids, idc=idc, parentids=parentids, parentoids=parentoids, patientids=patientids, trials=trials, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, categories=categories, samplingdates=samplingdates, receiptdates=receiptdates, derivaldates=derivaldates, first_repositiondates=first_repositiondates, repositiondates=repositiondates, stockprocessingdates=stockprocessingdates, secondprocessingdates=secondprocessingdates, verbose=verbosepass, verbose_all=False, like=like, missing=missing, order_by=order_by, top=top, print_query=print_query)
 ``
 
 proceed differently if primary info should be added or if samples from
@@ -541,7 +549,7 @@ put together the select string and join string for the query.
 get the where string.
 
 `` #py
-        (wherestr, whereargs) = self._where(idc=idc, sampleoids=oids, parentids=parentids, parentoids=parentoids, trials=trials, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, categories=categories, samplingdates=samplingdates, receiptdates=receiptdates, derivaldates=derivaldates, first_repositiondates=first_repositiondates, repositiondates=repositiondates, stockprocessingdates=stockprocessingdates, secondprocessingdates=secondprocessingdates, verbose=verbose, like=like, wherearg=where) 
+        (wherestr, whereargs) = self._where(idc=idc, sampleoids=oids, parentids=parentids, parentoids=parentoids, trials=trials, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, categories=categories, orgas=orgas, samplingdates=samplingdates, receiptdates=receiptdates, derivaldates=derivaldates, first_repositiondates=first_repositiondates, repositiondates=repositiondates, stockprocessingdates=stockprocessingdates, secondprocessingdates=secondprocessingdates, verbose=verbose, like=like) 
 ``
 
 get the top string.
@@ -555,7 +563,8 @@ stick together the query, get the result and return it.
 `` #py
         query = f"select {topstr} {selectstr} from centraxx_sample sample \n{joinstr} \nwhere {wherestr}"
         if order_by is not None:
-            query += f" order by {order_by}"
+            query += f" order by {order_by}"#bm
+            # query += sql.SQL(" order by {order_by}").format({ order_by = sql.Identifier(order_by) } )
         if print_query:
            print(query)
            print(whereargs)
@@ -639,7 +648,7 @@ build the sample.
                 concentration=dig(r, concentration),
                 cxxkitid=dig(r, cxxkitid),
                 derivaldate=dig(r, derivaldate),
-                ids=ids,
+                ids=Idable(ids=ids, mainidc=self.sidc()),
                 initialamount=Amount(floatornull(dig(r, initialamount)), dig(r, initialunit)), # apparently the cast to float is explicitly needed
                 kitid=dig(r, kitid),
                 locationpath=dig(r, locationpath),
@@ -654,7 +663,6 @@ build the sample.
                 restamount=Amount(floatornull(dig(r, restamount)), dig(r, restunit)),
                 secondprocessing=dig(r, secondprocessing),
                 secondprocessingdate=dig(r, secondprocessingdate),
-                sidc=self.sidc(),
                 stockprocessing=dig(r, stockprocessing),
                 stockprocessingdate=dig(r, stockprocessingdate),
                 trial=dig(r, trial),
@@ -678,6 +686,7 @@ import.
 ``/import
 from datetime import datetime
 from dip import dig, dis
+from tram import Sample, Idable, Amount, Identifier
 ``
 
 the joindict entries that sample needs.
@@ -761,8 +770,17 @@ patient gets patients and returns them as a list of Patient instances.
 the parameters work analog to the sample method.
 
 ``/patient: #py
-    def patient(self, patientids=None, sampleids=None, idc=None, trials=None, orgas=None, verbose=[], verbose_all=False, like=[], order_by=None, top=None, print_query:bool=False, raw:bool=False):
+    def patient(self, patientids=None, sampleids=None, idc=None, trials=None, orgas:list=None, verbose:list=None, verbose_all=False, like:list=None, order_by=None, top=None, print_query:bool=False, raw:bool=False):
         ``.``
+``
+
+init arrays to avoid mutable default parameters.
+
+``
+        if verbose is None:
+            verbose = []
+        if like is None:
+            like = []
 ``
 
 vaa (verbose-all-array) holds all possible verbose options for patient.
@@ -771,7 +789,9 @@ vaa (verbose-all-array) holds all possible verbose options for patient.
         vaa = [orga]
 ``
 
-append the idcs for patient to the vaa array.  don't append idcs for sample, cause then one patient with fifteen samples would come out as fifteen result rows?
+append the idcs for patient to the vaa array.  don't append idcs for
+sample, cause then one patient with fifteen samples would come out as
+fifteen result rows?
 
 ``
         vaa.extend(self._patientidcs())        
@@ -797,6 +817,13 @@ on verbose_all include all constants in the verbose array.
 `` #py
         if verbose_all == True:
             verbose = vaa
+``
+
+put the keys for the arguments into the verbose array.
+
+``
+        if orgas is not None:
+            verbose.append(orga)
 ``
 
 make an array of silent joins for fields that might get queried after
@@ -885,7 +912,7 @@ silent.
 get the where string.
 
 `` #py
-        (wherestr, whereargs) = self._where(trials=trials, idc=idc, verbose=verbose, like=like)
+        (wherestr, whereargs) = self._where(orgas=orgas, trials=trials, idc=idc, verbose=verbose, like=like)
         #print(whereargs)
 ``
 
@@ -918,7 +945,7 @@ if raw is wished, return raw.
 
 ``
         if raw:
-            return raw
+            return res
 ``
 
 make patients from the result.
@@ -942,17 +969,23 @@ build the patient.
 
 ``
             pat = Patient(
-              ids=ids,
-              orga=dig(r, orga),
-              pidc=self.pidc()
+              ids=Idable(ids=ids, mainidc=self.pidc()),
+              orga=dig(r, orga)
             )
             pats.append(pat)
+            #print("pat: " + str(pat))
 ``
 
 return.
 
 ``/patient
         return pats
+``
+
+import.
+
+``/import
+from tram import Patient
 ``
 
 
@@ -986,15 +1019,43 @@ sampleids or method.  it returns a list of Finding instances.
 you can pass these to verbose: tr.patientid  // maybe also tr.values?
 
 ``/finding: #py
-    def finding(self, sampleids=None, patientids=None, idc=None, methods=None, trials=None, values:bool=True, verbose=[], verbose_all:bool=False, print_query:bool=False, raw:bool=False):
+    def finding(self, sampleids=None, patientids=None, idc=None, methods=None, trials=None, values:bool=True, verbose:list=None, verbose_all:bool=False, names:bool=False, top:int=None, print_query:bool=False, raw:bool=False):
+        ``init``
         ``findings``
         ``values``
         ``ret``
 ``
 
-for now always include the sampleid.
+init arrays to avoid multiple default parameters.
+
+``/finding/init:
+        if verbose is None:
+            verbose = []
+``
+
+vaa (verbose-all-array) holds all possible verbose options for patient.
 
 ``/finding/findings: #py
+        vaa = [patientid] # include trial?
+``
+
+on verbose_all include all constants in the verbose array.
+
+`` #py
+        if verbose_all == True:
+            verbose = vaa
+``
+
+put the keys for the arguments into the verbose array.
+
+``
+        if trials is not None:
+            verbose.append(trial)
+``
+
+for now always include the sampleid.
+
+``
         if self.sidc() not in verbose:
             verbose.append(self.sidc())
 ``
@@ -1034,7 +1095,9 @@ for any patient idc, join in patientcontainer, which is needed by
 _append_idc_joins.
 
 ``
-        joins = {}
+        joins = {
+            trial: self.jd["sample_to_trial"]
+        }
         for pidc in self._patientidcs():
             joins[pidc] = self.jd["sample_to_patient"]
 ``
@@ -1045,10 +1108,16 @@ get the join string for idcs.
         idcjoinstr = self._joinstr(joins, verbose, idc)
 ``
 
+get the top string.
+
+``
+        topstr = self._top(top)
+``
+
 stick together the query.
 
 ``
-        query = f"""select laborfinding.oid as "laborfinding_oid", laborfinding.*, labormethod.code as {method}, {idcselectstr}
+        query = f"""select {topstr} laborfinding.oid as "laborfinding_oid", laborfinding.*, labormethod.code as {method}, {idcselectstr}
         from centraxx_laborfinding as laborfinding
 
         -- go from laborfinding to sample
@@ -1079,7 +1148,20 @@ for each of the findings, pull in the recorded values.
 
 maybe only on --verbose = ["values"]
 
+if names should be loaded, get the laborvalue display names. load them
+once to avoid joining them in each time, is that quicker?
+
+catalogentry and usageentry display names are loaded in _make_rec if
+needed.
+
 ``/finding/values:
+        if names is True:
+            self.names_laborvalue = self.name(table="laborvalue")
+``
+
+now iterate the findings and get their recorded values.
+
+``
         for i, finding in enumerate(results):
             if values != True: # todo put this outside of the loop?
                 continue
@@ -1116,7 +1198,7 @@ laborvalue_code (the messparam code).
             recvals = self.db.qfad(query, finding['laborfinding_oid'])
             valsbycode = {}
             for recval in recvals:
-              valsbycode[recval["laborvalue_code"]] = self._make_rec(recval, finding)
+              valsbycode[recval["laborvalue_code"]] = self._make_rec(recval, finding, names)
 ``
 
 put the values to the finding.
@@ -1155,10 +1237,17 @@ return the findings with their respective values.
         return findings
 ``
 
-_make_rec makes a recorded value instance from db results.
+import.
+
+``/import
+from tram import Finding
+from tram import Rec, BooleanRec, NumberRec, StringRec, DateRec, MultiRec, CatalogRec
+``
+
+_make_rec makes a recorded value instance for finding from db results with display names if wished.
 
 ``/_make_rec:
-    def _make_rec(self, recval, finding) -> Rec:
+    def _make_rec(self, recval, finding, names:bool=False) -> Rec:
         ``.``
 ``
 
@@ -1171,7 +1260,7 @@ convert the boolean values from integer to boolean.
         out:Rec = None
         if recval["laborvalue_type"] == "BOOLEAN":
             val = True if recval["boolvalue"] == 1 else False
-            out = BooleanRec(method=finding["method"], labval=recval["laborvalue_code"], value=val)
+            out = BooleanRec(method=finding["method"], labval=recval["laborvalue_code"], rec=val)
 ``
 
 take DECIMAL values from the numericvalue field.
@@ -1186,7 +1275,7 @@ if a number value isn't set, the db returns None (and not 0.0 or so).
             #print(recval["laborvalue_code"])
             #print(recval)
             value = float(recval["numericvalue"]) if recval["numericvalue"] is not None else None
-            out = NumberRec(method=finding["method"], labval=recval["laborvalue_code"], value=value, unit=recval["laborvalue_unit"])
+            out = NumberRec(method=finding["method"], labval=recval["laborvalue_code"], rec=value, unit=recval["laborvalue_unit"])
 ``
 
 there are only four laborvalues for INTEGER, and they don't seem to be
@@ -1196,7 +1285,7 @@ handle both STRING and LONGSTRING as StringRec.
 
 ``
         elif recval["laborvalue_type"] == "STRING" or recval["laborvalue_type"] == "LONGSTRING":
-            out = StringRec(method=finding["method"], labval=recval["laborvalue_code"], value=recval["stringvalue"])
+            out = StringRec(method=finding["method"], labval=recval["laborvalue_code"], rec=recval["stringvalue"])
 ``
 
 take DATE values from datevalue and LONGDATE values from
@@ -1204,9 +1293,9 @@ datevalueprecision, respectively.
 
 ``
         elif recval["laborvalue_type"] == "DATE":
-            out = DateRec(method=finding["method"], labval=recval["laborvalue_code"], value=recval["datevalue"])
+            out = DateRec(method=finding["method"], labval=recval["laborvalue_code"], rec=recval["datevalue"])
         elif recval["laborvalue_type"] == "LONGDATE":
-            out = DateRec(method=finding["method"], labval=recval["laborvalue_code"], value=recval["datevalueprecision"])
+            out = DateRec(method=finding["method"], labval=recval["laborvalue_code"], rec=recval["datevalueprecision"])
 ``
 
 for catalog, query the actual catalog entries. go from recordedvalue
@@ -1225,11 +1314,18 @@ to catalogentry via the recordedval_catentry table.
             join centraxx_catalogentry as catalogentry on catalogentry.oid = recordedval_catentry.catalogentry_oid
             where recordedvalue.oid = ?"""
             res = self.db.qfad(query, recval['oid'])
+            # get the catalogentry names if they are not already loaded, and cache them. maybe it's faster to load the whole names map once instead of joining them in each time?
+            if names is True and self.names_catalogentry is None:
+                self.names_catalogentry = self.name(table="catalogentry")
             entries = []
+            value_name = {}
             for r in res:
-                entries.append(r["catalogentry_code"])
+                code = r["catalogentry_code"]
+                entries.append(code)
+                if names is True:
+                    value_name[code] = self.names_catalogentry[code]#bm
             
-            out = CatalogRec(method=finding["method"], labval=recval["laborvalue_code"], catalog=catalog_code, values=entries)
+            out = CatalogRec(method=finding["method"], labval=recval["laborvalue_code"], catalog=catalog_code, rec=entries, rec_name=value_name)
 ``
 
 for enumeration and option group, query the actual usage entries. go from recordedvalue
@@ -1243,13 +1339,22 @@ except without catalog code?
             query = f"""select usageentry.code as 'usageentry_code' from centraxx_recordedvalue as recordedvalue
             join centraxx_recordedval_usagentry as recordedval_usagentry on recordedval_usagentry.recordedvalue_oid = recordedvalue.oid
             join centraxx_usageentry as usageentry on usageentry.oid = recordedval_usagentry.usageentry_oid
-            where recordedvalue.oid = ?"""
+            where recordedvalue.oid = ?"""            
             res = self.db.qfad(query, recval['oid'])
+
+            # get the usageentry names if they are not already loaded, and cache them. maybe it's faster to load the whole names map once instead of joining them in each time?
+            if names is True and self.names_usageentry is None:
+                self.names_usageentry = self.name(table="usageentry")
+
             entries = []
+            value_name = {}
             for r in res:
-                entries.append(r["usageentry_code"])
+                code = r["usageentry_code"]
+                entries.append(code)
+                if names is True:
+                    value_name[code] = self.names_usageentry[code]
             
-            out = MultiRec(method=finding["method"], labval=recval["laborvalue_code"], values=entries)
+            out = MultiRec(method=finding["method"], labval=recval["laborvalue_code"], rec=entries, rec_name=value_name)
 ``
 
 else throw an exception.
@@ -1275,7 +1380,7 @@ method (messprofil) gets method(s) and their labvals (messparameter).
 the query.
 
 ``
-        query = f"""select laborvalue.*, labormethod.code as "method"
+        query = f"""select laborvalue.code as labval, labormethod.code as "method"
 from centraxx_labormethod labormethod
 inner join centraxx_crftemplate crf_t
     on labormethod.crf_template=crf_t.oid
@@ -1305,24 +1410,73 @@ return the result.
         res = self.db.qfad(query, whereargs)
 ``
 
-key by method code.
+if raw, return result as is.
+
+`
+        if raw:
+            return res
+`
+
+get the names.  todo cache?
+
+``
+        methodnames = self.name(table="labormethod")
+        labvalnames = self.name(table="laborvalue")
+``
+
+key the labvals by method code, add the names.
+
+todo why are some labvals returned more than one in the query?
 
 ``
         out = {}
         for row in res:
-          mc = row[method]
-          if mc not in out:
-            out[mc] = {}
-          del row[method]
-          out[mc] = row
-        
+            ``.``
+``
+
+add the method.
+
+``
+            methodcode = row["method"]
+            if methodcode not in out:
+                out[methodcode] = {}
+                out[methodcode]["code"] = methodcode
+                out[methodcode]["name_de"] = dig(methodnames, methodcode + "/de")
+                out[methodcode]["name_en"] = dig(methodnames, methodcode + "/en")
+                out[methodcode]["labvals"] = {}
+``
+
+add labvals to method.
+
+``
+            labvalcode = row["labval"]
+
+            labval = {}
+            labval["code"] = labvalcode
+            labval["name_de"] = dig(labvalnames, labvalcode + "/de")
+            labval["name_en"] = dig(labvalnames, labvalcode + "/en")            
+            out[methodcode]["labvals"][labvalcode] = labval
+``
+
+return.
+
+``
         return out
 ``
 
+
 ``/user:
-    def user(self, usernames:list=None, emails:list=None, lastlogin=None, verbose:list=[]):
+    def user(self, usernames:list=None, emails:list=None, lastlogin=None, verbose:list=None):
         ``.``
 ``
+
+init arrays to avoid multiple default parameters.
+
+``
+        if verbose is None:
+            verbose = []
+``
+        
 
 verbose all array holds the possible verbose options.
 
@@ -1332,7 +1486,7 @@ verbose all array holds the possible verbose options.
 
 put the keys for the given arguments into the verbose array for joining them in.
 
-tr.address and tr.login are catch-alls for address and login related fields.#bm
+tr.address and tr.login are catch-alls for address and login related fields.
 
 ``
         if usernames:
@@ -1369,6 +1523,94 @@ the join dict entries for user.
             "participant_to_credential": ["left join centraxx_credential credential on credential.participant = participant.oid"]
 ``
 
+catalogentry gives the catalogentries per catalog.
+
+``/catalogentry:
+    def catalogentry(self):
+        ``.``
+``
+
+query the catalogentries, joining in their cataloges.
+
+``
+        query = """select catalogentry.code as 'entry_code', catalog.code as 'catalog_code' from centraxx_catalogentry catalogentry
+join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
+        res = self.db.qfad(query)
+``
+
+get the names for catalog entries and cataloges.
+
+``
+        catnames = self.name(table="catalog")
+        entrynames = self.name(table="catalogentry")
+``
+
+put the output together. key by catalog code. add the display names.
+
+``
+        out = {}
+        for row in res:
+            entrycode = dig(row, "entry_code")
+            catcode = dig(row, "catalog_code")
+            # create the catalog
+            if not catcode in out:
+                out[catcode] = {}
+                out[catcode]["code"] = catcode
+                out[catcode]["name_de"] = dig(catnames, catcode + "/de")
+                out[catcode]["name_en"] = dig(catnames, catcode + "/en")
+                out[catcode]["entries"] = {}
+            # add the entry
+            entry = {}
+            entry["code"] = entrycode
+            entry["name_de"] = dig(entrynames, entrycode + "/de")
+            entry["name_en"] = dig(entrynames, entrycode + "/en")        
+            out[catcode]["entries"][entrycode] = entry
+``
+
+return.
+
+``
+        return out
+``
+
+usageentry gives the usageentries.
+
+``/usageentry:
+    def usageentry(self):
+        ``.``
+``
+
+get the usageentries.
+
+``
+        query = "select code from centraxx_usageentry"
+        res = self.db.qfad(query)
+``
+
+get the display names (todo cache)?
+
+``
+        names = self.name(table="usageentry")
+``
+
+put the names to the codes.
+
+``
+        out = {}
+        for row in res:
+            code = row["code"]
+            out[code] = {}
+            out[code]["name_de"] = dig(names, code + "/de")
+            out[code]["name_en"] = dig(names, code + "/en")
+            out[code]["code"] = code
+``
+
+return.
+
+``
+        return out
+``
+
 name gives the multilingual names for a code or all codes in a table.
 
 the result is keyed by code and language like this:
@@ -1391,7 +1633,8 @@ ml_table: if the name of the table connecting to multilingualentry is not simlpy
         ``.``
 ``
 
-interlacing the table name assumes that the referencing pattern for multilingual entries stays the same across table names.
+interlacing the table name assumes that the referencing pattern for
+multilingual entries stays the same across table names.
 
 ``
         query = "select [" + table + "].code, multilingual.value as name, multilingual.lang as lang"
@@ -1428,7 +1671,7 @@ restrict the query to specific lang or code if given.
             args.append(lang)
 ``
 
-only add sql-where if needed
+only add sql-where if needed.
 
 ``
         if len(wherestrings) > 0:
@@ -1492,7 +1735,8 @@ idc:
         ``.``
 ``
 
-the settings can list idc codes that are not applicable to this target, skip them.
+the settings can list idc codes that are not applicable to this
+target, skip them.
 
 ``
         out = []
@@ -1504,7 +1748,8 @@ the settings can list idc codes that are not applicable to this target, skip the
         return out
 ``
 
-patientidcs returns the idcs from settings that are specific for sample.
+patientidcs returns the idcs from settings that are specific for
+sample.
 
 ``/_patientidcs:
     def _patientidcs(self) -> list:
@@ -1789,8 +2034,17 @@ like=[tr.locationpath], it checks likeness of locationpaths[0].
 make sure only one of sampleids or extsampleids is passed?
 
 ``/_where:
-    def _where(self, idc={}, sampleoids:list=None, parentids=None, parentoids=None, patientids=None, trials=None, locationpaths=None, kitids=None, cxxkitids=None, categories=None, samplingdates=None, receiptdates=None, derivaldates=None, first_repositiondates=None, repositiondates=None, stockprocessingdates=None, secondprocessingdates=None, methods=None, like=[], verbose=[], wherearg:str=None): # -> (str, [])
+    def _where(self, idc={}, sampleoids:list=None, parentids:list=None, parentoids:list=None, patientids:list=None, trials:list=None, locationpaths:list=None, kitids:list=None, cxxkitids:list=None, categories:list=None, orgas:list=None, samplingdates=None, receiptdates=None, derivaldates=None, first_repositiondates=None, repositiondates=None, stockprocessingdates=None, secondprocessingdates=None, methods=None, like=None, verbose=None): # -> (str, [])
         ``.``
+``
+
+init arrays to avoid mutable default parameters.
+
+``
+        if like is None:
+            like = []
+        if verbose is None:
+            verbose = []
 ``
 
 put the where-info for each field that could appear in the verbose
@@ -1807,6 +2061,7 @@ field: the table and field where it should match.
           kitid: { "arr": kitids, "field": "samplekit.kitid" },
           cxxkitid: { "arr": cxxkitids, "field": "samplekit.cxxkitid" },
           category: { "arr": categories, "field": "sample.dtype" },
+          orga: { "arr": orgas, "field": "organisationunit.code" },
           parentid: { "arr": parentids, "field": "parentidc.psn" },
           parentoid: { "arr": parentoids, "field": "sample.parent" },
           sampleoid: { "arr": sampleoids, "field": "sample.oid" },          
@@ -1845,13 +2100,6 @@ args array.
         wherestr = " and ".join(wherearr)
 ``
 
-add the where string passed as argument.
-
-``
-        if wherearg is not None:
-           wherestr += " and (" + wherearg + ")"
-``
-
 return.
 
 ``
@@ -1861,8 +2109,17 @@ return.
 _wherebuild builds wherestrings and fills whereargs.
 
 ``/_wherebuild:
-    def _wherebuild(self, wheredict, likearr=[], verbose=[]): # ([]string, [])
+    def _wherebuild(self, wheredict, likearr:list=None, verbose:list=None): # ([]string, [])
         ``.``
+``
+
+init arrays to avoid mutable default parameters.
+
+``
+        if likearr is None:
+            likearr = []
+        if verbose is None:
+            verbose = []
 ``
 
 add where clauses to wherestrs and their respective arguments to
@@ -1879,7 +2136,13 @@ where clauses for joins where the "arr" field is set.
 key is one of the tr constant strings, e.g. tr.locationpath.
 
 ``
-        for (key, row) in wheredict.items():
+
+        for key, row in wheredict.items():
+            #print("key:" + key)
+
+            # somehow printing here stops the keys from being iterated in the loop. why?
+            #print("field: " + row["field"])
+            
             if row["arr"] == None or len(row["arr"]) == 0:
                 continue
 
@@ -2019,15 +2282,28 @@ expressions, as many as given n.
         return " or ".join(a)
 ``
 
-_top returns the top string, for, e.g. `select top 100 * from table`, if
+_top returns an injection-safe top string, for, e.g. `select top 100 * from table`, if
 top is None return an empty string.
 
 ``/_top:
     def _top(self, top):
+        ``.``
+``
+
+pass the top param as a literal for injection-safety.
+
+``
         if top is not None:
+           #return sql.SQL("top {top}").format(top=sql.Literal(top))
            return f"top {top}"
         return ""
-``                             
+``
+
+import pspycopg2. see https://realpython.com/prevent-python-sql-injection/
+
+``/import
+#from pspycopg2 import sql
+``
 
 _idcinit makes a mapping of idcontainers from their code (lower-case) to respective oid and kind.
 
@@ -2082,801 +2358,7 @@ def get_ids(idables:list, code:str=None) -> list:
     return [ x.id(code) for x in idables ]
 ``
 
-Idable holds a list of identifiers with idcontainer codes and
-remembers which is the main idc code.
 
-``/idable class:
-class Idable:
-    ``init``
-    ``identifier``
-    ``id``
-    ``iddict``    
-    ``__str__``
-``
-
-__init__ initializes an Idable from a list of Identifiers and a
-mainidc string.
-
-``/idable class/init:
-    def __init__(self, ids:list=None, mainidc:str=None, id=None, code:str=None):
-        self.ids = ids
-        if self.ids is None:
-            self.ids = []
-        self.mainidc = mainidc
-``
-
-id and code give a shortcut for creating a list.
-
-``
-        if id is not None:
-            self.ids.append(Identifier(id=id, code=code))
-``
-
-identifier returns the Identifier for the given code, if no code
-given, the Identifier for the main idc returned.
-
-
-``/idable class/identifier:
-    def identifier(self, code:str=None) -> Identifier:
-        ``.``
-``
-
-take the standard sampleid container if no code is passed.
-
-``
-        if code == None:
-            code = self.mainidc
-``
-
-iterate the identifiers, if its code matches self.sidc, return.
-
-``
-        for identifier in self.ids:
-            if identifier.code == code:
-                return identifier
-``
-
-
-id returns the id value for the given code, if no code
-given, the id value for the main idc is returned.
-
-
-``/idable class/id:
-    def id(self, code:str=None) -> str:
-        if self.identifier(code) is not None:
-            return self.identifier(code).id
-        return None 
-``
-
-__str__ gives a human readable representation of Idable, here the
-id string.
-
-``/idable class/__str__:
-    def __str__(self):
-        if self.id() is not None:
-            return self.id()
-        return ""
-``
-
-iddict returns a copy of the __dict__ holding the given ids at the
-root level of the dict in addition to the classes attributes.  if no
-ids are given, all ids taken.  the ids and mainidc fields are cleared,
-exept when keep is true. if iddict is called on an inheriting class
-(e.g. Sample) the dict gives the inheriting classes attributes.
-
-``/idable class/iddict:
-    def iddict(self, *idcs):
-        ``.``
-``
-
-the first asterix before idcs indicates that any number of idcs can be
-passed.
-
-make a copy of the dict holding all attributes.
-
-``
-        d = self.__dict__.copy()
-``
-
-if no specific idcontainers are given, take all.
-
-``
-        if idcs == None or len(idcs) == 0:
-            idcs = [id.code for id in self.ids]
-``
-
-put the ids in the root level of the dict.
-
-``
-        for idc in idcs:
-            d[idc] = self.id(idc)
-``
-
-delete the ids and mainidc field from dict.
-
-``
-        del d["ids"]
-        del d["mainidc"]
-``
-
-return the dict.
-
-``
-        return d
-``
-        
-
-
-Sample holds a sample.
-
-``/sample class:
-class Sample(Idable):
-    ``var``
-    ``init``
-    ``default``
-    ``sampleid``
-    ``__getstate__``
-``
-
-declare the variables.
-
-appointment holds sample's visit (appointmentnumber in db).
-
-``/sample class/var:
-    appointment:str = None
-``
-
-
-category holds the sample's category, MASTER, ALIQUOTGROUP or
-DERIVED. called dtype in db.
-
-``
-    category:str = None
-``
-
-concentration holds the sample's concentration.
-
-``
-    concentration=None
-``
-
-derivaldate holds the sample's derival date (when it was derived as an
-aliquot).
-
-``
-    derivaldate:datetime=None
-``
-
-receiptdate holds the date of the samples entry into the
-laboratory. called receiptdate in the db.
-
-``
-    receiptdate:datetime=None
-``
-
-first_repositiondate holds the sample's first repositioning date. this
-can't be changed after it was first written (by what? db?
-fhir?). since it doesn't change like the repositiondate field, but
-stays on the first time the sample was stored, it should hold the date
-the sample was frozen.
-
-``
-    first_repositiondate:datetime=None
-``
-
-
-initialamount holds the sample's initial amount.
-
-``
-    initialamount:Amount=None
-``
-
-locationname holds the last part of the locationpath, the rack name.
-
-``
-    locationname:str=None
-``
-
-locationpath holds the sample's locationpath.
-
-``
-    locationpath:str=None
-``
-
-orga holds the sample's organization unit. called orgunit in the db.
-
-``
-    orga:str = None
-``
-
-parent holds this samples parent as Idable with potentially multiple
-identifiers (oid, sampleid if there). oids are needed to keep track of
-aliquotgroups.
-
-``
-    parent:Idable=None 
-``
-
-patient references the patient as Idable.
-
-``
-    patient:Idable = None
-``
-
-project holds?
-
-``
-    project:str = None
-``
-
-receptacle holds the sample's receptacle. called receptable in the db.
-
-``
-    receptacle:str=None
-``
-
-restamount holds the sample's rest amount. in db fields amountrest and restunit.
-
-``
-    restamount:Amount=None
-``
-
-samplingdate holds the date when the sample was extracted from the patient.
-
-``
-    samplingdate:datetime=None
-``
-
-secondprocessing holds the code of the second centrifugation.
-
-``
-    secondprocessing:str=None
-``
-
-secondprocessingdate holds the date of the second centrifugation.
-
-``
-    secondprocessingdate:datetime=None
-``
-
-stockprocessing holds the code of the first centrifugation.
-
-``
-    stockprocessing:str=None
-``
-
-secondprocessing holds the date of the first centrifugation.
-
-``
-    stockprocessingdate:datetime=None
-``
-
-repositiondate holds the date of the sample's latest repositioning (umlagern). 
-
-``
-    repositiondate:datetime=None
-``
-
-trial holds the trial code.
-
-``
-    trial:str=None
-``
-
-type holds the code of the sample's type/material (whole blood, EDTA,
-liquor, etc). called sampletype in db.
-
-``
-    type:str=None
-``
-
-xposition holds the sample's x position on the rack.
-
-``
-    xposition:int=None
-``
-
-yposition holds the samples y position in the db.
-
-``
-    yposition:int=None
-``
-
-__init__ initializes a sample.
-
-``/sample class/init:
-    def __init__(
-         self,
-         appointment:str=None,
-         category:str=None,
-         cxxkitid:str=None,
-         concentration=None, # str?
-         derivaldate:datetime=None,
-         first_repositiondate:datetime=None,
-         ids:list=None, # of Identifier         
-         initialamount:Amount=None,
-         kitid:str=None,
-         locationpath:str=None,
-         locationname:str=None,
-         orga:str=None,
-         parent:Idable=None,
-         patient:Idable=None,
-         project:str=None,
-         receptacle:str=None, 
-         restamount:Amount=None,
-         samplingdate:datetime=None,
-         secondprocessing:str=None,
-         secondprocessingdate:datetime=None,         
-         stockprocessing:str=None,
-         stockprocessingdate:datetime=None,         
-         receiptdate:datetime=None,         
-         repositiondate:datetime=None,
-         sidc:str=None,
-         trial:str=None,
-         type:str=None,
-         xposition:int=None, 
-         yposition:int=None
-         ):
-        ``.``
-``
-
-call super.
-
-``
-        Idable.__init__(self, ids, sidc)
-``
-
-fill in the parameters.
-
-``
-        self.appointment = appointment
-        self.category = category
-        self.cxxkitid = cxxkitid
-        self.concentration = concentration
-        self.derivaldate = derivaldate
-        self.receiptdate = receiptdate
-        self.first_repositiondate = first_repositiondate
-        self.initialamount = initialamount
-        self.kitid = kitid
-        self.locationpath = locationpath
-        self.locationname = locationname
-        self.orga = orga
-        self.parent = parent
-        self.patient = patient
-        self.project = project
-        self.receptacle = receptacle
-        self.repositiondate = repositiondate
-        self.restamount = restamount
-        self.secondprocessing = secondprocessing
-        self.secondprocessingdate = secondprocessingdate        
-        self.stockprocessing = stockprocessing
-        self.stockprocessingdate = stockprocessingdate        
-        self.samplingdate = samplingdate        
-        self.trial = trial
-        self.type = type
-        self.xposition = xposition
-        self.yposition = yposition
-``
-
-default returns the json dict.
-
-``/sample class/default:
-    def default(self, o):
-        return o.__dict__
-``
-
-sampleid is a shorthand to get the sampleid so it isn't buried in a
-dict when displaying the object as json.
-
-``/sample class/sampleid:
-    @property
-    def sampleid(self):
-        return "bla" # self.get_id()
-``
-
-__getstate__ returns what gets jsonpickled. include sampleid and
-patientid in root level, for quicker access.
-
-``/sample class/__getstate__:
-    def __getstate__(self):
-        state = self.__dict__.copy() # is this slow?
-        state[sampleid] = self.id()
-        state[patientid] = self.patient.id() if self.patient else None
-        return state
-``
-
-import.
-
-``/import
-#from json import JSONEncoder
-import jsonpickle
-``
-
-Identifier holds an identifier.
-
-``/identifier class:
-class Identifier:
-    ``init``
-``
-
-__init__ initializes an identifier.
-
-``/identifier class/init:
-    def __init__(self, id=None, code:str=None):
-        ``.``
-``
-
-remember the arguments.
-
-``
-        self.id = id
-        self.code = code
-``
-
-
-Amount holds an amount.
-
-``/amount class:
-class Amount:
-    ``init``
-    ``__str__``
-``
-
-__init__ initializes an amount.
-
-``/amount class/init:
-    def __init__(self, value:float=None, unit:str=None):
-        ``.``
-``
-
-remember the arguments.
-
-``
-        self.value = value
-        self.unit = unit
-``
-
-__str__ gives the value and unit in human-readable format.
-
-``/amount class/__str__:
-    def __str__(self):
-        return str(self.value) + " " + self.unit
-``
-
-Patient holds a patient.
-
-``/patient class:
-class Patient(Idable):
-    ``init``
-    ``__getstate__``
-``
-
-__init__ initializes a patient.
-
-``/patient class/init:
-    def __init__(
-      self,
-      ids:list=None,
-      orga:str=None,
-      pidc:str=None
-    ):
-        ``.``
-``
-
-call super.
-
-``
-        Idable.__init__(self, ids, pidc)
-``
-
-
-remember the paramenters.
-
-``
-        self.orga = orga
-``
-
-__getstate__ returns what gets jsonpickled. include the patientid at the root level, for quicker access.
-
-``/patient class/__getstate__:
-    def __getstate__(self):
-        state = self.__dict__.copy() # is this slow?
-        state[patientid] = self.id()
-        return state
-``
-
-
-``/finding class:
-class Finding:
-    ``var``
-    ``init``
-``
-
-method holds the finding's method (messprofil).
-
-``/finding class/var:
-    method:str=None
-``
-
-findingdate holds the finding's finding date.
-
-``
-    findingdate:datetime=None
-``
-
-methodname holds the finding's method name. (why extra?).
-
-``
-    methodname:str=None
-``
-
-patient references the patient this finding belongs to.
-
-``
-    patient:Idable=None
-``
-
-recs holds a list of recorded values for this finding.
-
-``
-    recs:map={} # of Rec, by code
-``
-
-sample references the sample Idable this finding belongs to.
-
-``
-    sample:Idable
-``
-
-sender holds the sender.
-
-``
-    sender:str=None
-``
-
-__init__ initializes a finding.
-
-``/finding class/init:
-    def __init__(
-        self,
-        findingdate:datetime=None,
-        method:str=None,
-        methodname:str=None,
-        patient:Idable=None,        
-        recs:map={}, # of Rec, by code
-        sample:Idable=None,
-        sender:str=None,
-    ):
-        ``.``
-``
-
-remember the arguments.
-
-``
-        self.findingdate = findingdate
-        self.method = method
-        self.methodname = methodname
-        self.patient = patient
-        self.recs = recs
-        self.sample = sample
-        self.sender = sender
-``
-
-User holds a cxx user.
-
-``/user class:
-class User:
-    ``init``
-``
-
-__init__ inits a User.
-
-``/user class/init:
-    def __init__(self,
-      lastlogin:datetime=None,
-      email:str=None,
-      username:str=None):
-        ``.``
-``
-
-remember the arguments.
-
-``
-        self.lastlogin = lastlogin
-        self.email = email
-        self.username = username
-``
-
-Rec is the base class for recorded values like StringRec, etc.
-
-``/rec:
-class Rec:
-    ``var``
-    ``init``
-``
-
-hold method (messprofil) and labval (messparameter) codes?
-
-``/rec/var:
-    method:str = None
-    labval:str = None
-``
-
-type holds the laborvalue's type (dtype in the db). it can be:
-
-STRING (e.g. RNA_CONCENTRATION_NG_L)
-LONGSTRING (e.g. FILES)
-CATALOG (e.g. PATHOGEN2. references the catalog used via the custom_catalog field. choicetype SELECTONE or SELECTMANY)
-ENUMERATION (e.g. REASONNOSAMPLES2. from kontrolliertes vokabular, the labvalenum_usageentry field specifies which kontrolliertes vokabular can be used. choicetype SELECTONE or SELECTMANY)
-BOOLEAN (e.g. IS_REST)
-OPTIONGROUP (e.g. NSN_INF_MODUL. checkboxes, from kontrolliertes vokabular, also via labvalenum? choicetype SELECTONE or SELECTMANY)
-DATE (e.g. TIMEPOOL)
-LONGDATE (e.g. PLANNEDSAMPLINGDATE_1. what's the difference between DATE and LONGDATE?)
-DECIMAL (e.g. NUM_BAL_SPUELVOLUMEN. is this float?)
-INTEGER (e.g. URNCT)
-
-``
-    type:str = None
-``
-
-__init__ inits a Rec.
-
-``/rec/init:
-    def __init__(self, method:str=None, labval:str=None):
-        self.labval = labval
-``
-
-
-BooleanRec holds a BOOLEAN rec.
-
-``/booleanrec:
-class BooleanRec(Rec):
-    ``var``
-    ``init``
-``
-
-value is the boolean value for the rec.
-
-``/booleanrec/var:
-    value:bool = None
-``
-
-__init__ inits a BooleanRec.
-
-``/booleanrec/init:
-    def __init__(self, method:str=None, labval:str=None, value:bool=None):
-        Rec.__init__(self, method=method, labval=labval)
-        self.value = value
-``
-
-NumberRec holds a DECIMAL rec. (what about INTEGER?)
-
-``/numberrec:
-class NumberRec(Rec):
-    ``var``
-    ``init``
-``
-
-value is the number value for the rec.
-
-is float ok for all?
-
-``/numberrec/var:
-    value:float = None
-``
-
-unit is the unit via the laborvalue.
-
-``
-    unit:str = None
-``
-
-__init__ inits a NumberRec.
-
-``/numberrec/init:
-    def __init__(self, method:str=None, labval:str=None, value:float=None, unit:str=None):
-        Rec.__init__(self, method=method, labval=labval)
-        self.value = value
-        self.unit = unit
-``
-
-
-StringRec holds a STRING or LONGSTRING rec.
-
-``/stringrec:
-class StringRec(Rec):
-    ``var``
-    ``init``
-``
-
-value is the string value for the rec.
-
-``/stringrec/var:
-    value:str = None
-``
-
-__init__ inits a StringRec.
-
-``/stringrec/init:
-    def __init__(self, method:str=None, labval:str=None, value:str=None):
-        Rec.__init__(self, method=method, labval=labval)
-        self.value = value
-``
-
-DateRec holds a DATE or LONGDATE rec.
-
-``/daterec:
-class DateRec(Rec):
-    ``var``
-    ``init``
-``
-
-value is the date value for the rec.
-
-``/daterec/var:
-    value:datetime = None
-``
-
-__init__ inits a DateRec.
-
-``/daterec/init:
-    def __init__(self, method:str=None, labval:str=None, value:datetime=None):
-        Rec.__init__(self, method=method, labval=labval)
-        self.value = value
-``
-
-
-MultiRec holds an OPTIONGROUP or ENUMERATION rec.
-
-``/multirec:
-class MultiRec(Rec):
-    ``var``
-    ``init``
-``
-
-values holds the usage entry (kontrolliertes vokabular) codes.
-
-``/multirec/var:
-    values:str = None
-``
-
-__init__ inits a MultiRec.
-
-``/multirec/init:
-    def __init__(self, method:str=None, labval:str=None, values:list=None):
-        Rec.__init__(self, method=method, labval=labval)
-        self.values = values
-``
-
-
-CatalogRec holds a CATALOG rec.
-
-``/catalogrec:
-class CatalogRec(Rec):
-    ``var``
-    ``init``
-``
-
-values holds the catalog entry codes.
-
-``/catalogrec/var:
-    values:str = None
-``
-
-catalog holds the catalog code.
-
-``
-    catalog:str = None
-``
-
-__init__ inits a CatalogRec.
-
-``/catalogrec/init:
-    def __init__(self, method:str=None, labval:str=None, values:list=None, catalog:str=None):
-        Rec.__init__(self, method=method, labval=labval)
-        self.values = values
-        self.catalog = catalog
-``
 
 idable_csv writes a list of Idables to the given csv file. the given
 idcontainers are included as columns. if no idcontainers are given, all
