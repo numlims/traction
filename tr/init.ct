@@ -2061,7 +2061,7 @@ field: the table and field where it should match.
           kitid: { "arr": kitids, "field": "samplekit.kitid" },
           cxxkitid: { "arr": cxxkitids, "field": "samplekit.cxxkitid" },
           category: { "arr": categories, "field": "sample.dtype" },
-          type: { "arr": types, "field": "sample.type" },          
+          type: { "arr": types, "field": "sampletype.code" },          
           orga: { "arr": orgas, "field": "organisationunit.code" },
           parentid: { "arr": parentids, "field": "parentidc.psn" },
           parentoid: { "arr": parentoids, "field": "sample.parent" },
@@ -2388,7 +2388,7 @@ open the file.
 make a csv writer.
 
 ``./write:
-        writer = csv.writer(f)
+        writer = csv.writer(f, delimiter=";")
 ``
 
 take as colum names the keys of the iddict from the first idable.

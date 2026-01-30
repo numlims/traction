@@ -117,6 +117,7 @@ def main():
     parser.add_argument("--kitid", help="kitid(s)")
     parser.add_argument("--cxxkitid", help="cxxkitid(s)")
     parser.add_argument("--category", help="MASTER|DERIVED|ALIQUOTGROUP")
+    parser.add_argument("--type", help="sample type (material)")
     parser.add_argument("--orga", help="organisation unit")
     parser.add_argument("--sampling-date", help="sampling date from:to")
     parser.add_argument("--receipt-date", help="receipt date from:to")
@@ -171,6 +172,7 @@ def main():
     kitids = lfpof(tr.kitid, args.method, files)
     cxxkitids = lfpof(tr.cxxkitid, args.cxxkitid, files)
     categories = lfpof(tr.category, args.category, files)
+    types = lfpof(tr.type, args.type, files)    
     orgas = lfpof(tr.orga, args.orga, files)
     usernames = lfpof(tr.username, args.username, files)
     emails = lfpof(tr.email, args.email, files)        
@@ -188,6 +190,7 @@ def main():
                kitids=kitids,
                cxxkitids=cxxkitids,
                categories=categories,
+               types=types,
                orgas=orgas,
                samplingdates=datespan(args.sampling_date),
                receiptdates=datespan(args.receipt_date),
@@ -266,6 +269,5 @@ def main():
     else:
         print(f"error: {args.what} not recognized. see traction -h.")
         return 1
-
 
 sys.exit(main())
