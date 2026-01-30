@@ -17,7 +17,7 @@ dependencies = [
   "dbcq @ git+https://github.com/numlims/dbcq.git",
   "dip @ git+https://github.com/numlims/dip.git",
   "jsonpickle",
-  #"psycopg2",
+  "psycopg2", # needed to run `sudo apt-get install libpq-dev python-dev` before installing with pip, use other package?
   "simplejson",
   "tbl @ git+https://github.com/numlims/tbl.git",
   "tram @ git+https://github.com/numlims/tram.git"
