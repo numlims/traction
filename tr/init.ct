@@ -43,6 +43,7 @@ class traction:
     ``_wherelike``
     ``_wherelikes``
     ``_top``
+    ``_order_by``    
     ``_idcinit``
     ``_make_rec``
     ``_sampleidcs``
@@ -2312,6 +2313,7 @@ _order_by returns an injection safe order by string.
 
 exit if the order by parameter isn't an identifier.
 
+``
         if not isidentifier(order_by):
             raise Exception(f"order_by param {order_by} needs to be an sql identifier.")
         return f"order by {order_by}"
@@ -2383,7 +2385,7 @@ sql injection.  like isnumber, could this be handled better by a library?
 
 ``/isidentifier:
 def isidentifier(a) -> bool:
-    return re.match(r"^[A-Za-z_0-9]+$", a)
+    return re.match(r"^[A-Za-z_0-9\.]+$", a)
 ``
 
 import re.
