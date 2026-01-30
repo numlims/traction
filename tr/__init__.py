@@ -101,7 +101,7 @@ def idable_csv(idables:list, filename:str=None, *idcs) -> str:
         print("no idables")
         return None
     with open(filename, "w") as f:
-        writer = csv.writer(f)
+        writer = csv.writer(f, delimiter=";")
         writer.writerow(list(idables[0].iddict(*idcs).keys()))
         for idable in idables:
             d = idable.iddict()
@@ -149,7 +149,7 @@ class traction:
         self.names_catalogentry = None
         self.names_usageentry = None
 
-    def sample(self, sampleids:list=None, oids:list=None, idc=None, patientids:list=None, parentids:list=None, parentoids:list=None, locationpaths:list=None, trials:list=None, kitids:list=None, cxxkitids:list=None, categories:list=None, orgas:list=None, samplingdates=None, receiptdates=None, derivaldates=None, first_repositiondates=None, repositiondates=None, stockprocessingdates=None, secondprocessingdates=None, verbose:list=None, verbose_all=False, primaryref:bool=False, incl_parents:bool=False, incl_childs:bool=False, incl_tree:bool=False, like:list=None, missing=False, order_by=None, top=None, print_query:bool=False, raw:bool=False):
+    def sample(self, sampleids:list=None, oids:list=None, idc=None, patientids:list=None, parentids:list=None, parentoids:list=None, locationpaths:list=None, trials:list=None, kitids:list=None, cxxkitids:list=None, categories:list=None, types:list=None, orgas:list=None, samplingdates=None, receiptdates=None, derivaldates=None, first_repositiondates=None, repositiondates=None, stockprocessingdates=None, secondprocessingdates=None, verbose:list=None, verbose_all=False, primaryref:bool=False, incl_parents:bool=False, incl_childs:bool=False, incl_tree:bool=False, like:list=None, missing=False, order_by=None, top=None, print_query:bool=False, raw:bool=False):
         """
          sample gets sample(s) and returns them as a list of Sample instances.
          
@@ -284,7 +284,7 @@ class traction:
             joins[pidc] = self.jd["sample_to_patient"]
         selectstr = self._selectstr(jselects, verbose, lselects, idc)  
         joinstr = self._joinstr(joins, verbose, idc)  
-        (wherestr, whereargs) = self._where(idc=idc, sampleoids=oids, parentids=parentids, parentoids=parentoids, trials=trials, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, categories=categories, orgas=orgas, samplingdates=samplingdates, receiptdates=receiptdates, derivaldates=derivaldates, first_repositiondates=first_repositiondates, repositiondates=repositiondates, stockprocessingdates=stockprocessingdates, secondprocessingdates=secondprocessingdates, verbose=verbose, like=like) 
+        (wherestr, whereargs) = self._where(idc=idc, sampleoids=oids, parentids=parentids, parentoids=parentoids, trials=trials, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, categories=categories, types=types, orgas=orgas, samplingdates=samplingdates, receiptdates=receiptdates, derivaldates=derivaldates, first_repositiondates=first_repositiondates, repositiondates=repositiondates, stockprocessingdates=stockprocessingdates, secondprocessingdates=secondprocessingdates, verbose=verbose, like=like) 
         topstr = self._top(top)
         query = f"select {topstr} {selectstr} from centraxx_sample sample \n{joinstr} \nwhere {wherestr}"
         if order_by is not None:
@@ -779,7 +779,7 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
           else:
             print(f"error: idcontainer kind {self._idckind[item]} not supported.")
         return joina
-    def _where(self, idc={}, sampleoids:list=None, parentids:list=None, parentoids:list=None, patientids:list=None, trials:list=None, locationpaths:list=None, kitids:list=None, cxxkitids:list=None, categories:list=None, orgas:list=None, samplingdates=None, receiptdates=None, derivaldates=None, first_repositiondates=None, repositiondates=None, stockprocessingdates=None, secondprocessingdates=None, methods=None, like=None, verbose=None): # -> (str, [])
+    def _where(self, idc={}, sampleoids:list=None, parentids:list=None, parentoids:list=None, patientids:list=None, trials:list=None, locationpaths:list=None, kitids:list=None, cxxkitids:list=None, categories:list=None, types:list=None, orgas:list=None, samplingdates=None, receiptdates=None, derivaldates=None, first_repositiondates=None, repositiondates=None, stockprocessingdates=None, secondprocessingdates=None, methods=None, like=None, verbose=None): # -> (str, [])
         """
          _where returns the wherestring and args array for the provided
          arguments (that are not None).
@@ -806,6 +806,7 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
           kitid: { "arr": kitids, "field": "samplekit.kitid" },
           cxxkitid: { "arr": cxxkitids, "field": "samplekit.cxxkitid" },
           category: { "arr": categories, "field": "sample.dtype" },
+          type: { "arr": types, "field": "sampletype.code" },          
           orga: { "arr": orgas, "field": "organisationunit.code" },
           parentid: { "arr": parentids, "field": "parentidc.psn" },
           parentoid: { "arr": parentoids, "field": "sample.parent" },
