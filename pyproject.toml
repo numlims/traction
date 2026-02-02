@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta" # name of the python object that fronten
 
 [project]
 name = "traction"
-version = "0.1.6"
+version = "0.1.7"
 authors = [
   { name="numlims", email="numlims@med.uni-greifswald.de"}
 ]
@@ -17,7 +17,7 @@ dependencies = [
   "dbcq @ git+https://github.com/numlims/dbcq.git",
   "dip @ git+https://github.com/numlims/dip.git",
   "jsonpickle",
-  #"psycopg2",
+  "psycopg2", # needed to run `sudo apt-get install libpq-dev python-dev` before installing with pip, use other package?
   "simplejson",
   "tbl @ git+https://github.com/numlims/tbl.git",
   "tram @ git+https://github.com/numlims/tram.git"

@@ -7,7 +7,7 @@ from tram import Sample, Idable, Amount, Identifier
 from tram import Patient
 from tram import Finding
 from tram import Rec, BooleanRec, NumberRec, StringRec, DateRec, MultiRec, CatalogRec
-#from pspycopg2 import sql
+import re
 import csv
 address = "address"
 appointment = "appointment"
@@ -90,6 +90,18 @@ def get_ids(idables:list, code:str=None) -> list:
      Patient).
     """
     return [ x.id(code) for x in idables ]
+def isnumber(a) -> bool:
+    """
+     isnumber returns if a string is a number to prevent sql injection.  is
+     this handled better by an existing library function?
+    """
+    return re.match(r"^[0-9](.[0-9]*)?$", a)
+def isidentifier(a) -> bool:
+    """
+     isidentifier returns whether a string is a sql identifier to prevent
+     sql injection.  like isnumber, could this be handled better by a library?
+    """
+    return re.match(r"^[A-Za-z_0-9]+$", a)
 
 def idable_csv(idables:list, filename:str=None, *idcs) -> str:
     """
@@ -288,8 +300,8 @@ class traction:
         topstr = self._top(top)
         query = f"select {topstr} {selectstr} from centraxx_sample sample \n{joinstr} \nwhere {wherestr}"
         if order_by is not None:
-            query += f" order by {order_by}"#bm
-            # query += sql.SQL(" order by {order_by}").format({ order_by = sql.Identifier(order_by) } )
+            query += " " + self._order_by(order_by)
+            
         if print_query:
            print(query)
            print(whereargs)
@@ -425,7 +437,7 @@ class traction:
         topstr = self._top(top)
         query = f"select distinct {topstr} {selectstr} from centraxx_patientcontainer patientcontainer \n{joinstr} \nwhere {wherestr}"
         if order_by is not None:
-            query += f" order by {order_by}"
+            query += " " + self._order_by(order_by)
         if print_query:
            print(query)
         res = self.db.qfad(query, whereargs)
@@ -922,9 +934,17 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
          top is None return an empty string.
         """
         if top is not None:
-           #return sql.SQL("top {top}").format(top=sql.Literal(top))
+           if not isnumber(top):
+               raise Exception(f"top param {top} needs to be a number")
            return f"top {top}"
         return ""
+    def _order_by(self, order_by):
+        """
+         _order_by returns an injection safe order by string.
+        """
+        if not isidentifier(order_by):
+            raise Exception(f"order_by param {order_by} needs to be an sql identifier.")
+        return f"order by {order_by}"
     def _idcinit(self):
         """
          _idcinit makes a mapping of idcontainers from their code (lower-case) to respective oid and kind.
