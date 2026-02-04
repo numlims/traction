@@ -67,6 +67,7 @@ appointment = "appointment"
 category = "category" # MASTER, ALIQUOTGROUP, DERIVED. dtype in db.
 concentration = "concentration"
 cxxkitid = "cxxkitid"
+creationdate = "creationdate" 
 derivaldate = "derivaldate" # aufteilungsdatum / date of distribution
 email = "email"
 initialamount = "initialamount"
@@ -650,6 +651,7 @@ build the sample.
                 samplingdate=dig(r, samplingdate),
                 concentration=dig(r, concentration),
                 cxxkitid=dig(r, cxxkitid),
+                creationdate=dig(r, creationdate),
                 derivaldate=dig(r, derivaldate),
                 ids=Idable(ids=ids, mainidc=self.sidc()),
                 initialamount=Amount(floatornull(dig(r, initialamount)), dig(r, initialunit)), # apparently the cast to float is explicitly needed

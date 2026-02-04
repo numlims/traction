@@ -14,6 +14,7 @@ appointment = "appointment"
 category = "category" # MASTER, ALIQUOTGROUP, DERIVED. dtype in db.
 concentration = "concentration"
 cxxkitid = "cxxkitid"
+creationdate = "creationdate" 
 derivaldate = "derivaldate" # aufteilungsdatum / date of distribution
 email = "email"
 initialamount = "initialamount"
@@ -101,7 +102,7 @@ def isidentifier(a) -> bool:
      isidentifier returns whether a string is a sql identifier to prevent
      sql injection.  like isnumber, could this be handled better by a library?
     """
-    return re.match(r"^[A-Za-z_0-9]+$", a)
+    return re.match(r"^[A-Za-z_0-9\.]+$", a)
 
 def idable_csv(idables:list, filename:str=None, *idcs) -> str:
     """
@@ -340,6 +341,7 @@ class traction:
                 samplingdate=dig(r, samplingdate),
                 concentration=dig(r, concentration),
                 cxxkitid=dig(r, cxxkitid),
+                creationdate=dig(r, creationdate),
                 derivaldate=dig(r, derivaldate),
                 ids=Idable(ids=ids, mainidc=self.sidc()),
                 initialamount=Amount(floatornull(dig(r, initialamount)), dig(r, initialunit)), # apparently the cast to float is explicitly needed
