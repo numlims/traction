@@ -111,6 +111,8 @@ def main():
     parser.add_argument("what", help="sample|patient|trial|finding|method|user|catalogentry|usageentry|name. finding: messbefund; method: messprofil; name: get display names for a table.") # labval: messparameter
     parser.add_argument("--sampleid", help="sampleid(s)")
     parser.add_argument("--patientid", help="patientid(s)")
+    parser.add_argument("--sidc", help="patient idcontainer. overrides sampleid in settings.yaml")    
+    parser.add_argument("--pidc", help="patient idcontainer. overrides patientid in settings.yaml")
     parser.add_argument("--parentid", help="sampleid(s) of parent samples")    
     parser.add_argument("--trial", help="trial code(s)")
     parser.add_argument("--locationpath", help="locationpath(s)")
@@ -185,6 +187,7 @@ def main():
                idc=getidc(vars(args), settings),
                parentids=parentids,
                patientids=patientids,
+               pidc=args.pidc,
                trials=trials,
                locationpaths=locationpaths,
                kitids=kitids,
@@ -220,6 +223,7 @@ def main():
             print(jsonpickle.encode(sample, unpicklable=False, indent=4)) # somehow include_properties=True doesn't work
     elif args.what == "patient":
         patients = traction.patient(patientids=patientids,
+            pidc=args.pidc,
             sampleids=sampleids,
             idc=getidc(vars(args), settings),
             trials=trials,
@@ -242,6 +246,7 @@ def main():
     elif args.what == "finding":
         res = traction.finding(sampleids=sampleids,
             patientids=patientids,
+            pidc=args.pidc,
             idc=getidc(vars(args), settings),
             methods=methods,
             trials=trials,

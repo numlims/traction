@@ -214,7 +214,7 @@ to check via like as opposed to exact, put the respective fields into
 the like array, e.g. `like=[tr.locationpath]`.
 
 ``/sample: #py
-    def sample(self, sampleids:list=None, oids:list=None, idc=None, patientids:list=None, parentids:list=None, parentoids:list=None, locationpaths:list=None, trials:list=None, kitids:list=None, cxxkitids:list=None, categories:list=None, types:list=None, orgas:list=None, samplingdates=None, receiptdates=None, derivaldates=None, first_repositiondates=None, repositiondates=None, stockprocessingdates=None, secondprocessingdates=None, verbose:list=None, verbose_all=False, primaryref:bool=False, incl_parents:bool=False, incl_childs:bool=False, incl_tree:bool=False, like:list=None, missing=False, order_by=None, top=None, print_query:bool=False, raw:bool=False):
+    def sample(self, sampleids:list=None, oids:list=None, idc=None, patientids:list=None, pidc=None, parentids:list=None, parentoids:list=None, locationpaths:list=None, trials:list=None, kitids:list=None, cxxkitids:list=None, categories:list=None, types:list=None, orgas:list=None, samplingdates=None, receiptdates=None, derivaldates=None, first_repositiondates=None, repositiondates=None, stockprocessingdates=None, secondprocessingdates=None, verbose:list=None, verbose_all=False, primaryref:bool=False, incl_parents:bool=False, incl_childs:bool=False, incl_tree:bool=False, like:list=None, missing=False, order_by=None, top=None, print_query:bool=False, raw:bool=False):
         ``.``
 ``
 
@@ -245,7 +245,7 @@ for subsequent joins that depend on it.
 append the idcs for patient and sample to the vaa array.  
 
 ``
-        vaa.extend(self._patientidcs())
+        vaa.extend(self._patientidcs(pidc))
         vaa.extend(self._sampleidcs())                
 ``
 
@@ -260,7 +260,7 @@ for subsequent joins that might need it.
 replace traction constants patientid and sampleid with their idc.
 
 ``
-        verbose = self._concrete_idcs(verbose)
+        verbose = self._concrete_idcs(verbose, pidc=pidc)
 ``
 
 put the keys for the given arguments into the verbose array, so that
@@ -343,7 +343,7 @@ verbose should be filled in any case.
 fire the call, then add to the result.
 
 ``
-            res = self.sample(sampleids=sampleids, idc=idc, parentids=parentids, parentoids=parentoids, patientids=patientids, trials=trials, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, categories=categories, samplingdates=samplingdates, receiptdates=receiptdates, derivaldates=derivaldates, first_repositiondates=first_repositiondates, repositiondates=repositiondates, stockprocessingdates=stockprocessingdates, secondprocessingdates=secondprocessingdates, verbose=verbosepass, verbose_all=False, like=like, missing=missing, order_by=order_by, top=top, print_query=print_query)
+            res = self.sample(sampleids=sampleids, idc=idc, parentids=parentids, parentoids=parentoids, patientids=patientids, pidc=pidc, trials=trials, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, categories=categories, samplingdates=samplingdates, receiptdates=receiptdates, derivaldates=derivaldates, first_repositiondates=first_repositiondates, repositiondates=repositiondates, stockprocessingdates=stockprocessingdates, secondprocessingdates=secondprocessingdates, verbose=verbosepass, verbose_all=False, like=like, missing=missing, order_by=order_by, top=top, print_query=print_query)
 ``
 
 proceed differently if primary info should be added or if samples from
@@ -469,7 +469,7 @@ another idcontainer for joining and in where.
         if sampleids is not None:
            idc[self.sidc()] = sampleids
         if patientids is not None:
-           idc[self.pidc()] = patientids
+           idc[self.pidc(pidc)] = patientids
 ``
 
 jselect holds statements for optional joins by key.
@@ -479,7 +479,7 @@ rename the field of the main sample idcontainer to sampleid.
 `` #py
         jselects = {
             self.sidc(): [f"idc_{self.sidc()}.psn as '{sampleid}'"],
-            self.pidc(): [f"idc_{self.pidc()}.psn as '{patientid}'"],                   
+            self.pidc(pidc): [f"idc_{self.pidc(pidc)}.psn as '{patientid}'"],                   
             cxxkitid: [f"samplekit.cxxkitid as '{cxxkitid}'"],
             #sampleid: [f"sidc.psn as '{sampleid}'"],
             parentid: [f"parentidc.psn as '{parentid}'"],
@@ -539,7 +539,7 @@ for any patient idc, join in patientcontainer, which is needed by
 _append_idc_joins.
 
 ``
-        for pidc in self._patientidcs():
+        for pidc in self._patientidcs(pidc):
             joins[pidc] = self.jd["sample_to_patient"]
 ``
 
@@ -547,7 +547,7 @@ put together the select string and join string for the query.
 
 `` #py
         selectstr = self._selectstr(jselects, verbose, lselects, idc)  
-        joinstr = self._joinstr(joins, verbose, idc)  
+        joinstr = self._joinstr(joins, verbose, idc, pidc=pidc)  
 ``
 
 get the where string.
@@ -636,10 +636,10 @@ also reference the patient as Idable.
 ``
             patids = []
             if dig(r, patientid) is not None:   # todo include patient oid?
-                patids.append(Identifier(id=dig(r, patientid), code=self.pidc()))
+                patids.append(Identifier(id=dig(r, patientid), code=self.pidc(pidc)))
             patient = None
             if len(patids) > 0:
-                patient = Idable(ids=patids, mainidc=self.pidc())
+                patient = Idable(ids=patids, mainidc=self.pidc(pidc))
 ``
 
 build the sample.
@@ -775,7 +775,7 @@ patient gets patients and returns them as a list of Patient instances.
 the parameters work analog to the sample method.
 
 ``/patient: #py
-    def patient(self, patientids=None, sampleids=None, idc=None, trials=None, orgas:list=None, verbose:list=None, verbose_all=False, like:list=None, order_by=None, top=None, print_query:bool=False, raw:bool=False):
+    def patient(self, patientids=None, pidc=None, sampleids=None, idc=None, trials=None, orgas:list=None, verbose:list=None, verbose_all=False, like:list=None, order_by=None, top=None, print_query:bool=False, raw:bool=False):
         ``.``
 ``
 
@@ -799,7 +799,7 @@ sample, cause then one patient with fifteen samples would come out as
 fifteen result rows?
 
 ``
-        vaa.extend(self._patientidcs())        
+        vaa.extend(self._patientidcs(pidc))        
 ``
 
 
@@ -807,14 +807,14 @@ always join the patientid via verbose. put it as the first array element
 for subsequent joins that might need it.
 
 `` #py
-        if not self.pidc() in verbose:
-            verbose.insert(0, self.pidc())
+        if not self.pidc(pidc) in verbose:
+            verbose.insert(0, self.pidc(pidc))
 ``
 
 replace traction constants patientid and sampleid with their idc.
 
 ``
-        verbose = self._concrete_idcs(verbose)
+        verbose = self._concrete_idcs(verbose, pidc=pidc)
 ``
 
 on verbose_all include all constants in the verbose array.
@@ -866,7 +866,7 @@ another idcontainer for joining and in where.
         if sampleids is not None:
            idc[self.sidc()] = sampleids
         if patientids is not None:
-           idc[self.pidc()] = patientids
+           idc[self.pidc(pidc)] = patientids
            
 ``
 
@@ -874,7 +874,7 @@ the select statements for optional joins by key.
 
 `` #py
         selects = {
-            self.pidc(): [f"idc_{self.pidc()}.psn as '{patientid}'"],
+            self.pidc(pidc): [f"idc_{self.pidc(pidc)}.psn as '{patientid}'"],
             orga: [f"organisationunit.code as '{orga}'"],
             trial: [f"flexistudy.code as '{trial}'"],
         }
@@ -911,7 +911,7 @@ put together the join string for the query. join in verbose and
 silent.
 
 ``
-        joinstr = self._joinstr(joins, verbose + silent, idc)  
+        joinstr = self._joinstr(joins, verbose + silent, idc, pidc=pidc)  
 ``
 
 get the where string.
@@ -964,8 +964,8 @@ make patients from the result.
 collect the ids.
 
 ``
-            ids = [ Identifier(id=dig(r, patientid), code=self.pidc()) ]
-            for idc in self._patientidcs():
+            ids = [ Identifier(id=dig(r, patientid), code=self.pidc(pidc)) ]
+            for idc in self._patientidcs(pidc):
                 if idc in r and r[idc] is not None:
                     ids.append( Identifier(id=dig(r, idc), code=idc.upper()) )
 ``
@@ -974,7 +974,7 @@ build the patient.
 
 ``
             pat = Patient(
-              ids=Idable(ids=ids, mainidc=self.pidc()),
+              ids=Idable(ids=ids, mainidc=self.pidc(pidc)),
               orga=dig(r, orga)
             )
             pats.append(pat)
@@ -1024,7 +1024,7 @@ sampleids or method.  it returns a list of Finding instances.
 you can pass these to verbose: tr.patientid  // maybe also tr.values?
 
 ``/finding: #py
-    def finding(self, sampleids=None, patientids=None, idc=None, methods=None, trials=None, values:bool=True, verbose:list=None, verbose_all:bool=False, names:bool=False, top:int=None, print_query:bool=False, raw:bool=False):
+    def finding(self, sampleids=None, patientids=None, pidc=None, idc=None, methods=None, trials=None, values:bool=True, verbose:list=None, verbose_all:bool=False, names:bool=False, top:int=None, print_query:bool=False, raw:bool=False):
         ``init``
         ``findings``
         ``values``
@@ -1068,7 +1068,7 @@ for now always include the sampleid.
 replace traction constants patientid and sampleid with their idc.
 
 ``
-        verbose = self._concrete_idcs(verbose)
+        verbose = self._concrete_idcs(verbose, pidc=pidc)
 ``
 
 build the query for findings.  later add recorded values to each finding.
@@ -1083,7 +1083,7 @@ for joining and in where.
         if sampleids is not None:
            idc[self.sidc()] = sampleids
         if patientids is not None:
-           idc[self.pidc()] = patientids
+           idc[self.pidc(pidc)] = patientids
 ``
 
 get the idc part of the select string.
@@ -1091,7 +1091,7 @@ get the idc part of the select string.
 ``
         selects = {
             self.sidc(): [f"idc_{self.sidc()}.psn as '{sampleid}'"],
-            self.pidc(): [f"idc_{self.pidc()}.psn as '{patientid}'"],                   
+            self.pidc(picd): [f"idc_{self.pidc(pidc)}.psn as '{patientid}'"],                   
         }
         idcselectstr = self._selectstr(selects, verbose, [], idc)  
 ``
@@ -1103,14 +1103,14 @@ _append_idc_joins.
         joins = {
             trial: self.jd["sample_to_trial"]
         }
-        for pidc in self._patientidcs():
+        for pidc in self._patientidcs(pidc):
             joins[pidc] = self.jd["sample_to_patient"]
 ``
 
 get the join string for idcs.
 
 ``
-        idcjoinstr = self._joinstr(joins, verbose, idc)
+        idcjoinstr = self._joinstr(joins, verbose, idc, pidc=pidc)
 ``
 
 get the top string.
@@ -1228,7 +1228,7 @@ make findings from the results.
                 findingdate=dig(res, "findingdate"),
                 method=res["method"],
                 methodname=res["shortname"],
-                patient=Idable(id=dig(res, patientid), code=self.pidc(), mainidc=self.pidc()) if dig(res, patientid) is not None else None, 
+                patient=Idable(id=dig(res, patientid), code=self.pidc(pidc), mainidc=self.pidc(pidc)) if dig(res, patientid) is not None else None, 
                 recs=res["values"] if "values" in res else None, # todo None ok?
                 sample=Idable(id=res[sampleid], code=self.sidc(), mainidc=self.sidc()),
                 sender=None
@@ -1328,7 +1328,7 @@ to catalogentry via the recordedval_catentry table.
                 code = r["catalogentry_code"]
                 entries.append(code)
                 if names is True:
-                    value_name[code] = self.names_catalogentry[code]#bm
+                    value_name[code] = self.names_catalogentry[code]
             
             out = CatalogRec(method=finding["method"], labval=recval["laborvalue_code"], catalog=catalog_code, rec=entries, rec_name=value_name)
 ``
@@ -1715,10 +1715,13 @@ specified in the settings.
 ``
 
 sidc returns the main idc code by which patients are referenced as
-specified in the settings. 
+specified in the settings. if a pidc argument is given, it is returned
+instead of the settings' pidc.
 
 ``/pidc:
-    def pidc(self) -> str:
+    def pidc(self, pidc:str=None) -> str:
+        if pidc is not None:
+            return pidc
         return self.settings['patientid'][self.db.target]
 ``
 
@@ -1757,7 +1760,7 @@ patientidcs returns the idcs from settings that are specific for
 sample.
 
 ``/_patientidcs:
-    def _patientidcs(self) -> list:
+    def _patientidcs(self, pidc:str=None) -> list:
         ``.``
 ``
 
@@ -1769,7 +1772,7 @@ the settings can list idc codes that are not applicable to this target, skip the
             if idc in self._idckind and self._idckind[idc] == "PATIENT":
                 out.append(idc)
         # include the main patient idcontainer
-        out.append(self.pidc())
+        out.append(self.pidc(pidc))
         return out
 ``
 
@@ -1777,7 +1780,7 @@ replace traction constants patientid and sampleid with their
 respective idc.
 
 ``/_concrete_idcs:
-    def _concrete_idcs(self, verbose):
+    def _concrete_idcs(self, verbose, pidc=None):
         ``.``
 ``
 
@@ -1787,7 +1790,7 @@ fill in the concrete idcs when encountering patientid or sampleid.
         out = []
         for verb in verbose:
             if verb == patientid:
-                out.append(self.pidc())
+                out.append(self.pidc(pidc))
             elif verb == sampleid:
                 out.append(self.sidc())
             else:
@@ -1870,7 +1873,7 @@ _joinstr puts together the joins needed by verbose array and idc keys
 and returns the sql join string.
 
 ``/_joinstr: #py
-    def _joinstr(self, joins, verbose, idc):
+    def _joinstr(self, joins, verbose, idc, pidc=None):
         ``.``
 ``
 
@@ -1878,7 +1881,7 @@ first put in the idc joins, cause other joins might need them.
 
 ``
         joina = []
-        joina = self._append_idc_join(joina, idc, verbose, joins)
+        joina = self._append_idc_join(joina, idc, verbose, joins, pidc=pidc)
 ``
 
 now put in joins for verbose.
@@ -1951,7 +1954,7 @@ return the selecta with appended strings.
 _append_idc_join adds the sql join statements for an idc dict.
 
 ``/_append_idc_join: #py
-    def _append_idc_join(self, joina, idc, verbose, joins):
+    def _append_idc_join(self, joina, idc, verbose, joins, pidc=None):
         ``.``
 ``
 
@@ -1961,7 +1964,7 @@ a common array.
 ``
         idca = []
         for verb in verbose:
-          if verb in self.settings["idc"] or verb == self.sidc() or verb == self.pidc():
+          if verb in self.settings["idc"] or verb == self.sidc() or verb == self.pidc(pidc):
             idca.append(verb)
         if idc is not None:
           idca.extend(idc.keys())

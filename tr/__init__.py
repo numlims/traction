@@ -162,7 +162,7 @@ class traction:
         self.names_catalogentry = None
         self.names_usageentry = None
 
-    def sample(self, sampleids:list=None, oids:list=None, idc=None, patientids:list=None, parentids:list=None, parentoids:list=None, locationpaths:list=None, trials:list=None, kitids:list=None, cxxkitids:list=None, categories:list=None, types:list=None, orgas:list=None, samplingdates=None, receiptdates=None, derivaldates=None, first_repositiondates=None, repositiondates=None, stockprocessingdates=None, secondprocessingdates=None, verbose:list=None, verbose_all=False, primaryref:bool=False, incl_parents:bool=False, incl_childs:bool=False, incl_tree:bool=False, like:list=None, missing=False, order_by=None, top=None, print_query:bool=False, raw:bool=False):
+    def sample(self, sampleids:list=None, oids:list=None, idc=None, patientids:list=None, pidc=None, parentids:list=None, parentoids:list=None, locationpaths:list=None, trials:list=None, kitids:list=None, cxxkitids:list=None, categories:list=None, types:list=None, orgas:list=None, samplingdates=None, receiptdates=None, derivaldates=None, first_repositiondates=None, repositiondates=None, stockprocessingdates=None, secondprocessingdates=None, verbose:list=None, verbose_all=False, primaryref:bool=False, incl_parents:bool=False, incl_childs:bool=False, incl_tree:bool=False, like:list=None, missing=False, order_by=None, top=None, print_query:bool=False, raw:bool=False):
         """
          sample gets sample(s) and returns them as a list of Sample instances.
          
@@ -189,11 +189,11 @@ class traction:
         vaa = [cxxkitid, kitid, locationname, locationpath, orga, parentid, 
                project, receptacle, sampletype,
                secondprocessing, stockprocessing, trial]
-        vaa.extend(self._patientidcs())
+        vaa.extend(self._patientidcs(pidc))
         vaa.extend(self._sampleidcs())                
         if not self.sidc() in verbose:
             verbose.insert(0, self.sidc())
-        verbose = self._concrete_idcs(verbose)
+        verbose = self._concrete_idcs(verbose, pidc=pidc)
         if trials:
             verbose.append(trial)
         if locationpaths:
@@ -214,7 +214,7 @@ class traction:
             verbosepass = []
             if primaryref:
                 verbosepass = verbose
-            res = self.sample(sampleids=sampleids, idc=idc, parentids=parentids, parentoids=parentoids, patientids=patientids, trials=trials, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, categories=categories, samplingdates=samplingdates, receiptdates=receiptdates, derivaldates=derivaldates, first_repositiondates=first_repositiondates, repositiondates=repositiondates, stockprocessingdates=stockprocessingdates, secondprocessingdates=secondprocessingdates, verbose=verbosepass, verbose_all=False, like=like, missing=missing, order_by=order_by, top=top, print_query=print_query)
+            res = self.sample(sampleids=sampleids, idc=idc, parentids=parentids, parentoids=parentoids, patientids=patientids, pidc=pidc, trials=trials, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, categories=categories, samplingdates=samplingdates, receiptdates=receiptdates, derivaldates=derivaldates, first_repositiondates=first_repositiondates, repositiondates=repositiondates, stockprocessingdates=stockprocessingdates, secondprocessingdates=secondprocessingdates, verbose=verbosepass, verbose_all=False, like=like, missing=missing, order_by=order_by, top=top, print_query=print_query)
             if primaryref:
                 for sample in res:
                     self._fill_in_primary(sample)
@@ -252,10 +252,10 @@ class traction:
         if sampleids is not None:
            idc[self.sidc()] = sampleids
         if patientids is not None:
-           idc[self.pidc()] = patientids
+           idc[self.pidc(pidc)] = patientids
         jselects = {
             self.sidc(): [f"idc_{self.sidc()}.psn as '{sampleid}'"],
-            self.pidc(): [f"idc_{self.pidc()}.psn as '{patientid}'"],                   
+            self.pidc(pidc): [f"idc_{self.pidc(pidc)}.psn as '{patientid}'"],                   
             cxxkitid: [f"samplekit.cxxkitid as '{cxxkitid}'"],
             #sampleid: [f"sidc.psn as '{sampleid}'"],
             parentid: [f"parentidc.psn as '{parentid}'"],
@@ -293,10 +293,10 @@ class traction:
             orga: self.jd["sample_to_orga"],
             trial: self.jd["sample_to_trial"]
         }
-        for pidc in self._patientidcs():
+        for pidc in self._patientidcs(pidc):
             joins[pidc] = self.jd["sample_to_patient"]
         selectstr = self._selectstr(jselects, verbose, lselects, idc)  
-        joinstr = self._joinstr(joins, verbose, idc)  
+        joinstr = self._joinstr(joins, verbose, idc, pidc=pidc)  
         (wherestr, whereargs) = self._where(idc=idc, sampleoids=oids, parentids=parentids, parentoids=parentoids, trials=trials, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, categories=categories, types=types, orgas=orgas, samplingdates=samplingdates, receiptdates=receiptdates, derivaldates=derivaldates, first_repositiondates=first_repositiondates, repositiondates=repositiondates, stockprocessingdates=stockprocessingdates, secondprocessingdates=secondprocessingdates, verbose=verbose, like=like) 
         topstr = self._top(top)
         query = f"select {topstr} {selectstr} from centraxx_sample sample \n{joinstr} \nwhere {wherestr}"
@@ -331,10 +331,10 @@ class traction:
                 parent = Idable(ids=pids, mainidc=self.sidc())
             patids = []
             if dig(r, patientid) is not None:   # todo include patient oid?
-                patids.append(Identifier(id=dig(r, patientid), code=self.pidc()))
+                patids.append(Identifier(id=dig(r, patientid), code=self.pidc(pidc)))
             patient = None
             if len(patids) > 0:
-                patient = Idable(ids=patids, mainidc=self.pidc())
+                patient = Idable(ids=patids, mainidc=self.pidc(pidc))
             s = Sample(
                 appointment=dig(r, appointment),
                 category=dig(r, category),
@@ -387,7 +387,7 @@ class traction:
         for child in res:
             out.append(child["oid"])
             self._get_childs(child["oid"], out)
-    def patient(self, patientids=None, sampleids=None, idc=None, trials=None, orgas:list=None, verbose:list=None, verbose_all=False, like:list=None, order_by=None, top=None, print_query:bool=False, raw:bool=False):
+    def patient(self, patientids=None, pidc=None, sampleids=None, idc=None, trials=None, orgas:list=None, verbose:list=None, verbose_all=False, like:list=None, order_by=None, top=None, print_query:bool=False, raw:bool=False):
         """
          patient gets patients and returns them as a list of Patient instances.
          
@@ -398,10 +398,10 @@ class traction:
         if like is None:
             like = []
         vaa = [orga]
-        vaa.extend(self._patientidcs())        
-        if not self.pidc() in verbose:
-            verbose.insert(0, self.pidc())
-        verbose = self._concrete_idcs(verbose)
+        vaa.extend(self._patientidcs(pidc))        
+        if not self.pidc(pidc) in verbose:
+            verbose.insert(0, self.pidc(pidc))
+        verbose = self._concrete_idcs(verbose, pidc=pidc)
         if verbose_all == True:
             verbose = vaa
         if orgas is not None:
@@ -419,10 +419,10 @@ class traction:
         if sampleids is not None:
            idc[self.sidc()] = sampleids
         if patientids is not None:
-           idc[self.pidc()] = patientids
+           idc[self.pidc(pidc)] = patientids
            
         selects = {
-            self.pidc(): [f"idc_{self.pidc()}.psn as '{patientid}'"],
+            self.pidc(pidc): [f"idc_{self.pidc(pidc)}.psn as '{patientid}'"],
             orga: [f"organisationunit.code as '{orga}'"],
             trial: [f"flexistudy.code as '{trial}'"],
         }
@@ -433,7 +433,7 @@ class traction:
         for sidc in self._sampleidcs():
             joins[sidc] = self.jd["patient_to_sample"]
         selectstr = self._selectstr(selects, verbose, ["patientcontainer.*"], idc)  
-        joinstr = self._joinstr(joins, verbose + silent, idc)  
+        joinstr = self._joinstr(joins, verbose + silent, idc, pidc=pidc)  
         (wherestr, whereargs) = self._where(orgas=orgas, trials=trials, idc=idc, verbose=verbose, like=like)
         #print(whereargs)
         topstr = self._top(top)
@@ -447,12 +447,12 @@ class traction:
             return res
         pats = []
         for r in res:
-            ids = [ Identifier(id=dig(r, patientid), code=self.pidc()) ]
-            for idc in self._patientidcs():
+            ids = [ Identifier(id=dig(r, patientid), code=self.pidc(pidc)) ]
+            for idc in self._patientidcs(pidc):
                 if idc in r and r[idc] is not None:
                     ids.append( Identifier(id=dig(r, idc), code=idc.upper()) )
             pat = Patient(
-              ids=Idable(ids=ids, mainidc=self.pidc()),
+              ids=Idable(ids=ids, mainidc=self.pidc(pidc)),
               orga=dig(r, orga)
             )
             pats.append(pat)
@@ -465,7 +465,7 @@ class traction:
         query = "select code from centraxx_flexistudy"
         res = self.db.qfad(query)
         return res
-    def finding(self, sampleids=None, patientids=None, idc=None, methods=None, trials=None, values:bool=True, verbose:list=None, verbose_all:bool=False, names:bool=False, top:int=None, print_query:bool=False, raw:bool=False):
+    def finding(self, sampleids=None, patientids=None, pidc=None, idc=None, methods=None, trials=None, values:bool=True, verbose:list=None, verbose_all:bool=False, names:bool=False, top:int=None, print_query:bool=False, raw:bool=False):
         """
          finding gets the laborfindings ("messbefund" / "begleitschein") for
          sampleids or method.  it returns a list of Finding instances.
@@ -481,25 +481,25 @@ class traction:
             verbose.append(trial)
         if self.sidc() not in verbose:
             verbose.append(self.sidc())
-        verbose = self._concrete_idcs(verbose)
+        verbose = self._concrete_idcs(verbose, pidc=pidc)
         if idc is None:
            idc = {}
         # todo check that self.sidc() is not in idc
         if sampleids is not None:
            idc[self.sidc()] = sampleids
         if patientids is not None:
-           idc[self.pidc()] = patientids
+           idc[self.pidc(pidc)] = patientids
         selects = {
             self.sidc(): [f"idc_{self.sidc()}.psn as '{sampleid}'"],
-            self.pidc(): [f"idc_{self.pidc()}.psn as '{patientid}'"],                   
+            self.pidc(picd): [f"idc_{self.pidc(pidc)}.psn as '{patientid}'"],                   
         }
         idcselectstr = self._selectstr(selects, verbose, [], idc)  
         joins = {
             trial: self.jd["sample_to_trial"]
         }
-        for pidc in self._patientidcs():
+        for pidc in self._patientidcs(pidc):
             joins[pidc] = self.jd["sample_to_patient"]
-        idcjoinstr = self._joinstr(joins, verbose, idc)
+        idcjoinstr = self._joinstr(joins, verbose, idc, pidc=pidc)
         topstr = self._top(top)
         query = f"""select {topstr} laborfinding.oid as "laborfinding_oid", laborfinding.*, labormethod.code as {method}, {idcselectstr}
         from centraxx_laborfinding as laborfinding
@@ -549,7 +549,7 @@ class traction:
                 findingdate=dig(res, "findingdate"),
                 method=res["method"],
                 methodname=res["shortname"],
-                patient=Idable(id=dig(res, patientid), code=self.pidc(), mainidc=self.pidc()) if dig(res, patientid) is not None else None, 
+                patient=Idable(id=dig(res, patientid), code=self.pidc(pidc), mainidc=self.pidc(pidc)) if dig(res, patientid) is not None else None, 
                 recs=res["values"] if "values" in res else None, # todo None ok?
                 sample=Idable(id=res[sampleid], code=self.sidc(), mainidc=self.sidc()),
                 sender=None
@@ -717,9 +717,11 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
          specified in the settings. 
         """
         return self.settings['sampleid'][self.db.target]
-    def pidc(self) -> str:
+    def pidc(self, pidc:str=None) -> str:
         """
         """
+        if pidc is not None:
+            return pidc
         return self.settings['patientid'][self.db.target]
 
     def _selectstr(self, selects, verbose, selecta, idc):
@@ -738,13 +740,13 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
         selecta = self._append_idc_select(selecta, idc, verbose)
         selectstr = ", \n".join(selecta)
         return selectstr
-    def _joinstr(self, joins, verbose, idc):
+    def _joinstr(self, joins, verbose, idc, pidc=None):
         """
          _joinstr puts together the joins needed by verbose array and idc keys
          and returns the sql join string.
         """
         joina = []
-        joina = self._append_idc_join(joina, idc, verbose, joins)
+        joina = self._append_idc_join(joina, idc, verbose, joins, pidc=pidc)
         for verb in verbose: 
             if not verb in joins:
                 continue
@@ -766,13 +768,13 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
           if not selectstr in selecta:
             selecta.append(selectstr)
         return selecta
-    def _append_idc_join(self, joina, idc, verbose, joins):
+    def _append_idc_join(self, joina, idc, verbose, joins, pidc=None):
         """
          _append_idc_join adds the sql join statements for an idc dict.
         """
         idca = []
         for verb in verbose:
-          if verb in self.settings["idc"] or verb == self.sidc() or verb == self.pidc():
+          if verb in self.settings["idc"] or verb == self.sidc() or verb == self.pidc(pidc):
             idca.append(verb)
         if idc is not None:
           idca.extend(idc.keys())
@@ -998,7 +1000,7 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
                 code = r["catalogentry_code"]
                 entries.append(code)
                 if names is True:
-                    value_name[code] = self.names_catalogentry[code]#bm
+                    value_name[code] = self.names_catalogentry[code]
             
             out = CatalogRec(method=finding["method"], labval=recval["laborvalue_code"], catalog=catalog_code, rec=entries, rec_name=value_name)
         elif recval["laborvalue_type"] == "ENUMERATION" or recval["laborvalue_type"] == "OPTIONGROUP":
@@ -1046,7 +1048,7 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
         # include the main sample idcontainer
         out.append(self.sidc())
         return out
-    def _patientidcs(self) -> list:
+    def _patientidcs(self, pidc:str=None) -> list:
         """
         """
         out = []
@@ -1054,15 +1056,15 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
             if idc in self._idckind and self._idckind[idc] == "PATIENT":
                 out.append(idc)
         # include the main patient idcontainer
-        out.append(self.pidc())
+        out.append(self.pidc(pidc))
         return out
-    def _concrete_idcs(self, verbose):
+    def _concrete_idcs(self, verbose, pidc=None):
         """
         """
         out = []
         for verb in verbose:
             if verb == patientid:
-                out.append(self.pidc())
+                out.append(self.pidc(pidc))
             elif verb == sampleid:
                 out.append(self.sidc())
             else:
