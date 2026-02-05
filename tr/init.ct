@@ -49,8 +49,13 @@ class traction:
     ``_sampleidcs``
     ``_patientidcs``
     ``_concrete_idcs``
+    ``_concrete_idcs_dict``    
     
     ``_fill_in_primary``
+
+    ``_bcp``
+    ``_bcp_table``
+    ``_bcp_clean``
 
 ``
 
@@ -214,7 +219,7 @@ to check via like as opposed to exact, put the respective fields into
 the like array, e.g. `like=[tr.locationpath]`.
 
 ``/sample: #py
-    def sample(self, sampleids:list=None, oids:list=None, idc=None, patientids:list=None, pidc=None, parentids:list=None, parentoids:list=None, locationpaths:list=None, trials:list=None, kitids:list=None, cxxkitids:list=None, categories:list=None, types:list=None, orgas:list=None, samplingdates=None, receiptdates=None, derivaldates=None, first_repositiondates=None, repositiondates=None, stockprocessingdates=None, secondprocessingdates=None, verbose:list=None, verbose_all=False, primaryref:bool=False, incl_parents:bool=False, incl_childs:bool=False, incl_tree:bool=False, like:list=None, missing=False, order_by=None, top=None, print_query:bool=False, raw:bool=False):
+    def sample(self, sampleids:list=None, oids:list=None, idc=None, patientids:list=None, pidc:str=None, parentids:list=None, parentoids:list=None, locationpaths:list=None, trials:list=None, kitids:list=None, cxxkitids:list=None, categories:list=None, types:list=None, orgas:list=None, samplingdates=None, receiptdates=None, derivaldates=None, first_repositiondates=None, repositiondates=None, stockprocessingdates=None, secondprocessingdates=None, files:dict=None, verbose:list=None, verbose_all=False, primaryref:bool=False, incl_parents:bool=False, incl_childs:bool=False, incl_tree:bool=False, like:list=None, missing=False, order_by=None, top=None, print_query:bool=False, raw:bool=False):
         ``.``
 ``
 
@@ -228,6 +233,8 @@ https://www.geeksforgeeks.org/python/use-mutable-default-value-as-an-argument-in
             verbose = []
         if like is None:
             like = []
+        if files is None:
+            files = {}
 ``
 
 these are all possible verbose options (verbose-all-array).
@@ -261,7 +268,20 @@ replace traction constants patientid and sampleid with their idc.
 
 ``
         verbose = self._concrete_idcs(verbose, pidc=pidc)
+        files = self._concrete_idcs_dict(files, pidc=pidc)
+        #print("files:")
+        #print(files)
 ``
+
+load the data from files into tables. see the method comment for _bcp
+why we're doing this.
+
+``
+        filetables = self._bcp(files)
+        #filetables = { "idc_SAMPLEID": "trac.sampleids" }
+        #print("filetables:")
+        #print(filetables)
+``        
 
 put the keys for the given arguments into the verbose array, so that
 they land in the join, so that the wherestring can access the
@@ -553,7 +573,7 @@ put together the select string and join string for the query.
 get the where string.
 
 `` #py
-        (wherestr, whereargs) = self._where(idc=idc, sampleoids=oids, parentids=parentids, parentoids=parentoids, trials=trials, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, categories=categories, types=types, orgas=orgas, samplingdates=samplingdates, receiptdates=receiptdates, derivaldates=derivaldates, first_repositiondates=first_repositiondates, repositiondates=repositiondates, stockprocessingdates=stockprocessingdates, secondprocessingdates=secondprocessingdates, verbose=verbose, like=like) 
+        (wherestr, whereargs) = self._where(idc=idc, sampleoids=oids, parentids=parentids, parentoids=parentoids, trials=trials, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, categories=categories, types=types, orgas=orgas, samplingdates=samplingdates, receiptdates=receiptdates, derivaldates=derivaldates, first_repositiondates=first_repositiondates, repositiondates=repositiondates, stockprocessingdates=stockprocessingdates, secondprocessingdates=secondprocessingdates, filetables=filetables, verbose=verbose, like=like) 
 ``
 
 get the top string.
@@ -565,7 +585,9 @@ get the top string.
 stick together the query, get the result and return it.
 
 `` #py
-        query = f"select {topstr} {selectstr} from centraxx_sample sample \n{joinstr} \nwhere {wherestr}"
+        query = f"select {topstr} {selectstr} from centraxx_sample sample \n{joinstr}"
+        if wherestr.strip() != "":
+            query += f"\nwhere {wherestr}"
         if order_by is not None:
             query += " " + self._order_by(order_by)
             
@@ -574,6 +596,12 @@ stick together the query, get the result and return it.
            print(whereargs)
 
         res = self.db.qfad(query, whereargs)
+``
+
+remove the temporary tables holding bcp data.
+
+``
+        self._bcp_clean(filetables)
 ``
 
 if raw is wished return the raw result.
@@ -775,7 +803,7 @@ patient gets patients and returns them as a list of Patient instances.
 the parameters work analog to the sample method.
 
 ``/patient: #py
-    def patient(self, patientids=None, pidc=None, sampleids=None, idc=None, trials=None, orgas:list=None, verbose:list=None, verbose_all=False, like:list=None, order_by=None, top=None, print_query:bool=False, raw:bool=False):
+    def patient(self, patientids=None, pidc=None, sampleids=None, idc=None, trials=None, orgas:list=None, files:dict=None, verbose:list=None, verbose_all=False, like:list=None, order_by=None, top=None, print_query:bool=False, raw:bool=False):
         ``.``
 ``
 
@@ -786,6 +814,8 @@ init arrays to avoid mutable default parameters.
             verbose = []
         if like is None:
             like = []
+        if files is None:
+            files = {}
 ``
 
 vaa (verbose-all-array) holds all possible verbose options for patient.
@@ -815,6 +845,14 @@ replace traction constants patientid and sampleid with their idc.
 
 ``
         verbose = self._concrete_idcs(verbose, pidc=pidc)
+        files = self._concrete_idcs_dict(files, pidc=pidc)        
+``
+
+load the data from files into tables. see the method comment for _bcp
+why we're doing this.
+
+``
+        filetables = self._bcp(files)
 ``
 
 on verbose_all include all constants in the verbose array.
@@ -917,7 +955,7 @@ silent.
 get the where string.
 
 `` #py
-        (wherestr, whereargs) = self._where(orgas=orgas, trials=trials, idc=idc, verbose=verbose, like=like)
+        (wherestr, whereargs) = self._where(orgas=orgas, trials=trials, idc=idc, filetables=filetables, verbose=verbose, like=like)
         #print(whereargs)
 ``
 
@@ -1024,7 +1062,7 @@ sampleids or method.  it returns a list of Finding instances.
 you can pass these to verbose: tr.patientid  // maybe also tr.values?
 
 ``/finding: #py
-    def finding(self, sampleids=None, patientids=None, pidc=None, idc=None, methods=None, trials=None, values:bool=True, verbose:list=None, verbose_all:bool=False, names:bool=False, top:int=None, print_query:bool=False, raw:bool=False):
+    def finding(self, sampleids=None, patientids=None, pidc:str=None, idc=None, methods=None, trials=None, values:bool=True, verbose:list=None, files:dict=None, verbose_all:bool=False, names:bool=False, top:int=None, print_query:bool=False, raw:bool=False):
         ``init``
         ``findings``
         ``values``
@@ -1036,6 +1074,8 @@ init arrays to avoid multiple default parameters.
 ``/finding/init:
         if verbose is None:
             verbose = []
+        if files is None:
+            files = {}
 ``
 
 vaa (verbose-all-array) holds all possible verbose options for patient.
@@ -1069,6 +1109,14 @@ replace traction constants patientid and sampleid with their idc.
 
 ``
         verbose = self._concrete_idcs(verbose, pidc=pidc)
+        files = self._concrete_idcs_dict(files, pidc=pidc)
+``
+
+load the data from files into tables. see the method comment for _bcp
+why we're doing this.
+
+``
+        filetables = self._bcp(files)
 ``
 
 build the query for findings.  later add recorded values to each finding.
@@ -1091,7 +1139,7 @@ get the idc part of the select string.
 ``
         selects = {
             self.sidc(): [f"idc_{self.sidc()}.psn as '{sampleid}'"],
-            self.pidc(picd): [f"idc_{self.pidc(pidc)}.psn as '{patientid}'"],                   
+            self.pidc(pidc): [f"idc_{self.pidc(pidc)}.psn as '{patientid}'"],                   
         }
         idcselectstr = self._selectstr(selects, verbose, [], idc)  
 ``
@@ -1135,7 +1183,7 @@ stick together the query.
 get the where string and append it to the query.
 
 ``
-        (wherestr, whereargs) = self._where(idc=idc, methods=methods, trials=trials)
+        (wherestr, whereargs) = self._where(idc=idc, methods=methods, trials=trials, filetables=filetables)
 
         query += " where " + wherestr
         if print_query:
@@ -1378,8 +1426,28 @@ return.
 method (messprofil) gets method(s) and their labvals (messparameter).
         
 ``/method:
-    def method(self, methods=None):
+    def method(self, methods=None, files:dict=None):
         ``.``
+``
+
+init files.
+
+``
+        if files is None:
+            files = {}
+``
+
+put in concrete idcs.
+
+``
+        files = self._concrete_idcs_dict(files, pidc=pidc)
+``
+
+load the data from files into tables. see the method comment for _bcp
+why we're doing this.
+
+``
+        filetables = self._bcp(files)
 ``
 
 the query.
@@ -1402,7 +1470,7 @@ inner join centraxx_laborvalue laborvalue
 add the where string.
 
 ``
-        (wherestr, whereargs) = self._where(methods=methods)
+        (wherestr, whereargs) = self._where(methods=methods, filetables=filetables)
 
         if wherestr:
           query += " where " + wherestr
@@ -1471,7 +1539,7 @@ return.
 
 
 ``/user:
-    def user(self, usernames:list=None, emails:list=None, lastlogin=None, verbose:list=None):
+    def user(self, usernames:list=None, emails:list=None, lastlogin=None, files:dict=None, verbose:list=None):
         ``.``
 ``
 
@@ -1480,6 +1548,8 @@ init arrays to avoid multiple default parameters.
 ``
         if verbose is None:
             verbose = []
+        if files is None:
+            files = {}
 ``
         
 
@@ -1501,6 +1571,15 @@ tr.address and tr.login are catch-alls for address and login related fields.
         if lastlogin:
             verbose.append(tr.login)
 ``
+
+load the data from files into tables. see the method comment for _bcp
+why we're doing this.
+
+``
+        filetables = self._bcp(files)
+``
+
+todo wherestring and build query?
 
 turn the result into user instances.
 
@@ -1776,8 +1855,8 @@ the settings can list idc codes that are not applicable to this target, skip the
         return out
 ``
 
-replace traction constants patientid and sampleid with their
-respective idc.
+_concrete_idcs replaces traction constants patientid and sampleid with their
+respective idc for array.
 
 ``/_concrete_idcs:
     def _concrete_idcs(self, verbose, pidc=None):
@@ -1797,6 +1876,29 @@ fill in the concrete idcs when encountering patientid or sampleid.
                 out.append(verb)
         return out
 ``
+
+_concrete_idcs_dict replaces traction constants patientid and sampleid with their
+respective idc for dict.
+
+``/_concrete_idcs_dict:
+    def _concrete_idcs_dict(self, d, pidc=None):
+        ``.``
+``
+
+fill in the concrete idcs when encountering patientid or sampleid.
+
+``
+        out = {}
+        for key, val in d.items():
+            if key == patientid:
+                out[self.pidc(pidc)] = val
+            elif key == sampleid:
+                out[self.sidc()] = val
+            else:
+                out[key] = val
+        return out
+``
+
 
 _fill_in_primary adds a reference to the given sample's primary sample,
 if there is one.
@@ -2042,7 +2144,7 @@ like=[tr.locationpath], it checks likeness of locationpaths[0].
 make sure only one of sampleids or extsampleids is passed?
 
 ``/_where:
-    def _where(self, idc={}, sampleoids:list=None, parentids:list=None, parentoids:list=None, patientids:list=None, trials:list=None, locationpaths:list=None, kitids:list=None, cxxkitids:list=None, categories:list=None, types:list=None, orgas:list=None, samplingdates=None, receiptdates=None, derivaldates=None, first_repositiondates=None, repositiondates=None, stockprocessingdates=None, secondprocessingdates=None, methods=None, like=None, verbose=None): # -> (str, [])
+    def _where(self, idc={}, sampleoids:list=None, parentids:list=None, parentoids:list=None, patientids:list=None, trials:list=None, locationpaths:list=None, kitids:list=None, cxxkitids:list=None, categories:list=None, types:list=None, orgas:list=None, samplingdates=None, receiptdates=None, derivaldates=None, first_repositiondates=None, repositiondates=None, stockprocessingdates=None, secondprocessingdates=None, methods=None, filetables:dict=None, like=None, verbose=None): # -> (str, [])
         ``.``
 ``
 
@@ -2091,12 +2193,17 @@ example?), get them with the intersection call.
 
 ``
         idckeys = [] if idc is None else idc.keys()
-        idca = list(idckeys) + list(set(verbose).intersection(self.settings["idc"]))
+        possibleidcs = self.settings["idc"] + [self.sidc()] # also add self.pidc(pidc)? todo
+        #print("verbose:")
+        #print(verbose)
+        idca = list(idckeys) + list(set(verbose).intersection(possibleidcs))
         for item in idca:
             wheredict[item] = {
                                 "arr": idc[item] if idc is not None and item in idc else None,
                                 "field": f"idc_{item}.psn"
                              }
+        #print("wheredict:")
+        #print(wheredict)
 ``
 
 stick together where clauses and arguments that covers the args that
@@ -2104,7 +2211,7 @@ are not None and the constants in verbose. return the wherestring and
 args array.
 
 ``
-        (wherearr, whereargs) = self._wherebuild(wheredict, like, verbose)
+        (wherearr, whereargs) = self._wherebuild(wheredict, like, verbose, filetables)
 
         wherestr = " and ".join(wherearr)
 ``
@@ -2118,7 +2225,7 @@ return.
 _wherebuild builds wherestrings and fills whereargs.
 
 ``/_wherebuild:
-    def _wherebuild(self, wheredict, likearr:list=None, verbose:list=None): # ([]string, [])
+    def _wherebuild(self, wheredict, likearr:list=None, verbose:list=None, filetables:dict=None): # ([]string, [])
         ``.``
 ``
 
@@ -2151,13 +2258,18 @@ key is one of the tr constant strings, e.g. tr.locationpath.
 
             # somehow printing here stops the keys from being iterated in the loop. why?
             #print("field: " + row["field"])
-            
-            if row["arr"] == None or len(row["arr"]) == 0:
+
+            # not used
+            if key not in filetables and (row["arr"] == None or len(row["arr"]) == 0):
                 continue
+
+            # both file and array: error for now.
+            # if key in filetables and row["arr"] is not None:
+            #    raise Exception(f"pass either a list or a file for {key}, not both.")
 
             if likearr is not None and key in likearr:
                 ``like``
-            elif row["arr"] is not None and "type" in row and row["type"] == "date":
+            elif (row["arr"] is not None or key in filetables) and "type" in row and row["type"] == "date":
                 ``date``
             else:
                 ``exact``
@@ -2211,7 +2323,7 @@ from the array, so it doesn't mess with the where-arguments later.
 
 ``
                 needsor = False
-                if 'NULL' in row["arr"]:
+                if row["arr"] is not None and 'NULL' in row["arr"]:
                     row["arr"].remove("NULL")
                     wherestr += row["field"] + " is NULL"
                     needsor = True
@@ -2221,11 +2333,23 @@ if there is anything left in the array, make the in-list part of the
 wherestring with the ?-placeholder string.
 
 ``
-                if len(row["arr"]) > 0:
+                if row["arr"] is not None and len(row["arr"]) > 0:
                     if needsor:
                         wherestr += " or "
                     placeholder = traction._sqlinplaceholder(len(row["arr"])) # todo put in package? tr._sqlinplaceholder
                     wherestr += row["field"] + " in " + placeholder # e.g. samplelocation.locationpath in (?, ?, ?)
+                    # if something comes next, chain it with or
+                    needsor = True
+``
+
+read the file content from bcp table.
+
+``
+                if key in filetables:
+                    if needsor:
+                        wherestr += " or "
+                    wherestr += row["field"] + " in "
+                    wherestr += f"(select stdin from trac.dbo.{filetables[key]})"
 ``
 
 close the exact-match wherestr with ) and put the wherestring and its arguments
@@ -2234,7 +2358,8 @@ into their corresponding arrays.
 ``
                 wherestr += ")"
                 wherestrs.append(wherestr)
-                whereargs.extend(row["arr"])
+                if row["arr"] is not None:
+                    whereargs.extend(row["arr"])
 ``
 
 
@@ -2359,6 +2484,137 @@ def _checkverbose(verbose, possible):
     return True
 ``
 
+_bcp copies files to the db server and inserts each into a temporary
+table in the trac database by calling the bcp command line tool. it
+takes a map of tr constants and relative file paths.  it returns a map
+of the same tr constants and the table names the files ended up in.
+
+we use bcp for getting file data to the server, cause if you feed the
+data from a file directly to a query via query parameters you
+relatively quickly hit an upper limit as only a maximum of 2100 query
+parameters is allowed.  to bulk load data from a file into an
+openrowset it must be on the server. so, the way seems to be, get the
+data to the server, then bulk load or query it.
+
+``/_bcp:
+    def _bcp(self, files:dict): # -> dict
+        ``.``
+``
+
+iterate the tr constants and file paths:
+
+``
+        out = {}
+        for key, path in files.items():
+            ``.``
+``
+
+create the table to copy to and remember its name.
+
+``
+            bcptable = self._bcp_table(path)
+            out[key] = bcptable
+``
+
+run bcp.
+
+``
+            info = self.db.info
+            subprocess.run(["bcp", bcptable, "in", path, "-S", info["server"], "-d", "trac",  "-U", info["username"], "-P", info["password"], "-q", "-c", "-t", ",", "-u", "-r", "\n"], stdout=open(os.devnull, 'wb'))
+``
+
+this inserts the data from the local file into the table on the server.
+
+the bcp flags used are:
+
+-u: trust server certificate
+-t: field terminator
+-r: row terminator  todo find the row terminator (dos/unix) from file
+-q: quoted identifier
+
+the bcp output is redirected to /dev/null as to not appear on the screen.
+
+after the loop, return the table names keyed by tr constant.
+
+``/_bcp
+        return out
+``
+
+import subprocess and os.
+
+``/import
+import subprocess
+import os
+``
+
+_bcp_table creates a table with one column called stdin for the
+contents of a file to be read into and returns the table name. it
+ensures that the table didn't exist before by using a combination of
+the file name and a random number as table name.
+
+``/_bcp_table:
+    def _bcp_table(self, path:str):
+        ``.``
+``
+
+get the file name without path and suffix.
+
+flatten all non letter and number chars to underscore.
+
+``
+        stem = pathlib.Path(path).stem
+        stem = re.sub(r"[^A-Za-z0-9]", "_", stem)
+``
+
+make sure that the table doesn't exist by appending a random number,
+retrying with a different random number as long as a name already exists.
+
+``
+        rand = int(random.random() * 1000)
+        name = stem + "_" + str(rand)
+        while len(self.db.qfad("select * from trac.information_schema.tables where table_name = ?", name)) > 0:
+            rand = int(random.random() * 1000)
+            name = stem + "_" + str(rand)
+``
+
+create the table. todo: does this need to run on the same cursor as
+the the table existence checking to ensure atomicity?
+
+``
+        #print(name)
+        self.db.query(f"create table trac.dbo.{name} ( stdin varchar(255) )")
+``
+
+return the tablename.
+
+``
+        return name
+``
+
+import.
+
+``/import
+import pathlib
+import random
+``
+
+_bcp_clean drops the tables that were created with _bcp after the
+query using their data was run. it takes the dict of filetables that
+was returned by _bcp.
+
+``/_bcp_clean:
+    def _bcp_clean(self, filetables:dict):
+        ``.``
+``
+
+go over the tables and drop them.
+
+``
+        for key, tablename in filetables.items():
+            self.db.query(f"use trac; drop table trac.dbo.{tablename}")  # todo is kairos_spring used again after this?
+``
+
+
 floatornull casts to float or returns None. somehow the values passed
 to Amount need float casts, and float casts don't accept None.
 
@@ -2426,7 +2682,7 @@ open the file.
 make a csv writer.
 
 ``./write:
-        writer = csv.writer(f, delimiter=";")
+        writer = csv.writer(f, delimiter=",")
 ``
 
 take as colum names the keys of the iddict from the first idable.

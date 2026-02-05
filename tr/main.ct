@@ -7,8 +7,7 @@ main is a little traction cli.
 ``add_args``
 ``getidc``
 ``datespan``
-``lfpof``
-``lff``
+``lof``
 
 ``main``
 
@@ -138,22 +137,25 @@ mechanism.
         files = args.files.split(",")
 ``
 
-read the flags, either as comma seperated list or from file path.
+either read the flag arguments as comma seperated lists or collect
+them in filemap.
 
 ``
-    sampleids = lfpof(tr.sampleid, args.sampleid, files)
-    parentids = lfpof(tr.parentid, args.parentid, files)
-    patientids = lfpof(tr.patientid, args.patientid, files)
-    trials = lfpof(tr.trial, args.trial, files)
-    locationpaths = lfpof(tr.locationpath, args.locationpath, files)
-    methods = lfpof(tr.method, args.method, files)
-    kitids = lfpof(tr.kitid, args.method, files)
-    cxxkitids = lfpof(tr.cxxkitid, args.cxxkitid, files)
-    categories = lfpof(tr.category, args.category, files)
-    types = lfpof(tr.type, args.type, files)    
-    orgas = lfpof(tr.orga, args.orga, files)
-    usernames = lfpof(tr.username, args.username, files)
-    emails = lfpof(tr.email, args.email, files)        
+    filemap = {}
+    sampleids = lof(tr.sampleid, args.sampleid, files, filemap)
+    parentids = lof(tr.parentid, args.parentid, files, filemap)
+    patientids = lof(tr.patientid, args.patientid, files, filemap)
+    trials = lof(tr.trial, args.trial, files, filemap)
+    locationpaths = lof(tr.locationpath, args.locationpath, files, filemap)
+    methods = lof(tr.method, args.method, files, filemap)
+    kitids = lof(tr.kitid, args.method, files, filemap)
+    cxxkitids = lof(tr.cxxkitid, args.cxxkitid, files, filemap)
+    categories = lof(tr.category, args.category, files, filemap)
+    types = lof(tr.type, args.type, files, filemap)    
+    orgas = lof(tr.orga, args.orga, files, filemap)
+    usernames = lof(tr.username, args.username, files, filemap)
+    emails = lof(tr.email, args.email, files, filemap)
+    #print(filemap)
 ``
 
 read like as comma seperated list.
@@ -175,7 +177,7 @@ get to the sampleid. todo doesn't work.
 ``
     if args.what == "sample":
         sample = traction.sample(
-               sampleids=sampleids,
+               #sampleids=sampleids,
                idc=getidc(vars(args), settings),
                parentids=parentids,
                patientids=patientids,
@@ -194,6 +196,8 @@ get to the sampleid. todo doesn't work.
                repositiondates=datespan(args.reposition_date),
                stockprocessingdates=datespan(args.stockprocessing_date),
                secondprocessingdates=datespan(args.secondprocessing_date),
+               #files={ tr.sampleid: "/home/max/awb_tools/awb_prep/murdi/sampleids-test.txt" }, # makefilesmap(args)
+               files=filemap,
                verbose=verbose,
                verbose_all=args.verbose_all,
                primaryref=args.primary_ref,
@@ -228,6 +232,7 @@ get a patient.
             idc=getidc(vars(args), settings),
             trials=trials,
             orgas=orgas,
+            files=filemap,
             verbose=verbose,
             verbose_all=args.verbose_all,
             like=likes,
@@ -251,7 +256,7 @@ get method(s) and their labvals.
 
 ``
     elif args.what == "method":
-        res = traction.method(methods=methods)
+        res = traction.method(methods=methods, files=filemap)
         print(json.dumps(res, default=str, indent=4))
 ``
 
@@ -265,6 +270,7 @@ get a finding.
             idc=getidc(vars(args), settings),
             methods=methods,
             trials=trials,
+            files=filemap,
             values=True, # todo make arg?
             names=args.names,
             top=args.top,
@@ -279,7 +285,7 @@ get user(s)
 
 ``
     elif args.what == "user":
-        res = traction.user(username=usernames, emails=emails, lastlogin=datespan(args.last_login), verbose=verbose)
+        res = traction.user(username=usernames, emails=emails, lastlogin=datespan(args.last_login), files=filemap, verbose=verbose)
         print(jsonpickle.encode(res, unpicklable=False, indent=4))
 ``
 
@@ -329,15 +335,16 @@ import sys
 import jsonpickle
 ``
 
-lfpof (list from param or file) reads values passed to a flag as comma
-seperated list or from file if the value is proceeded with f:.  if the
-files flag is passed, all params given to it are read from file, and
-all others as comma seperated list, irrespective of f:.
+lof (list or file) either reads arguments passed to a flag as comma
+seperated list or collects them in filemap if the argument is
+proceeded with f:.  if the files array is passed (from the --files
+flag), all params given in it are collected as file, and all others
+are read as comma seperated list, irrespective of f:.
 
 if the flag was not set, None is returned.
 
-``/lfpof:
-def lfpof(name:str, passed, files:list=None):
+``/lof:
+def lof(name:str, passed, files:list=None, filemap:dict=None):
     ``.``
 ``
 
@@ -353,47 +360,41 @@ else just return None.
 ``
 
 
-if files is given, and this name is in files, read it as file, else
+if files array is given, and this name is in files, collect it as file, else
 read it as comma seperated list, ignoring f:
+
+join the current working directory to the filepath.
 
 ``
     if files is not None:
         if name in files:
-            return lff(passed)
+            filemap[name] = os.path.join(os.getcwd(), passed)
+            return None
         else:
             return passed.split(",")
 ``
 
-if files is not given, read from file if passed string is preceeded
-with f:, else as comma seperated list.
+if files is not given, collect file if the string that was passed is preceeded
+with f:, else read it as comma seperated list.
 
 ``
     else:
         res = re.subn(r'^f:', '', passed)
         if res[1] > 0: # count
-            return lff(res[0])
+            filemap[name] = os.path.join(os.getcwd(), res[0]) # the substituted string
         else:
             return passed.split(",")
 ``
 
+import.
+
+``/import
+import os
+import os.path
+``
+
 if no files flag is passed, read the params starting with f: as
 filenames and the others as comma seperated list.
-
-lff (list from file) reads the contents of a file and returns them as
-list by line.
-
-``/lff:
-def lff(path):
-    ``.``
-``
-
-open the file and read, return it's contents split on newline.
-
-``
-    with open(path) as f:
-        return f.read().split("\n") 
-``
-
 
 add_args adds idc args from settings.
 
