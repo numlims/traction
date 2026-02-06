@@ -463,6 +463,7 @@ class traction:
         if print_query:
            print(query)
         res = self.db.qfad(query, whereargs)
+        self._bcp_clean(filetables)
         if raw:
             return res
         pats = []
@@ -540,6 +541,7 @@ class traction:
             print(query)
             print(whereargs)
         results = self.db.qfad(query, whereargs)
+        self._bcp_clean(filetables)
         if names is True:
             self.names_laborvalue = self.name(table="laborvalue")
         for i, finding in enumerate(results):
@@ -606,6 +608,7 @@ inner join centraxx_laborvalue laborvalue
           query += " where " + wherestr
         # print(query)
         res = self.db.qfad(query, whereargs)
+        self._bcp_clean(filetables)
         methodnames = self.name(table="labormethod")
         labvalnames = self.name(table="laborvalue")
         out = {}
@@ -640,6 +643,7 @@ inner join centraxx_laborvalue laborvalue
         if lastlogin:
             verbose.append(tr.login)
         filetables = self._bcp(files)
+        self._bcp_clean(filetables)
         out = []
         for r in res:
             user = User(
@@ -1180,7 +1184,7 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
         stem = re.sub(r"[^A-Za-z0-9]", "_", stem)
         rand = int(random.random() * 1000)
         name = stem + "_" + str(rand)
-        while len(self.db.qfad("select * from trac.information_schema.tables where table_name = ?", name)) > 0:
+        while self._tbl_exists("trac", name):
             rand = int(random.random() * 1000)
             name = stem + "_" + str(rand)
         #print(name)
@@ -1194,4 +1198,13 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
         """
         for key, tablename in filetables.items():
             self.db.query(f"use trac; drop table trac.dbo.{tablename}")  # todo is kairos_spring used again after this?
-
+    def _tbl_exists(self, db, table):
+        """
+         _tbl_exists returns whether a given table exists in a database.
+        """
+        try:
+            res = self.db.qfad(f"select * from {db}.information_schema.tables where table_name = ?", table)
+            return len(res) > 0
+        except Exception as e:
+            print("traction: " + str(e))
+            print("is the database 'trac' created? `create database trac`")

@@ -56,7 +56,7 @@ class traction:
     ``_bcp``
     ``_bcp_table``
     ``_bcp_clean``
-
+    ``_tbl_exists``
 ``
 
 at the package level are a series of constants that can be used in
@@ -984,6 +984,12 @@ get the result.
         res = self.db.qfad(query, whereargs)
 ``
 
+remove the temporary tables holding bcp data.
+
+``
+        self._bcp_clean(filetables)
+``
+
 if raw is wished, return raw.
 
 ``
@@ -1195,6 +1201,12 @@ get the result.
 
 ``
         results = self.db.qfad(query, whereargs)
+``
+
+remove the temporary tables holding bcp data.
+
+``
+        self._bcp_clean(filetables)
 ``
 
 for each of the findings, pull in the recorded values.
@@ -1483,6 +1495,12 @@ return the result.
         res = self.db.qfad(query, whereargs)
 ``
 
+remove the temporary tables holding bcp data.
+
+``
+        self._bcp_clean(filetables)
+``
+
 if raw, return result as is.
 
 `
@@ -1580,6 +1598,12 @@ why we're doing this.
 ``
 
 todo wherestring and build query?
+
+remove the temporary tables holding bcp data.
+
+``
+        self._bcp_clean(filetables)
+``
 
 turn the result into user instances.
 
@@ -2572,7 +2596,7 @@ retrying with a different random number as long as a name already exists.
 ``
         rand = int(random.random() * 1000)
         name = stem + "_" + str(rand)
-        while len(self.db.qfad("select * from trac.information_schema.tables where table_name = ?", name)) > 0:
+        while self._tbl_exists("trac", name):
             rand = int(random.random() * 1000)
             name = stem + "_" + str(rand)
 ``
@@ -2614,6 +2638,17 @@ go over the tables and drop them.
             self.db.query(f"use trac; drop table trac.dbo.{tablename}")  # todo is kairos_spring used again after this?
 ``
 
+_tbl_exists returns whether a given table exists in a database.
+
+``/_tbl_exists:
+    def _tbl_exists(self, db, table):
+        try:
+            res = self.db.qfad(f"select * from {db}.information_schema.tables where table_name = ?", table)
+            return len(res) > 0
+        except Exception as e:
+            print("traction: " + str(e))
+            print("is the database 'trac' created? `create database trac`")
+``
 
 floatornull casts to float or returns None. somehow the values passed
 to Amount need float casts, and float casts don't accept None.
