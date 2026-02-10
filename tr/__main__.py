@@ -259,7 +259,13 @@ def main():
             print_query=args.query,
             verbose_all=args.verbose_all,
             raw=args.raw)
-        print(jsonpickle.encode(res, unpicklable=False, indent=4))
+            
+        if args.csv is not None:
+            outfile = tr.finding_csv(res, args.csv, delim=",", delim_cmp=",") 
+            if outfile is not None:
+                print(outfile)
+        else:
+            print(jsonpickle.encode(res, unpicklable=False, indent=4))
         #print(json.dumps(res, default=str, indent=4))
     elif args.what == "user":
         res = traction.user(username=usernames, emails=emails, lastlogin=datespan(args.last_login), files=filemap, verbose=verbose)

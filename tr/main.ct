@@ -166,7 +166,7 @@ read like as comma seperated list.
         likes = args.like.split(",")
 ``
 
-get a sample.
+get sample(s).
 
 encode the json with jsonpickle to render the class attributes,
 json.dumps doesn't do that.
@@ -222,7 +222,7 @@ get to the sampleid. todo doesn't work.
 unpicklable=False to renders dates and seems to make the json output
 generally neater.
 
-get a patient.
+get patient(s).
 
 ``
     elif args.what == "patient":
@@ -244,7 +244,7 @@ get a patient.
         print(jsonpickle.encode(patients, unpicklable=False, indent=4))
 ``
 
-get a trial.
+get trial(s).
 
 ``
     elif args.what == "trial":
@@ -260,7 +260,7 @@ get method(s) and their labvals.
         print(json.dumps(res, default=str, indent=4))
 ``
 
-get a finding.
+get finding(s) and their recorded values.
 
 ``
     elif args.what == "finding":
@@ -277,11 +277,17 @@ get a finding.
             print_query=args.query,
             verbose_all=args.verbose_all,
             raw=args.raw)
-        print(jsonpickle.encode(res, unpicklable=False, indent=4))
+            
+        if args.csv is not None:
+            outfile = tr.finding_csv(res, args.csv, delim=",", delim_cmp=",") 
+            if outfile is not None:
+                print(outfile)
+        else:
+            print(jsonpickle.encode(res, unpicklable=False, indent=4))
         #print(json.dumps(res, default=str, indent=4))
 ``
 
-get user(s)
+get user(s).
 
 ``
     elif args.what == "user":

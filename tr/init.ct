@@ -13,6 +13,7 @@ commonly used getters (and setters?) for centraxx db.
 ``isidentifier``
 
 ``idable_csv``
+``finding_csv``
 
 class traction:
     ``init``
@@ -2744,4 +2745,155 @@ import csv.
 
 ``/import
 import csv
+``
+
+
+finding_csv writes a list of Findings along their recorded values to
+the given csv file, the recorded values in the same row as their
+respective finding.
+
+``/finding_csv:
+def finding_csv(findings:list, filename:str=None, delim:str=",", delim_cmp:str=",") -> str:
+    ``.``
+``
+
+if no findings return. 
+
+``
+    if findings is None or len(findings) == 0: # todo throw error?
+        print("no findings")
+        return None
+``
+
+make dicts from the findings and pull in the recorded values.
+
+collect a list of all the csv column names, so that values end up in
+the right columns when writing csv.
+
+``
+    fdicts = []
+    colnames = []
+
+    for finding in findings:
+        ``build fdict``
+``
+
+get the dict for the finding, delete the recs field.
+
+``./build fdict:
+        fdict = finding.__dict__.copy()
+        del fdict["recs"]
+``
+
+if it's the first row, remember the finding field names for the csv
+header. they should be the same for all findings.
+
+``
+        if len(colnames) == 0:
+            colnames.extend(list(fdict.keys()))
+``
+
+pull in the recorded values.
+
+``
+        for code, rec in finding.recs.items():
+            ``pull rec``
+``
+
+for each recorded value, make a field cmp_t_CODE holding the type and
+cmp_v_CODE holding the value(s).
+
+findings come with different recorded values, if this recorded value's
+labval hasn't been encountered yet, remember it as column name.
+
+
+``./pull rec:
+            tkey = f"cmp_t_{rec.labval}"
+            vkey = f"cmp_v_{rec.labval}"
+            if tkey not in colnames:
+                colnames.append(tkey)
+            if vkey not in colnames:
+                colnames.append(vkey)
+``
+
+go through the recorded values by type.
+
+``
+            if isinstance(rec, BooleanRec):
+                fdict[tkey] = "BOOL"
+                fdict[vkey] = rec.rec
+``
+
+for number.
+
+``
+            if isinstance(rec, NumberRec):
+                fdict[tkey] = "NUMBER"
+                fdict[vkey] = rec.rec
+``
+
+for string.
+
+``
+            if isinstance(rec, StringRec):
+                fdict[tkey] = "STRING"
+                fdict[vkey] = rec.rec
+``
+
+for date.
+
+``
+            if isinstance(rec, DateRec):
+                fdict[tkey] = "DATE"
+                fdict[vkey] = rec.rec
+``
+
+for multi and catalog rec, put all entries in it's rec list into one field.
+
+``
+            if isinstance(rec, MultiRec):
+                fdict[tkey] = "MULTI"
+                fdict[vkey] = delim_cmp.join(rec.rec)
+            if isinstance(rec, CatalogRec):
+                fdict[tkey] = "CATALOG"
+                fdict[vkey] = delim_cmp.join(rec.rec)
+                
+``
+
+after adding the recorded values append the finding dict.
+
+``../
+        fdicts.append(fdict)
+``
+
+after the loop open the csv file.
+
+``/finding_csv
+    with open(filename, "w") as f:
+        ``write``
+``
+
+make a csv writer. pass the field names from all findings.
+
+``./write:
+        writer = csv.DictWriter(f, fieldnames=colnames, delimiter=delim)
+``
+
+write the header.
+
+``
+        writer.writeheader()
+``
+
+write the csv rows for each finding (and its recorded values).
+
+``
+        for fdict in fdicts:
+            writer.writerow(fdict)
+``
+
+return the name of the file.
+
+``
+    return filename
 ``

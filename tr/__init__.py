@@ -124,6 +124,56 @@ def idable_csv(idables:list, filename:str=None, *idcs) -> str:
             d = idable.iddict()
             writer.writerow(list(d.values()))
     return filename
+def finding_csv(findings:list, filename:str=None, delim:str=",", delim_cmp:str=",") -> str:
+    """
+     finding_csv writes a list of Findings along their recorded values to
+     the given csv file, the recorded values in the same row as their
+     respective finding.
+    """
+    if findings is None or len(findings) == 0: # todo throw error?
+        print("no findings")
+        return None
+    fdicts = []
+    colnames = []
+
+    for finding in findings:
+        fdict = finding.__dict__.copy()
+        del fdict["recs"]
+        if len(colnames) == 0:
+            colnames.extend(list(fdict.keys()))
+        for code, rec in finding.recs.items():
+            tkey = f"cmp_t_{rec.labval}"
+            vkey = f"cmp_v_{rec.labval}"
+            if tkey not in colnames:
+                colnames.append(tkey)
+            if vkey not in colnames:
+                colnames.append(vkey)
+            if isinstance(rec, BooleanRec):
+                fdict[tkey] = "BOOL"
+                fdict[vkey] = rec.rec
+            if isinstance(rec, NumberRec):
+                fdict[tkey] = "NUMBER"
+                fdict[vkey] = rec.rec
+            if isinstance(rec, StringRec):
+                fdict[tkey] = "STRING"
+                fdict[vkey] = rec.rec
+            if isinstance(rec, DateRec):
+                fdict[tkey] = "DATE"
+                fdict[vkey] = rec.rec
+            if isinstance(rec, MultiRec):
+                fdict[tkey] = "MULTI"
+                fdict[vkey] = delim_cmp.join(rec.rec)
+            if isinstance(rec, CatalogRec):
+                fdict[tkey] = "CATALOG"
+                fdict[vkey] = delim_cmp.join(rec.rec)
+                
+        fdicts.append(fdict)
+    with open(filename, "w") as f:
+        writer = csv.DictWriter(f, fieldnames=colnames, delimiter=delim)
+        writer.writeheader()
+        for fdict in fdicts:
+            writer.writerow(fdict)
+    return filename
 
 class traction:
     def __init__(self, target):
