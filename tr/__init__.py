@@ -13,6 +13,7 @@ import pathlib
 import random
 import re
 import csv
+import sys
 address = "address"
 appointment = "appointment"
 category = "category" # MASTER, ALIQUOTGROUP, DERIVED. dtype in db.
@@ -108,28 +109,37 @@ def isidentifier(a) -> bool:
     """
     return re.match(r"^[A-Za-z_0-9\.]+$", a)
 
-def idable_csv(idables:list, filename:str=None, *idcs) -> str:
+def idable_csv(idables:list, filename=None, delim:str=",", *idcs) -> str:
     """
      idable_csv writes a list of Idables to the given csv file. the given
      idcontainers are included as columns. if no idcontainers are given, all
-     are included.
+     are included. if sys.stdout is passed as file, the output is printed.
     """
+    if delim is None:
+        delim = ","
     if idables is None or len(idables) == 0: # todo throw error?
         print("no idables")
         return None
     with open(filename, "w") as f:
-        writer = csv.writer(f, delimiter=",")
+        writer = csv.writer(f, delimiter=delim)
         writer.writerow(list(idables[0].iddict(*idcs).keys()))
         for idable in idables:
             d = idable.iddict()
             writer.writerow(list(d.values()))
-    return filename
-def finding_csv(findings:list, filename:str=None, delim:str=",", delim_cmp:str=",") -> str:
+    if isinstance(filename, str):
+        return filename
+    else:
+        return None
+def finding_csv(findings:list, filename=None, delim:str=",", delim_cmp:str=",") -> str:
     """
      finding_csv writes a list of Findings along their recorded values to
      the given csv file, the recorded values in the same row as their
-     respective finding.
+     respective finding. if sys.stdout is passed as file the output is printed.
     """
+    if delim is None:
+        delim = ","
+    if delim_cmp is None:
+        delim_cmp = ","
     if findings is None or len(findings) == 0: # todo throw error?
         print("no findings")
         return None
@@ -173,7 +183,10 @@ def finding_csv(findings:list, filename:str=None, delim:str=",", delim_cmp:str="
         writer.writeheader()
         for fdict in fdicts:
             writer.writerow(fdict)
-    return filename
+    if isinstance(filename, str):
+        return filename
+    else:
+        return None
 
 class traction:
     def __init__(self, target):

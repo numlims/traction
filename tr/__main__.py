@@ -145,7 +145,9 @@ def main():
     parser.add_argument("--top", help="first n results on sql query level")    
     parser.add_argument("--query", help="print the query", action="store_true")
     parser.add_argument("--raw", help="return raw results", action="store_true")
-    parser.add_argument("--csv", help="write results to csv file")
+    parser.add_argument("--csv", help="write results to csv file", default=None, const=True, nargs="?") # if `--csv file` is passed, args.csv is file, if only --csv is passed, args.csv is True (const), if no --csv flag is passed, args.csv is None (default).
+    parser.add_argument("-D", help="csv output delimiter, default comma")
+    parser.add_argument("--delim-cmp", help="delimiter of multi and catalog lists in csv output")
     add_args(parser, settings)
     args = parser.parse_args()
 
@@ -217,8 +219,12 @@ def main():
                raw=args.raw)
                
         if args.csv is not None:
-            outfile = tr.idable_csv(sample, args.csv) # rename csv?
-            if outfile is not None:
+            if args.csv is True:
+                file = sys.stdout
+            else:
+                file = args.csv
+            outfile = tr.idable_csv(sample, args.csv, delim=args.D) # rename csv?
+            if outfile is not None and args.csv != True:
                 print(outfile)
         else:
             print(jsonpickle.encode(sample, unpicklable=False, indent=4)) # somehow include_properties=True doesn't work
@@ -261,8 +267,12 @@ def main():
             raw=args.raw)
             
         if args.csv is not None:
-            outfile = tr.finding_csv(res, args.csv, delim=",", delim_cmp=",") 
-            if outfile is not None:
+            if args.csv is True:
+                file = sys.stdout
+            else:
+                file = args.csv
+            outfile = tr.finding_csv(res, file, delim=args.D, delim_cmp=args.delim_cmp) #bm
+            if outfile is not None and args.csv != True:
                 print(outfile)
         else:
             print(jsonpickle.encode(res, unpicklable=False, indent=4))

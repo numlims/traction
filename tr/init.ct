@@ -2693,11 +2693,18 @@ import re
 
 idable_csv writes a list of Idables to the given csv file. the given
 idcontainers are included as columns. if no idcontainers are given, all
-are included.
+are included. if sys.stdout is passed as file, the output is printed.
 
 ``/idable_csv:
-def idable_csv(idables:list, filename:str=None, *idcs) -> str:
+def idable_csv(idables:list, filename=None, delim:str=",", *idcs) -> str:
     ``.``
+``
+
+arg parse passes None for delim if it wasn't set, set it here.
+
+``
+    if delim is None:
+        delim = ","
 ``
 
 if no idables return. 
@@ -2718,7 +2725,7 @@ open the file.
 make a csv writer.
 
 ``./write:
-        writer = csv.writer(f, delimiter=",")
+        writer = csv.writer(f, delimiter=delim)
 ``
 
 take as colum names the keys of the iddict from the first idable.
@@ -2735,27 +2742,41 @@ write the list of dict items for each idable.
             writer.writerow(list(d.values()))
 ``
 
-return the name of the file.
+return the name of the file (check for string to not return sys.stdout).
 
 ``
-    return filename
+    if isinstance(filename, str):
+        return filename
+    else:
+        return None
 ``
 
-import csv.
+import csv and sys.
 
 ``/import
 import csv
+import sys
 ``
 
 
 finding_csv writes a list of Findings along their recorded values to
 the given csv file, the recorded values in the same row as their
-respective finding.
+respective finding. if sys.stdout is passed as file the output is printed.
 
 ``/finding_csv:
-def finding_csv(findings:list, filename:str=None, delim:str=",", delim_cmp:str=",") -> str:
+def finding_csv(findings:list, filename=None, delim:str=",", delim_cmp:str=",") -> str:
     ``.``
 ``
+
+arg parse passes None for delim if it wasn't set, set it here.
+
+``
+    if delim is None:
+        delim = ","
+    if delim_cmp is None:
+        delim_cmp = ","
+``
+
 
 if no findings return. 
 
@@ -2892,8 +2913,11 @@ write the csv rows for each finding (and its recorded values).
             writer.writerow(fdict)
 ``
 
-return the name of the file.
+return the name of the file (check for string to not return sys.stdout).
 
 ``
-    return filename
+    if isinstance(filename, str):
+        return filename
+    else:
+        return None
 ``
