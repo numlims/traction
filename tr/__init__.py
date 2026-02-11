@@ -43,7 +43,6 @@ restamount = "restamount"
 restunit = "restunit"
 sampleid = "sampleid"
 sampleoid = "sampleoid"
-sampletype = "sampletype"
 samplingdate = "samplingdate" # entnahmedatum / extraction date.
 secondprocessing = "secondprocessing"
 secondprocessingdate = "secondprocessingdate"
@@ -109,32 +108,37 @@ def isidentifier(a) -> bool:
     """
     return re.match(r"^[A-Za-z_0-9\.]+$", a)
 
-def idable_csv(idables:list, filename=None, delim:str=",", *idcs) -> str:
+def idable_csv(idables:list, outfile=None, delim:str=",", *idcs) -> str:
     """
      idable_csv writes a list of Idables to the given csv file. the given
-     idcontainers are included as columns. if no idcontainers are given, all
-     are included. if sys.stdout is passed as file, the output is printed.
+     idcontainers are included as columns. if no idcontainers are given,
+     all are included. if True is passed as file, the output is
+     printed. (todo pass sys.stdout instead?)
     """
     if delim is None:
         delim = ","
     if idables is None or len(idables) == 0: # todo throw error?
-        print("no idables")
+        #print("no idables")
         return None
-    with open(filename, "w") as f:
-        writer = csv.writer(f, delimiter=delim)
-        writer.writerow(list(idables[0].iddict(*idcs).keys()))
+    with open(outfile, "w") as f:
+        colnames = []
         for idable in idables:
-            d = idable.iddict()
-            writer.writerow(list(d.values()))
-    if isinstance(filename, str):
-        return filename
-    else:
-        return None
-def finding_csv(findings:list, filename=None, delim:str=",", delim_cmp:str=",") -> str:
+            for col in list(idable.iddict(*idcs).keys()):
+                if not col in colnames:
+                    colnames.append(col)
+        #print("colnames:")
+        #print(colnames)
+        writer = csv.DictWriter(f, fieldnames=colnames, delimiter=delim)        #bm
+        writer.writeheader()
+        for idable in idables:
+            d = idable.iddict(*idcs)
+            writer.writerow(d)
+    return outfile
+def finding_csv(findings:list, outfile=None, delim:str=",", delim_cmp:str=",") -> str:
     """
      finding_csv writes a list of Findings along their recorded values to
      the given csv file, the recorded values in the same row as their
-     respective finding. if sys.stdout is passed as file the output is printed.
+     respective finding. if True is passed as file the output is printed. todo use sys.stdout instead of True.
     """
     if delim is None:
         delim = ","
@@ -178,15 +182,12 @@ def finding_csv(findings:list, filename=None, delim:str=",", delim_cmp:str=",") 
                 fdict[vkey] = delim_cmp.join(rec.rec)
                 
         fdicts.append(fdict)
-    with open(filename, "w") as f:
+    with open(outfile, "w") as f:
         writer = csv.DictWriter(f, fieldnames=colnames, delimiter=delim)
         writer.writeheader()
         for fdict in fdicts:
             writer.writerow(fdict)
-    if isinstance(filename, str):
-        return filename
-    else:
-        return None
+    return outfile
 
 class traction:
     def __init__(self, target):
@@ -256,7 +257,7 @@ class traction:
             files = {}
         # print("try:" + tr.sampleid)
         vaa = [cxxkitid, kitid, locationname, locationpath, orga, parentid, 
-               project, receptacle, sampletype,
+               project, receptacle, type,
                secondprocessing, stockprocessing, trial]
         vaa.extend(self._patientidcs(pidc))
         vaa.extend(self._sampleidcs())                
@@ -284,6 +285,8 @@ class traction:
             verbose.append(orga)
         if verbose_all == True:
             verbose = vaa
+        #print("verbose:")
+        #print(verbose)
         if not _checkverbose(verbose, vaa): 
             return None # throw error?
         if incl_parents or incl_childs or incl_tree or primaryref:
@@ -338,7 +341,7 @@ class traction:
             kitid: [f"samplekit.kitid as '{kitid}'"],
             locationname: [f"samplelocation.locationid as '{locationname}'"], 
             locationpath: [f"samplelocation.locationpath as '{locationpath}'"],
-            sampletype: [f"sampletype.code as '{sampletype}'"],
+            type: [f"sampletype.code as '{type}'"], # is there a type field already?
             stockprocessing: [f"stockprocessing.code as '{stockprocessing}'"],
             secondprocessing: [f"secondprocessing.code as '{secondprocessing}'"],
             project: [f"project.code as '{project}'"],
@@ -361,7 +364,7 @@ class traction:
             kitid: self.jd["sample_to_samplekit"],
             locationname: self.jd["sample_to_samplelocation"],
             locationpath: self.jd["sample_to_samplelocation"],
-            sampletype: self.jd["sample_to_sampletype"],
+            type: self.jd["sample_to_sampletype"],
             stockprocessing: self.jd["sample_to_stockprocessing"],
             secondprocessing: self.jd["sample_to_secondprocessing"],
             project: self.jd["sample_to_project"],
@@ -440,7 +443,7 @@ class traction:
                 stockprocessing=dig(r, stockprocessing),
                 stockprocessingdate=dig(r, stockprocessingdate),
                 trial=dig(r, trial),
-                type=dig(r, sampletype),
+                type=dig(r, type), 
                 xposition=dig(r, xposition), 
                 yposition=dig(r, yposition)
             )

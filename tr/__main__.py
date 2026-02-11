@@ -145,7 +145,7 @@ def main():
     parser.add_argument("--top", help="first n results on sql query level")    
     parser.add_argument("--query", help="print the query", action="store_true")
     parser.add_argument("--raw", help="return raw results", action="store_true")
-    parser.add_argument("--csv", help="write results to csv file", default=None, const=True, nargs="?") # if `--csv file` is passed, args.csv is file, if only --csv is passed, args.csv is True (const), if no --csv flag is passed, args.csv is None (default).
+    parser.add_argument("--csv", help="write results to csv file or to stdout", default=None, const=True, nargs="?") # if `--csv file` is passed, args.csv is file, if only --csv is passed, args.csv is True (const), if no --csv flag is passed, args.csv is None (default).
     parser.add_argument("-D", help="csv output delimiter, default comma")
     parser.add_argument("--delim-cmp", help="delimiter of multi and catalog lists in csv output")
     add_args(parser, settings)
@@ -220,11 +220,12 @@ def main():
                
         if args.csv is not None:
             if args.csv is True:
-                file = sys.stdout
+                #file = sys.stdout # todo fix
+                file = True
             else:
                 file = args.csv
-            outfile = tr.idable_csv(sample, args.csv, delim=args.D) # rename csv?
-            if outfile is not None and args.csv != True:
+            outfile = tr.idable_csv(sample, file, delim=args.D) # rename csv?
+            if isinstance(outfile, str):
                 print(outfile)
         else:
             print(jsonpickle.encode(sample, unpicklable=False, indent=4)) # somehow include_properties=True doesn't work
@@ -268,11 +269,12 @@ def main():
             
         if args.csv is not None:
             if args.csv is True:
-                file = sys.stdout
+                #file = sys.stdout
+                file = True
             else:
                 file = args.csv
-            outfile = tr.finding_csv(res, file, delim=args.D, delim_cmp=args.delim_cmp) #bm
-            if outfile is not None and args.csv != True:
+            outfile = tr.finding_csv(res, file, delim=args.D, delim_cmp=args.delim_cmp) 
+            if isinstance(outfile, str):
                 print(outfile)
         else:
             print(jsonpickle.encode(res, unpicklable=False, indent=4))

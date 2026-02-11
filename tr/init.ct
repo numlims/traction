@@ -97,7 +97,6 @@ restamount = "restamount"
 restunit = "restunit"
 sampleid = "sampleid"
 sampleoid = "sampleoid"
-sampletype = "sampletype"
 samplingdate = "samplingdate" # entnahmedatum / extraction date.
 secondprocessing = "secondprocessing"
 secondprocessingdate = "secondprocessingdate"
@@ -246,7 +245,7 @@ for subsequent joins that depend on it.
 `` #py
         # print("try:" + tr.sampleid)
         vaa = [cxxkitid, kitid, locationname, locationpath, orga, parentid, 
-               project, receptacle, sampletype,
+               project, receptacle, type,
                secondprocessing, stockprocessing, trial]
 ``
 
@@ -308,6 +307,8 @@ on verbose_all include all constants in the verbose array.
 `` #py
         if verbose_all == True:
             verbose = vaa
+        #print("verbose:")
+        #print(verbose)
 ``
 
 make sure that the verbose array only contains keys from the verbose-all-array.
@@ -507,7 +508,7 @@ rename the field of the main sample idcontainer to sampleid.
             kitid: [f"samplekit.kitid as '{kitid}'"],
             locationname: [f"samplelocation.locationid as '{locationname}'"], 
             locationpath: [f"samplelocation.locationpath as '{locationpath}'"],
-            sampletype: [f"sampletype.code as '{sampletype}'"],
+            type: [f"sampletype.code as '{type}'"], # is there a type field already?
             stockprocessing: [f"stockprocessing.code as '{stockprocessing}'"],
             secondprocessing: [f"secondprocessing.code as '{secondprocessing}'"],
             project: [f"project.code as '{project}'"],
@@ -546,7 +547,7 @@ pull the values from the join dict, jd.
             kitid: self.jd["sample_to_samplekit"],
             locationname: self.jd["sample_to_samplelocation"],
             locationpath: self.jd["sample_to_samplelocation"],
-            sampletype: self.jd["sample_to_sampletype"],
+            type: self.jd["sample_to_sampletype"],
             stockprocessing: self.jd["sample_to_stockprocessing"],
             secondprocessing: self.jd["sample_to_secondprocessing"],
             project: self.jd["sample_to_project"],
@@ -700,7 +701,7 @@ build the sample.
                 stockprocessing=dig(r, stockprocessing),
                 stockprocessingdate=dig(r, stockprocessingdate),
                 trial=dig(r, trial),
-                type=dig(r, sampletype),
+                type=dig(r, type), 
                 xposition=dig(r, xposition), 
                 yposition=dig(r, yposition)
             )
@@ -2692,11 +2693,12 @@ import re
 ``
 
 idable_csv writes a list of Idables to the given csv file. the given
-idcontainers are included as columns. if no idcontainers are given, all
-are included. if sys.stdout is passed as file, the output is printed.
+idcontainers are included as columns. if no idcontainers are given,
+all are included. if True is passed as file, the output is
+printed. (todo pass sys.stdout instead?)
 
 ``/idable_csv:
-def idable_csv(idables:list, filename=None, delim:str=",", *idcs) -> str:
+def idable_csv(idables:list, outfile=None, delim:str=",", *idcs) -> str:
     ``.``
 ``
 
@@ -2711,44 +2713,45 @@ if no idables return.
 
 ``
     if idables is None or len(idables) == 0: # todo throw error?
-        print("no idables")
+        #print("no idables")
         return None
 ``
 
 open the file.
 
 ``
-    with open(filename, "w") as f:
+    with open(outfile, "w") as f:
         ``write``
 ``
 
-make a csv writer.
+make a csv dict writer.
+
+collect the column names.
 
 ``./write:
-        writer = csv.writer(f, delimiter=delim)
+        colnames = []
+        for idable in idables:
+            for col in list(idable.iddict(*idcs).keys()):
+                if not col in colnames:
+                    colnames.append(col)
+        #print("colnames:")
+        #print(colnames)
+        writer = csv.DictWriter(f, fieldnames=colnames, delimiter=delim)        #bm
+        writer.writeheader()
 ``
 
-take as colum names the keys of the iddict from the first idable.
-
-``
-        writer.writerow(list(idables[0].iddict(*idcs).keys()))
-``
-
-write the list of dict items for each idable.
+write a row for each idable.
 
 ``
         for idable in idables:
-            d = idable.iddict()
-            writer.writerow(list(d.values()))
+            d = idable.iddict(*idcs)
+            writer.writerow(d)
 ``
 
-return the name of the file (check for string to not return sys.stdout).
+return the out file.
 
 ``
-    if isinstance(filename, str):
-        return filename
-    else:
-        return None
+    return outfile
 ``
 
 import csv and sys.
@@ -2761,10 +2764,10 @@ import sys
 
 finding_csv writes a list of Findings along their recorded values to
 the given csv file, the recorded values in the same row as their
-respective finding. if sys.stdout is passed as file the output is printed.
+respective finding. if True is passed as file the output is printed. todo use sys.stdout instead of True.
 
 ``/finding_csv:
-def finding_csv(findings:list, filename=None, delim:str=",", delim_cmp:str=",") -> str:
+def finding_csv(findings:list, outfile=None, delim:str=",", delim_cmp:str=",") -> str:
     ``.``
 ``
 
@@ -2890,7 +2893,7 @@ after adding the recorded values append the finding dict.
 after the loop open the csv file.
 
 ``/finding_csv
-    with open(filename, "w") as f:
+    with open(outfile, "w") as f:
         ``write``
 ``
 
@@ -2913,11 +2916,8 @@ write the csv rows for each finding (and its recorded values).
             writer.writerow(fdict)
 ``
 
-return the name of the file (check for string to not return sys.stdout).
+return the out file.
 
 ``
-    if isinstance(filename, str):
-        return filename
-    else:
-        return None
+    return outfile
 ``
