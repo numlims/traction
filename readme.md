@@ -57,26 +57,6 @@ idc:
  - <another idcontainertype code>
 ```
 
-### query data from files
-
-data from files can't be fed directly to a query via query parameters,
-since there's a limit on query parameters (2100) that can be exhausted
-fairly quickly when reading larger files.
-
-to query data from files:
-
-  - install bcp on the client as described [here](https://learn.microsoft.com/en-us/sql/linux/sql-server-linux-setup-tools?view=sql-server-ver17&tabs=ubuntu-install%2Codbc-ubuntu-2204) (make sure `/opt/mssql-tools18/bin` is on your path)
-
-  - create the database and give the user owner rights:
-
-```
-create database trac
-USE trac
-GO
-ALTER ROLE db_owner ADD MEMBER <username>
-GO
-```
-
 
 ## more usage
 

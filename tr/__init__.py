@@ -7,10 +7,6 @@ from tram import Sample, Idable, Amount, Identifier
 from tram import Patient
 from tram import Finding
 from tram import Rec, BooleanRec, NumberRec, StringRec, DateRec, MultiRec, CatalogRec
-import subprocess
-import os
-import pathlib
-import random
 import re
 import csv
 import sys
@@ -107,6 +103,37 @@ def isidentifier(a) -> bool:
      sql injection.  like isnumber, could this be handled better by a library?
     """
     return re.match(r"^[A-Za-z_0-9\.]+$", a)
+def _dextend(d:dict, key, l:list):
+    """
+     _dextends extends an array in a dictionary at the given key with the
+     values in the passed list.
+    """
+    if l is not None:
+        if not key in d:
+            d[key] = []
+        d[key].extend(l)
+def _mvlists(dicta:dict, dictb:dict, cutoff:int):
+    """
+     _mvlists moves the lists that are longer than cutoff from dicta to
+     dictb, deleting them in dicta. if there is already a list in dictb
+     under that key, extend.
+    """
+    for key, lst in dicta.items():
+        if lst is not None and len(lst) > cutoff:
+            if key in dictb:
+                dictb[key].extend(lst)
+            else:
+                dictb[key] = lst
+            del dicta[key]
+def _uniq(lst): # -> list
+    """
+     _uniq returns a new list containing the unique items of the list passed, preserving order.
+    """
+    out = []
+    for e in lst:
+        if e not in out:
+            out.append(e)
+    return out
 
 def idable_csv(idables:list, outfile=None, delim:str=",", *idcs) -> str:
     """
@@ -255,6 +282,8 @@ class traction:
             like = []
         if files is None:
             files = {}
+        if idc is None:
+            idc = {}
         # print("try:" + tr.sampleid)
         vaa = [cxxkitid, kitid, locationname, locationpath, orga, parentid, 
                project, receptacle, type,
@@ -264,13 +293,10 @@ class traction:
         if not self.sidc() in verbose:
             verbose.insert(0, self.sidc())
         verbose = self._concrete_idcs(verbose, pidc=pidc)
-        files = self._concrete_idcs_dict(files, pidc=pidc)
+        #files = self._concrete_idcs_dict(files, pidc=pidc)
         #print("files:")
         #print(files)
-        filetables = self._bcp(files)
-        #filetables = { "idc_SAMPLEID": "trac.sampleids" }
-        #print("filetables:")
-        #print(filetables)
+
         if trials:
             verbose.append(trial)
         if locationpaths:
@@ -325,13 +351,27 @@ class traction:
                    withincl.extend(c_oids)
             withincl = list(dict.fromkeys(withincl))
             return self.sample(oids=withincl, verbose=verbose, print_query=print_query, raw=raw) # todo pass verbose_all?
-        # todo check that self.sidc() is not in idc
-        if idc is None:
-           idc = {}
-        if sampleids is not None:
-           idc[self.sidc()] = sampleids
-        if patientids is not None:
-           idc[self.pidc(pidc)] = patientids
+        lists = {
+          sampleoid: oids,
+          parentid: parentids,
+          parentoid: parentoids,
+          locationpath: locationpaths,
+          trial: trials,
+          kitid: kitids,
+          cxxkitid: cxxkitids,
+          category: categories,
+          orga: orgas,
+          samplingdate: samplingdates,
+          receiptdate: receiptdates,
+          derivaldate: derivaldates,
+          first_repositiondate: first_repositiondates,
+          repositiondate: repositiondates,
+          stockprocessingdate: stockprocessingdates,
+          secondprocessingdate: secondprocessingdates
+        }
+        _dextend(idc, self.sidc(), sampleids)
+        _dextend(idc, self.pidc(pidc), patientids)
+        (tmptables, idctmptables) = self._makemove(files, lists, idc, 100, pidc=pidc)
         jselects = {
             self.sidc(): [f"idc_{self.sidc()}.psn as '{sampleid}'"],
             self.pidc(pidc): [f"idc_{self.pidc(pidc)}.psn as '{patientid}'"],                   
@@ -376,7 +416,7 @@ class traction:
             joins[pidc] = self.jd["sample_to_patient"]
         selectstr = self._selectstr(jselects, verbose, lselects, idc)  
         joinstr = self._joinstr(joins, verbose, idc, pidc=pidc)  
-        (wherestr, whereargs) = self._where(idc=idc, sampleoids=oids, parentids=parentids, parentoids=parentoids, trials=trials, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, categories=categories, types=types, orgas=orgas, samplingdates=samplingdates, receiptdates=receiptdates, derivaldates=derivaldates, first_repositiondates=first_repositiondates, repositiondates=repositiondates, stockprocessingdates=stockprocessingdates, secondprocessingdates=secondprocessingdates, filetables=filetables, verbose=verbose, like=like) 
+        (wherestr, whereargs) = self._where(lists, tmptables, idc, idctmptables, like=like)
         topstr = self._top(top)
         query = f"select {topstr} {selectstr} from centraxx_sample sample \n{joinstr}"
         if wherestr.strip() != "":
@@ -389,7 +429,8 @@ class traction:
            print(whereargs)
 
         res = self.db.qfad(query, whereargs)
-        self._bcp_clean(filetables)
+        self._cleartt(tmptables)
+        self._cleartt(idctmptables)
         if raw:
             return res
         sarr = []
@@ -481,13 +522,21 @@ class traction:
             like = []
         if files is None:
             files = {}
+        if idc is None:
+            idc = {}
         vaa = [orga]
         vaa.extend(self._patientidcs(pidc))        
         if not self.pidc(pidc) in verbose:
             verbose.insert(0, self.pidc(pidc))
         verbose = self._concrete_idcs(verbose, pidc=pidc)
-        files = self._concrete_idcs_dict(files, pidc=pidc)        
-        filetables = self._bcp(files)
+        files = self._concrete_idcs_dict(files, pidc=pidc)
+        lists = {
+          trial: trials,
+          orga: orgas
+        }
+        _dextend(idc, self.sidc(), sampleids)
+        _dextend(idc, self.pidc(pidc), patientids)
+        (tmptables, idctmptables) = self._makemove(files, lists, idc, 100, pidc=pidc)
         if verbose_all == True:
             verbose = vaa
         if orgas is not None:
@@ -499,14 +548,6 @@ class traction:
             silent.append(orga)
         if not _checkverbose(verbose, vaa):
             return None # throw error?
-        # todo check that self.sidc() is not in idc
-        if idc is None:
-           idc = {}
-        if sampleids is not None:
-           idc[self.sidc()] = sampleids
-        if patientids is not None:
-           idc[self.pidc(pidc)] = patientids
-           
         selects = {
             self.pidc(pidc): [f"idc_{self.pidc(pidc)}.psn as '{patientid}'"],
             orga: [f"organisationunit.code as '{orga}'"],
@@ -520,7 +561,7 @@ class traction:
             joins[sidc] = self.jd["patient_to_sample"]
         selectstr = self._selectstr(selects, verbose, ["patientcontainer.*"], idc)  
         joinstr = self._joinstr(joins, verbose + silent, idc, pidc=pidc)  
-        (wherestr, whereargs) = self._where(orgas=orgas, trials=trials, idc=idc, filetables=filetables, verbose=verbose, like=like)
+        (wherestr, whereargs) = self._where(lists, tmptables, idc, idctmptables, like=like)
         #print(whereargs)
         topstr = self._top(top)
         query = f"select distinct {topstr} {selectstr} from centraxx_patientcontainer patientcontainer \n{joinstr} \nwhere {wherestr}"
@@ -529,7 +570,8 @@ class traction:
         if print_query:
            print(query)
         res = self.db.qfad(query, whereargs)
-        self._bcp_clean(filetables)
+        self._cleartt(tmptables)
+        self._cleartt(idctmptables)        
         if raw:
             return res
         pats = []
@@ -563,6 +605,8 @@ class traction:
             verbose = []
         if files is None:
             files = {}
+        if idc is None:
+            idc = {}
         vaa = [patientid] # include trial?
         if verbose_all == True:
             verbose = vaa
@@ -572,14 +616,13 @@ class traction:
             verbose.append(self.sidc())
         verbose = self._concrete_idcs(verbose, pidc=pidc)
         files = self._concrete_idcs_dict(files, pidc=pidc)
-        filetables = self._bcp(files)
-        if idc is None:
-           idc = {}
-        # todo check that self.sidc() is not in idc
-        if sampleids is not None:
-           idc[self.sidc()] = sampleids
-        if patientids is not None:
-           idc[self.pidc(pidc)] = patientids
+        lists = {
+          method: methods,
+          trial: trials
+        }
+        _dextend(idc, self.sidc(), sampleids)
+        _dextend(idc, self.pidc(pidc), patientids)
+        (tmptables, idctmptables) = self._makemove(files, lists, idc, 100, pidc=pidc)
         selects = {
             self.sidc(): [f"idc_{self.sidc()}.psn as '{sampleid}'"],
             self.pidc(pidc): [f"idc_{self.pidc(pidc)}.psn as '{patientid}'"],                   
@@ -600,14 +643,15 @@ class traction:
         left join centraxx_labormapping as labormapping on labormapping.laborfinding = laborfinding.oid
         left join centraxx_sample sample on labormapping.relatedoid = sample.oid
         {idcjoinstr}"""
-        (wherestr, whereargs) = self._where(idc=idc, methods=methods, trials=trials, filetables=filetables)
+        (wherestr, whereargs) = self._where(lists, tmptables, idc, idctmptables)        
 
         query += " where " + wherestr
         if print_query:
             print(query)
             print(whereargs)
         results = self.db.qfad(query, whereargs)
-        self._bcp_clean(filetables)
+        self._cleartt(tmptables)
+        self._cleartt(idctmptables)        
         if names is True:
             self.names_laborvalue = self.name(table="laborvalue")
         for i, finding in enumerate(results):
@@ -654,8 +698,11 @@ class traction:
         """
         if files is None:
             files = {}
-        files = self._concrete_idcs_dict(files, pidc=pidc)
-        filetables = self._bcp(files)
+        lists = {
+          method: methods,
+          trial: trials
+        }
+        (tmptables, idctmptables) = self._makemove(files, lists, {}, 100)
         query = f"""select laborvalue.code as labval, labormethod.code as "method"
 from centraxx_labormethod labormethod
 inner join centraxx_crftemplate crf_t
@@ -668,13 +715,14 @@ inner join centraxx_crftempfield crf_tf
     on crf_tsf.crftempfield_oid=crf_tf.oid
 inner join centraxx_laborvalue laborvalue
     on crf_tf.laborvalue=laborvalue.oid"""
-        (wherestr, whereargs) = self._where(methods=methods, filetables=filetables)
+        (wherestr, whereargs) = self._where(lists, tmptables, idc, idctmptables)
 
         if wherestr:
           query += " where " + wherestr
         # print(query)
         res = self.db.qfad(query, whereargs)
-        self._bcp_clean(filetables)
+        self._cleartt(tmptables)
+        self._cleartt(idctmptables)        
         methodnames = self.name(table="labormethod")
         labvalnames = self.name(table="laborvalue")
         out = {}
@@ -708,8 +756,14 @@ inner join centraxx_laborvalue laborvalue
             verbose.append(tr.address)
         if lastlogin:
             verbose.append(tr.login)
-        filetables = self._bcp(files)
-        self._bcp_clean(filetables)
+        lists = {
+          username: usernames,
+          address: emails,
+          login: lastlogin
+        }
+        (tmptables, idctmptables) = self._makemove(files, lists, idc, 100)
+        self._cleartt(tmptables)
+        self._cleartt(idctmptables)        
         out = []
         for r in res:
             user = User(
@@ -824,7 +878,7 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
         if pidc is not None:
             return pidc
         return self.settings['patientid'][self.db.target]
-
+    
     def _selectstr(self, selects, verbose, selecta, idc):
         """
          _selectstr filters the selects by the verbose array and returns the
@@ -896,123 +950,106 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
           else:
             print(f"error: idcontainer kind {self._idckind[item]} not supported.")
         return joina
-    def _where(self, idc={}, sampleoids:list=None, parentids:list=None, parentoids:list=None, patientids:list=None, trials:list=None, locationpaths:list=None, kitids:list=None, cxxkitids:list=None, categories:list=None, types:list=None, orgas:list=None, samplingdates=None, receiptdates=None, derivaldates=None, first_repositiondates=None, repositiondates=None, stockprocessingdates=None, secondprocessingdates=None, methods=None, filetables:dict=None, like=None, verbose=None): # -> (str, [])
+    def _where(self, lists:dict, tmptables:dict, idclists:dict, idctmptables:dict, like:list=None): # -> (str, list)
         """
          _where returns the wherestring and args array for the provided
-         arguments (that are not None).
+         lists and temporary tables.
          
-         the user needs to make sure that whatever is referenced here is joined
+         the user needs to make sure that whatever is used here is joined
          into the query before.
          
-         the names are assumed to be the tr constants, like
-         e.g. tr.sampleid. like is an array of tr constants of the arguments
-         for which it checks likeness. we only check likeness for the first
-         passed string of an argument array. if for example
-         like=[tr.locationpath], it checks likeness of locationpaths[0].
+         the keys in lists and tmptables are assumed to be the tr constants,
+         e.g. tr.locationpath, the keys in idclists and idctmptables are
+         assumed to be idcontainers.
          
-         make sure only one of sampleids or extsampleids is passed?
+         like holds tr constants and idcontainers for which to check likeness
+         instead of equality.
         """
         if like is None:
             like = []
-        if verbose is None:
-            verbose = []
         wheredict = { 
-          trial: { "arr": trials, "field": "flexistudy.code" },
-          locationpath: { "arr": locationpaths, "field": "samplelocation.locationpath" },
-          method: { "arr": methods, "field": "labormethod.code" },
-          kitid: { "arr": kitids, "field": "samplekit.kitid" },
-          cxxkitid: { "arr": cxxkitids, "field": "samplekit.cxxkitid" },
-          category: { "arr": categories, "field": "sample.dtype" },
-          type: { "arr": types, "field": "sampletype.code" },          
-          orga: { "arr": orgas, "field": "organisationunit.code" },
-          parentid: { "arr": parentids, "field": "parentidc.psn" },
-          parentoid: { "arr": parentoids, "field": "sample.parent" },
-          sampleoid: { "arr": sampleoids, "field": "sample.oid" },          
-          samplingdate: { "arr": samplingdates, "field": "sample.samplingdate", "type": "date" },
-          receiptdate: { "arr": receiptdates, "field": "sample.receiptdate", "type": "date" },
-          derivaldate: { "arr": derivaldates, "field": "sample.derivaldate", "type": "date" },
-          first_repositiondate: { "arr": first_repositiondates, "field": "sample.first_repositiondate", "type": "date" },
-          repositiondate: { "arr": repositiondates, "field": "sample.repositiondate", "type": "date" },
-          stockprocessingdate: { "arr": stockprocessingdates, "field": "sample.stockprocessingdate", "type": "date" },
-          secondprocessingdate: { "arr": secondprocessingdates, "field": "sample.secondprocessingdate", "type": "date" }
+          trial: { "field": "flexistudy.code" },
+          locationpath: { "field": "samplelocation.locationpath" },
+          method: { "field": "labormethod.code" },
+          kitid: { "field": "samplekit.kitid" },
+          cxxkitid: { "field": "samplekit.cxxkitid" },
+          category: { "field": "sample.dtype" },
+          type: { "field": "sampletype.code" },          
+          orga: { "field": "organisationunit.code" },
+          parentid: { "field": "parentidc.psn" },
+          parentoid: { "field": "sample.parent" },
+          sampleoid: { "field": "sample.oid" },          
+          samplingdate: { "field": "sample.samplingdate", "type": "date" },
+          receiptdate: { "field": "sample.receiptdate", "type": "date" },
+          derivaldate: { "field": "sample.derivaldate", "type": "date" },
+          first_repositiondate: { "field": "sample.first_repositiondate", "type": "date" },
+          repositiondate: { "field": "sample.repositiondate", "type": "date" },
+          stockprocessingdate: { "field": "sample.stockprocessingdate", "type": "date" },
+          secondprocessingdate: { "field": "sample.secondprocessingdate", "type": "date" }
         }
-        idckeys = [] if idc is None else idc.keys()
-        possibleidcs = self.settings["idc"] + [self.sidc()] # also add self.pidc(pidc)? todo
-        #print("verbose:")
-        #print(verbose)
-        idca = list(idckeys) + list(set(verbose).intersection(possibleidcs))
-        for item in idca:
-            wheredict[item] = {
-                                "arr": idc[item] if idc is not None and item in idc else None,
-                                "field": f"idc_{item}.psn"
-                             }
-        #print("wheredict:")
-        #print(wheredict)
-        (wherearr, whereargs) = self._wherebuild(wheredict, like, verbose, filetables)
-
-        wherestr = " and ".join(wherearr)
-        return (wherestr, whereargs)
-    def _wherebuild(self, wheredict, likearr:list=None, verbose:list=None, filetables:dict=None): # ([]string, [])
-        """
-         _wherebuild builds wherestrings and fills whereargs.
-        """
-        if likearr is None:
-            likearr = []
-        if verbose is None:
-            verbose = []
         wherestrs = []
         whereargs = []
-
-        for key, row in wheredict.items():
-            #print("key:" + key)
-
-            # somehow printing here stops the keys from being iterated in the loop. why?
-            #print("field: " + row["field"])
-
-            # not used
-            if key not in filetables and (row["arr"] == None or len(row["arr"]) == 0):
-                continue
-
-            # both file and array: error for now.
-            # if key in filetables and row["arr"] is not None:
-            #    raise Exception(f"pass either a list or a file for {key}, not both.")
-
-            if likearr is not None and key in likearr:
-                # put in an or-chain of like checks over all elements
-                s = "(" + self._wherelikes(row["field"], len(row["arr"])) + ")"
-                wherestrs.append(s)
-                whereargs.extend(row["arr"])
-            elif (row["arr"] is not None or key in filetables) and "type" in row and row["type"] == "date":
-                if row["arr"] == 'NULL':
-                    wherestrs.append("(" + row['field'] + " is NULL)")
-                else:
-                    s = f"(CAST(" + row['field'] + " as date) between ISNULL(?, " + row['field'] + ") and ISNULL(?, " + row['field'] + "))"
-                    wherestrs.append(s)
-                    whereargs.extend(row["arr"])
-            else:
-                wherestr = "("
-                needsor = False
-                if row["arr"] is not None and 'NULL' in row["arr"]:
-                    row["arr"].remove("NULL")
-                    wherestr += row["field"] + " is NULL"
-                    needsor = True
-                if row["arr"] is not None and len(row["arr"]) > 0:
-                    if needsor:
-                        wherestr += " or "
-                    placeholder = traction._sqlinplaceholder(len(row["arr"])) # todo put in package? tr._sqlinplaceholder
-                    wherestr += row["field"] + " in " + placeholder # e.g. samplelocation.locationpath in (?, ?, ?)
-                    # if something comes next, chain it with or
-                    needsor = True
-                if key in filetables:
-                    if needsor:
-                        wherestr += " or "
-                    wherestr += row["field"] + " in "
-                    wherestr += f"(select stdin from trac.dbo.{filetables[key]})"
-                wherestr += ")"
-                wherestrs.append(wherestr)
-                if row["arr"] is not None:
-                    whereargs.extend(row["arr"])
-        return (wherestrs, whereargs)
+        #print("lists:")
+        #print(lists)
+        #print("tmptables:")
+        #print(tmptables)
+        for key in _uniq(list(lists.keys()) + list(tmptables.keys())):
+           if dig(lists, key) is not None and dig(wheredict, key + "/type") == "date":
+               (wstr, wargs) = self._wheredate(dig(lists, key), wheredict[key]["field"])
+           else:
+               (wstr, wargs) = self._whereexact(dig(lists, key), dig(tmptables, key), wheredict[key]["field"])
+           if wstr != "()":
+               wherestrs.append(wstr)
+               whereargs.extend(wargs)
+        for key in _uniq(list(idclists.keys()) + list(idctmptables.keys())):
+            (wstr, wargs) = self._whereexact(dig(idclists, key), dig(idctmptables, key), f"idc_{key}.psn")
+            if wstr != "()":
+                wherestrs.append(wstr)
+                whereargs.extend(wargs)
+        wherestr = " and ".join(wherestrs)
+        return (wherestr, whereargs)
+    def _whereexact(self, lst, tmptable, dbfield:str): # -> (str, list)
+        """
+         _whereexact returns a where clause and argument list for exact
+         matching of items in list and temporary table. NULL string is list is
+         treated as sql NULL value.
+        """
+        wherearg = []
+        wherestr = "("
+        needsor = False
+        if lst is not None and 'NULL' in lst:
+            lst.remove("NULL")
+            wherestr += dbfield + " is NULL"
+            needsor = True
+        if lst is not None and len(lst) > 0:
+            if needsor:
+                wherestr += " or "
+            placeholder = traction._sqlinplaceholder(len(lst)) # todo put in package? tr._sqlinplaceholder
+            wherestr += dbfield + " in " + placeholder # e.g. samplelocation.locationpath in (?, ?, ?)
+            wherearg.extend(lst)
+            # if something comes next, chain it with or
+            needsor = True
+        if tmptable is not None:
+            if needsor:
+                wherestr += " or "
+            wherestr += dbfield + " in "
+            wherestr += f"(select stdin from {tmptable})"
+        wherestr += ")"
+        return (wherestr, wherearg)
+    def _wheredate(self, tpl, dbfield): # -> (str, list)
+        """
+         _wheredate makes a date check. for now only check that it's between
+         the two values of the array passed as date parameter.
+        """
+        wstr = ""
+        wargs = []
+        if tpl == 'NULL':
+            wstr = "(" + dbfield + " is NULL)"
+        else:
+            s = f"(CAST(" + dbfield + " as date) between ISNULL(?, " + dbfield + ") and ISNULL(?, " + dbfield + "))"
+            wstr = s
+            wargs.extend(tpl)
+        return (wstr, wargs)
     def _sqlinplaceholder(n):
         """
          _sqlinplaceholder returns a string like (?, ?, ?, ? ...) with n question marks for sql in.
@@ -1070,7 +1107,9 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
         return f"order by {order_by}"
     def _idcinit(self):
         """
-         _idcinit makes a mapping of idcontainers from their code (lower-case) to respective oid and kind.
+         _idcinit makes a mapping of idcontainers from their code (lower-case)
+         to respective oid and kind, and makes a list containing all idcs
+         including sidc and pidc.
         """
         query = "select code, oid, kind from centraxx_idcontainertype"
         res = self.db.qfad(query)
@@ -1079,6 +1118,10 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
         for row in res:
           self._idcoid[row["code"]] = row["oid"]
           self._idckind[row["code"]] = row["kind"]
+        self._idcs = []
+        for id in self.settings['idc'] + [self.sidc(), self.pidc()]:
+            if id not in self._idcs:
+                self._idcs.append(id)
     def _make_rec(self, recval, finding, names:bool=False) -> Rec:
         """
          _make_rec makes a recorded value instance for finding from db results with display names if wished.
@@ -1145,6 +1188,7 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
         else:
             raise Exception(f"no record class for laborvalue of type {recval['laborvalue_type']}")
         return out
+    
     def _sampleidcs(self) -> list:
         """
          _sampleidcs returns the idcs from settings that are specific for sample.
@@ -1198,9 +1242,11 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
         """
         out = {}
         for key, val in d.items():
+            #print("key: " + key)
             if key == patientid:
                 out[self.pidc(pidc)] = val
             elif key == sampleid:
+                #print("here: " + self.sidc())
                 out[self.sidc()] = val
             else:
                 out[key] = val
@@ -1218,59 +1264,66 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
             primary = self.sample(oids=[primary_oid])[0]
             sample.primary = Idable(ids=primary.ids, mainidc=primary.mainidc)
 
-    def _bcp(self, files:dict): # -> dict
+    def _makemove(self, files:dict, lists:dict, idclists:dict, cutoff:int, pidc:str=None): # -> (dict, dict)
         """
-         _bcp copies files to the db server and inserts each into a temporary
-         table in the trac database by calling the bcp command line tool. it
-         takes a map of tr constants and relative file paths.  it returns a map
-         of the same tr constants and the table names the files ended up in.
-         
-         we use bcp for getting file data to the server, cause if you feed the
-         data from a file directly to a query via query parameters you
-         relatively quickly hit an upper limit as only a maximum of 2100 query
-         parameters is allowed.  to bulk load data from a file into an
-         openrowset it must be on the server. so, the way seems to be, get the
-         data to the server, then bulk load or query it.
+         _makemove makes temporary tables for all files and all lists (non-idc
+         and idc) that are larger than cutoff. moved lists are removed from
+         lists and idclists, respectively. it returns a tuple holding dicts of
+         the non-idc tables and the idc tables created.
+        """
+        files = self._concrete_idcs_dict(files, pidc=pidc)
+        #print("files:")
+        #print(files)
+        (ttlists, ttidclists) = self._readfiles(files)
+        _mvlists(lists, ttlists, cutoff)
+        _mvlists(idclists, ttidclists, cutoff)
+        tmptables = self._maketables(ttlists, "tmp_")
+        idctmptables = self._maketables(ttidclists, "tmp_idc_")
+        return (tmptables, idctmptables) 
+    def _readfiles(self, files):
+        """
+         _readfiles reads the files from which tmp tables should be build into
+         lists.  it returns a tuple of one dict holding the non-idc lists and
+         one dict holding the idc lists.
+        """
+        both = {}
+        for key, filepath in files.items():
+            lst = []
+            with open(filepath, "r") as f:
+                for line in f:
+                    lst.append(line.rstrip())
+            both[key] = lst
+        nonidc = {}
+        idc = {}
+        for key, _ in both.items():
+            if key in self._idcs:
+                idc[key] = both[key]
+            else:
+                nonidc[key] = both[key]
+        return (nonidc, idc)
+    def _maketables(self, d:dict, prefix:str=""): #-> dict
+        """
+         _maketables makes temporary tables for each key in the given dict,
+         inserts the list of values belonging to that key, and returns a dict
+         the table names by key.
         """
         out = {}
-        for key, path in files.items():
-            bcptable = self._bcp_table(path)
-            out[key] = bcptable
-            info = self.db.info
-            subprocess.run(["bcp", bcptable, "in", path, "-S", info["server"], "-d", "trac",  "-U", info["username"], "-P", info["password"], "-q", "-c", "-t", ",", "-u", "-r", "\n"], stdout=open(os.devnull, 'wb'))
+        for key, lst in d.items():
+            name = "#" + prefix + key
+            self.db.query(f"create table {name} (stdin varchar (255) )")
+            for e in lst:
+                self.db.query(f"insert into {name} values (?)", e)
+            out[key] = name
         return out
-    def _bcp_table(self, path:str):
+    def _cleartt(self, tmptables:dict):
         """
-         _bcp_table creates a table with one column called stdin for the
-         contents of a file to be read into and returns the table name. it
-         ensures that the table didn't exist before by using a combination of
-         the file name and a random number as table name.
+         _cleartt drops the temporary tables tables that were created with
+         _maketables after the query using their data was run. it takes the
+         dict of filetables that was returned by _maketables.
+         
+         they would be dropped automatically after the session, but in case
+         several queries are sent in one session, maybe it's better to drop
+         them after each query.
         """
-        stem = pathlib.Path(path).stem
-        stem = re.sub(r"[^A-Za-z0-9]", "_", stem)
-        rand = int(random.random() * 1000)
-        name = stem + "_" + str(rand)
-        while self._tbl_exists("trac", name):
-            rand = int(random.random() * 1000)
-            name = stem + "_" + str(rand)
-        #print(name)
-        self.db.query(f"create table trac.dbo.{name} ( stdin varchar(255) )")
-        return name
-    def _bcp_clean(self, filetables:dict):
-        """
-         _bcp_clean drops the tables that were created with _bcp after the
-         query using their data was run. it takes the dict of filetables that
-         was returned by _bcp.
-        """
-        for key, tablename in filetables.items():
-            self.db.query(f"use trac; drop table trac.dbo.{tablename}")  # todo is kairos_spring used again after this?
-    def _tbl_exists(self, db, table):
-        """
-         _tbl_exists returns whether a given table exists in a database.
-        """
-        try:
-            res = self.db.qfad(f"select * from {db}.information_schema.tables where table_name = ?", table)
-            return len(res) > 0
-        except Exception as e:
-            print("traction: " + str(e))
-            print("is the database 'trac' created? `create database trac`")
+        for key, tablename in tmptables.items():
+            self.db.query(f"drop table if exists {tablename}")  # todo is kairos_spring used again after this?
