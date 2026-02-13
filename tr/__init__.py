@@ -102,7 +102,7 @@ def isidentifier(a) -> bool:
      isidentifier returns whether a string is a sql identifier to prevent
      sql injection.  like isnumber, could this be handled better by a library?
     """
-    return re.match(r"^[A-Za-z_0-9\.]+$", a)
+    return re.match(r"^[A-Za-z_0-9\.#]+$", a)
 def _dextend(d:dict, key, l:list):
     """
      _dextends extends an array in a dictionary at the given key with the
@@ -1310,6 +1310,8 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
         out = {}
         for key, lst in d.items():
             name = "#" + prefix + key
+            if not isidentifier(name):
+                raise Exception(f"name {name} needs to be a valid sql identifier.")
             self.db.query(f"create table {name} (stdin varchar (255) )")
             for e in lst:
                 self.db.query(f"insert into {name} values (?)", e)

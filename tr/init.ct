@@ -2670,6 +2670,8 @@ make the temporary tables, insert the values and remember the table names.
         out = {}
         for key, lst in d.items():
             name = "#" + prefix + key
+            if not isidentifier(name):
+                raise Exception(f"name {name} needs to be a valid sql identifier.")
             self.db.query(f"create table {name} (stdin varchar (255) )")
             for e in lst:
                 self.db.query(f"insert into {name} values (?)", e)
@@ -2714,7 +2716,7 @@ sql injection.  like isnumber, could this be handled better by a library?
 
 ``/isidentifier:
 def isidentifier(a) -> bool:
-    return re.match(r"^[A-Za-z_0-9\.]+$", a)
+    return re.match(r"^[A-Za-z_0-9\.#]+$", a)
 ``
 
 import re.
