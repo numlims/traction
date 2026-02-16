@@ -181,7 +181,7 @@ get to the sampleid. todo doesn't work.
 ``
     if args.what == "sample":
         sample = traction.sample(
-               #sampleids=sampleids,
+               sampleids=sampleids,
                idc=getidc(vars(args), settings),
                parentids=parentids,
                patientids=patientids,

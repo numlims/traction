@@ -1333,7 +1333,7 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
         """
         out = {}
         for key, lst in d.items():
-            name = "#" + prefix + key
+            name = "tempdb..#" + prefix + key
             if not isidentifier(name):
                 raise Exception(f"name {name} needs to be a valid sql identifier.")
             self.db.query(f"create table {name} (stdin varchar (255) )")

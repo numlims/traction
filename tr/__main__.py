@@ -186,7 +186,7 @@ def main():
         likes = args.like.split(",")
     if args.what == "sample":
         sample = traction.sample(
-               #sampleids=sampleids,
+               sampleids=sampleids,
                idc=getidc(vars(args), settings),
                parentids=parentids,
                patientids=patientids,
