@@ -7,6 +7,8 @@ import tr
 import simplejson as json
 import sys
 import jsonpickle
+import os
+import os.path
 import re
 from datetime import datetime
 def add_args(parser, settings):
@@ -58,12 +60,13 @@ def datespan(datestr:str, format:str="%Y-%m-%d"):
     dfrom = datetime.strptime(a[0], format)
     dto = datetime.strptime(a[1], format)
     return (dfrom, dto)
-def lfpof(name:str, passed, files:list=None):
+def lof(name:str, passed, files:list=None, filemap:dict=None):
     """
-     lfpof (list from param or file) reads values passed to a flag as comma
-     seperated list or from file if the value is proceeded with f:.  if the
-     files flag is passed, all params given to it are read from file, and
-     all others as comma seperated list, irrespective of f:.
+     lof (list or file) either reads arguments passed to a flag as comma
+     seperated list or collects them in filemap if the argument is
+     proceeded with f:.  if the files array is passed (from the --files
+     flag), all params given in it are collected as file, and all others
+     are read as comma seperated list, irrespective of f:.
      
      if the flag was not set, None is returned.
     """
@@ -74,22 +77,16 @@ def lfpof(name:str, passed, files:list=None):
             return None
     if files is not None:
         if name in files:
-            return lff(passed)
+            filemap[name] = os.path.join(os.getcwd(), passed)
+            return None
         else:
             return passed.split(",")
     else:
         res = re.subn(r'^f:', '', passed)
         if res[1] > 0: # count
-            return lff(res[0])
+            filemap[name] = os.path.join(os.getcwd(), res[0]) # the substituted string
         else:
             return passed.split(",")
-def lff(path):
-    """
-     lff (list from file) reads the contents of a file and returns them as
-     list by line.
-    """
-    with open(path) as f:
-        return f.read().split("\n") 
 
 def main():
     """
@@ -108,9 +105,11 @@ def main():
     # in any case take the database target
     parser.add_argument("db", help="db target")
 
-    parser.add_argument("what", help="sample|patient|trial|finding|method|user|catalogentry|usageentry|name. finding: messbefund; method: messprofil; name: get display names for a table.") # labval: messparameter
+    parser.add_argument("what", help="sample|patient|trial|finding|method|user|catalog|usageentry|name. finding: messbefund; method: messprofil; name: get display names for a table.") # labval: messparameter
     parser.add_argument("--sampleid", help="sampleid(s)")
     parser.add_argument("--patientid", help="patientid(s)")
+    parser.add_argument("--sidc", help="patient idcontainer. overrides sampleid in settings.yaml")    
+    parser.add_argument("--pidc", help="patient idcontainer. overrides patientid in settings.yaml")
     parser.add_argument("--parentid", help="sampleid(s) of parent samples")    
     parser.add_argument("--trial", help="trial code(s)")
     parser.add_argument("--locationpath", help="locationpath(s)")
@@ -131,6 +130,7 @@ def main():
     parser.add_argument("--childs", help="include the childs up to the leafs", action="store_true")
     parser.add_argument("--tree", help="include the whole tree for each sample", action="store_true")            
     parser.add_argument("--method", help="labormethod(s) (messprofil)")
+    parser.add_argument("--catalog", help="catalog(s))")    
     parser.add_argument("--table", help="the table to get names for codes for")
     parser.add_argument("--ml-table", help="if the table mapping from codes to in mytable to names is not called centraxx_mytable_ml_name, give its name here.")
     parser.add_argument("--username", help="the username of user(s).")
@@ -146,7 +146,9 @@ def main():
     parser.add_argument("--top", help="first n results on sql query level")    
     parser.add_argument("--query", help="print the query", action="store_true")
     parser.add_argument("--raw", help="return raw results", action="store_true")
-    parser.add_argument("--csv", help="write results to csv file")
+    parser.add_argument("--csv", help="write results to csv file or to stdout", default=None, const=True, nargs="?") # if `--csv file` is passed, args.csv is file, if only --csv is passed, args.csv is True (const), if no --csv flag is passed, args.csv is None (default).
+    parser.add_argument("-D", help="csv output delimiter, default comma")
+    parser.add_argument("--delim-cmp", help="delimiter of multi and catalog lists in csv output")
     add_args(parser, settings)
     args = parser.parse_args()
 
@@ -163,28 +165,32 @@ def main():
     files = None
     if args.files is not None:
         files = args.files.split(",")
-    sampleids = lfpof(tr.sampleid, args.sampleid, files)
-    parentids = lfpof(tr.parentid, args.parentid, files)
-    patientids = lfpof(tr.patientid, args.patientid, files)
-    trials = lfpof(tr.trial, args.trial, files)
-    locationpaths = lfpof(tr.locationpath, args.locationpath, files)
-    methods = lfpof(tr.method, args.method, files)
-    kitids = lfpof(tr.kitid, args.method, files)
-    cxxkitids = lfpof(tr.cxxkitid, args.cxxkitid, files)
-    categories = lfpof(tr.category, args.category, files)
-    types = lfpof(tr.type, args.type, files)    
-    orgas = lfpof(tr.orga, args.orga, files)
-    usernames = lfpof(tr.username, args.username, files)
-    emails = lfpof(tr.email, args.email, files)        
+    filemap = {}
+    sampleids = lof(tr.sampleid, args.sampleid, files, filemap)
+    parentids = lof(tr.parentid, args.parentid, files, filemap)
+    patientids = lof(tr.patientid, args.patientid, files, filemap)
+    trials = lof(tr.trial, args.trial, files, filemap)
+    locationpaths = lof(tr.locationpath, args.locationpath, files, filemap)
+    methods = lof(tr.method, args.method, files, filemap)
+    catalogs = lof(tr.catalog, args.catalog, files, filemap)    
+    kitids = lof(tr.kitid, args.method, files, filemap)
+    cxxkitids = lof(tr.cxxkitid, args.cxxkitid, files, filemap)
+    categories = lof(tr.category, args.category, files, filemap)
+    types = lof(tr.type, args.type, files, filemap)    
+    orgas = lof(tr.orga, args.orga, files, filemap)
+    usernames = lof(tr.username, args.username, files, filemap)
+    emails = lof(tr.email, args.email, files, filemap)
+    #print(filemap)
     likes = None
     if args.like:
         likes = args.like.split(",")
     if args.what == "sample":
         sample = traction.sample(
-               sampleids=sampleids,
+               #sampleids=sampleids,
                idc=getidc(vars(args), settings),
                parentids=parentids,
                patientids=patientids,
+               pidc=args.pidc,
                trials=trials,
                locationpaths=locationpaths,
                kitids=kitids,
@@ -199,6 +205,8 @@ def main():
                repositiondates=datespan(args.reposition_date),
                stockprocessingdates=datespan(args.stockprocessing_date),
                secondprocessingdates=datespan(args.secondprocessing_date),
+               #files={ tr.sampleid: "/home/max/awb_tools/awb_prep/murdi/sampleids-test.txt" }, # makefilesmap(args)
+               files=filemap,
                verbose=verbose,
                verbose_all=args.verbose_all,
                primaryref=args.primary_ref,
@@ -213,17 +221,24 @@ def main():
                raw=args.raw)
                
         if args.csv is not None:
-            outfile = tr.idable_csv(sample, args.csv) # rename csv?
-            if outfile is not None:
+            if args.csv is True:
+                #file = sys.stdout # todo fix
+                file = True
+            else:
+                file = args.csv
+            outfile = tr.idable_csv(sample, file, delim=args.D) # rename csv?
+            if isinstance(outfile, str):
                 print(outfile)
         else:
             print(jsonpickle.encode(sample, unpicklable=False, indent=4)) # somehow include_properties=True doesn't work
     elif args.what == "patient":
         patients = traction.patient(patientids=patientids,
+            pidc=args.pidc,
             sampleids=sampleids,
             idc=getidc(vars(args), settings),
             trials=trials,
             orgas=orgas,
+            files=filemap,
             verbose=verbose,
             verbose_all=args.verbose_all,
             like=likes,
@@ -237,27 +252,40 @@ def main():
         res = traction.trial()
         print(json.dumps(res, default=str, indent=4))
     elif args.what == "method":
-        res = traction.method(methods=methods)
+        res = traction.method(methods=methods, files=filemap)
         print(json.dumps(res, default=str, indent=4))
     elif args.what == "finding":
         res = traction.finding(sampleids=sampleids,
             patientids=patientids,
+            pidc=args.pidc,
             idc=getidc(vars(args), settings),
             methods=methods,
             trials=trials,
+            files=filemap,
             values=True, # todo make arg?
             names=args.names,
             top=args.top,
             print_query=args.query,
             verbose_all=args.verbose_all,
             raw=args.raw)
-        print(jsonpickle.encode(res, unpicklable=False, indent=4))
+            
+        if args.csv is not None:
+            if args.csv is True:
+                #file = sys.stdout
+                file = True
+            else:
+                file = args.csv
+            outfile = tr.finding_csv(res, file, delim=args.D, delim_cmp=args.delim_cmp) 
+            if isinstance(outfile, str):
+                print(outfile)
+        else:
+            print(jsonpickle.encode(res, unpicklable=False, indent=4))
         #print(json.dumps(res, default=str, indent=4))
     elif args.what == "user":
-        res = traction.user(username=usernames, emails=emails, lastlogin=datespan(args.last_login), verbose=verbose)
+        res = traction.user(username=usernames, emails=emails, lastlogin=datespan(args.last_login), files=filemap, verbose=verbose)
         print(jsonpickle.encode(res, unpicklable=False, indent=4))
-    elif args.what == "catalogentry":
-        res = traction.catalogentry()
+    elif args.what == "catalog":
+        res = traction.catalog(catalogs=catalogs, files=filemap)
         print(jsonpickle.encode(res, unpicklable=False, indent=4))
     elif args.what == "usageentry":
         res = traction.usageentry()
