@@ -12,6 +12,7 @@ import csv
 import sys
 address = "address"
 appointment = "appointment"
+catalog = "catalog"
 category = "category" # MASTER, ALIQUOTGROUP, DERIVED. dtype in db.
 concentration = "concentration"
 cxxkitid = "cxxkitid"
@@ -564,7 +565,9 @@ class traction:
         (wherestr, whereargs) = self._where(lists, tmptables, idc, idctmptables, like=like)
         #print(whereargs)
         topstr = self._top(top)
-        query = f"select distinct {topstr} {selectstr} from centraxx_patientcontainer patientcontainer \n{joinstr} \nwhere {wherestr}"
+        query = f"select distinct {topstr} {selectstr} from centraxx_patientcontainer patientcontainer \n{joinstr}"
+        if wherestr.strip() != "":
+            query += f"\nwhere {wherestr}"
         if order_by is not None:
             query += " " + self._order_by(order_by)
         if print_query:
@@ -644,8 +647,9 @@ class traction:
         left join centraxx_sample sample on labormapping.relatedoid = sample.oid
         {idcjoinstr}"""
         (wherestr, whereargs) = self._where(lists, tmptables, idc, idctmptables)        
-
-        query += " where " + wherestr
+        if wherestr.strip() != "":
+            query += f"\nwhere {wherestr}"
+            
         if print_query:
             print(query)
             print(whereargs)
@@ -699,11 +703,10 @@ class traction:
         if files is None:
             files = {}
         lists = {
-          method: methods,
-          trial: trials
+          method: methods
         }
         (tmptables, idctmptables) = self._makemove(files, lists, {}, 100)
-        query = f"""select laborvalue.code as labval, labormethod.code as "method"
+        query = f"""select laborvalue.code as labval, labormethod.code as "method", laborvalue.dtype as labval_type, catalog.code as catalog
 from centraxx_labormethod labormethod
 inner join centraxx_crftemplate crf_t
     on labormethod.crf_template=crf_t.oid
@@ -714,10 +717,12 @@ inner join centraxx_crftempsection_fields crf_tsf
 inner join centraxx_crftempfield crf_tf
     on crf_tsf.crftempfield_oid=crf_tf.oid
 inner join centraxx_laborvalue laborvalue
-    on crf_tf.laborvalue=laborvalue.oid"""
-        (wherestr, whereargs) = self._where(lists, tmptables, idc, idctmptables)
+    on crf_tf.laborvalue=laborvalue.oid
+left join centraxx_catalog catalog
+    on catalog.oid = laborvalue.custom_catalog"""
+        (wherestr, whereargs) = self._where(lists, tmptables, {}, idctmptables)
 
-        if wherestr:
+        if wherestr and wherestr.strip != "()":
           query += " where " + wherestr
         # print(query)
         res = self.db.qfad(query, whereargs)
@@ -739,7 +744,10 @@ inner join centraxx_laborvalue laborvalue
             labval = {}
             labval["code"] = labvalcode
             labval["name_de"] = dig(labvalnames, labvalcode + "/de")
-            labval["name_en"] = dig(labvalnames, labvalcode + "/en")            
+            labval["name_en"] = dig(labvalnames, labvalcode + "/en")
+            if dig(row, "catalog") is not None:
+                labval["catalog"] = dig(row, "catalog")
+            labval["type"] = row["labval_type"]
             out[methodcode]["labvals"][labvalcode] = labval
         return out
     def user(self, usernames:list=None, emails:list=None, lastlogin=None, files:dict=None, verbose:list=None):
@@ -773,13 +781,24 @@ inner join centraxx_laborvalue laborvalue
             )
             out.append(user)
         return out
-    def catalogentry(self):
+    def catalog(self, catalogs:list=None, files:dict=None):
         """
          catalogentry gives the catalogentries per catalog.
         """
+        if files is None:
+            files = {}
+        lists = {
+            catalog: catalogs
+        }
+        (tmptables, idctmptables) = self._makemove(files, lists, {}, 100)
         query = """select catalogentry.code as 'entry_code', catalog.code as 'catalog_code' from centraxx_catalogentry catalogentry
 join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
-        res = self.db.qfad(query)
+        (wherestr, whereargs) = self._where(lists, tmptables, {}, idctmptables) # idctmptables not actually needed at the moment
+        if wherestr and wherestr.strip() != "()":
+            query += f"\nwhere {wherestr}"
+        res = self.db.qfad(query, whereargs)
+        self._cleartt(tmptables)
+        self._cleartt(idctmptables)        
         catnames = self.name(table="catalog")
         entrynames = self.name(table="catalogentry")
         out = {}
@@ -871,12 +890,16 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
          sidc returns the main idc code by which samples are referenced as
          specified in the settings. 
         """
+        if not self.db.target in self.settings['sampleid']:
+            raise Exception(f"please specify the main sample idcontainer for {self.db.target} in settings.yaml")
         return self.settings['sampleid'][self.db.target]
     def pidc(self, pidc:str=None) -> str:
         """
         """
         if pidc is not None:
             return pidc
+        if not self.db.target in self.settings['patientid']:
+            raise Exception(f"please specify the main patient idcontainer for {self.db.target} in settings.yaml")
         return self.settings['patientid'][self.db.target]
     
     def _selectstr(self, selects, verbose, selecta, idc):
@@ -973,6 +996,7 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
           method: { "field": "labormethod.code" },
           kitid: { "field": "samplekit.kitid" },
           cxxkitid: { "field": "samplekit.cxxkitid" },
+          catalog: { "field": "catalog.code" },
           category: { "field": "sample.dtype" },
           type: { "field": "sampletype.code" },          
           orga: { "field": "organisationunit.code" },
@@ -1328,4 +1352,8 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
          them after each query.
         """
         for key, tablename in tmptables.items():
-            self.db.query(f"drop table if exists {tablename}")  # todo is kairos_spring used again after this?
+            if not isidentifier(tablename):
+                raise Exception("table name {tablename} needs to be a valid sql identifier.")
+            q = f"drop table {tablename}"
+            #print(q)
+            self.db.query(q)  # todo is kairos_spring used again after this?

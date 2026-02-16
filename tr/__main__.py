@@ -105,7 +105,7 @@ def main():
     # in any case take the database target
     parser.add_argument("db", help="db target")
 
-    parser.add_argument("what", help="sample|patient|trial|finding|method|user|catalogentry|usageentry|name. finding: messbefund; method: messprofil; name: get display names for a table.") # labval: messparameter
+    parser.add_argument("what", help="sample|patient|trial|finding|method|user|catalog|usageentry|name. finding: messbefund; method: messprofil; name: get display names for a table.") # labval: messparameter
     parser.add_argument("--sampleid", help="sampleid(s)")
     parser.add_argument("--patientid", help="patientid(s)")
     parser.add_argument("--sidc", help="patient idcontainer. overrides sampleid in settings.yaml")    
@@ -130,6 +130,7 @@ def main():
     parser.add_argument("--childs", help="include the childs up to the leafs", action="store_true")
     parser.add_argument("--tree", help="include the whole tree for each sample", action="store_true")            
     parser.add_argument("--method", help="labormethod(s) (messprofil)")
+    parser.add_argument("--catalog", help="catalog(s))")    
     parser.add_argument("--table", help="the table to get names for codes for")
     parser.add_argument("--ml-table", help="if the table mapping from codes to in mytable to names is not called centraxx_mytable_ml_name, give its name here.")
     parser.add_argument("--username", help="the username of user(s).")
@@ -171,6 +172,7 @@ def main():
     trials = lof(tr.trial, args.trial, files, filemap)
     locationpaths = lof(tr.locationpath, args.locationpath, files, filemap)
     methods = lof(tr.method, args.method, files, filemap)
+    catalogs = lof(tr.catalog, args.catalog, files, filemap)    
     kitids = lof(tr.kitid, args.method, files, filemap)
     cxxkitids = lof(tr.cxxkitid, args.cxxkitid, files, filemap)
     categories = lof(tr.category, args.category, files, filemap)
@@ -282,8 +284,8 @@ def main():
     elif args.what == "user":
         res = traction.user(username=usernames, emails=emails, lastlogin=datespan(args.last_login), files=filemap, verbose=verbose)
         print(jsonpickle.encode(res, unpicklable=False, indent=4))
-    elif args.what == "catalogentry":
-        res = traction.catalogentry()
+    elif args.what == "catalog":
+        res = traction.catalog(catalogs=catalogs, files=filemap)
         print(jsonpickle.encode(res, unpicklable=False, indent=4))
     elif args.what == "usageentry":
         res = traction.usageentry()
