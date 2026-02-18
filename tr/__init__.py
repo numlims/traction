@@ -67,6 +67,10 @@ patientid:
 idc:
  - <an idcontainertype code>
  - <another idcontainertype code>
+
+# cxx holds the centraxx version for db target
+cxx:
+  <db target>: 3|4
 """
 
 def _checkverbose(verbose, possible):
@@ -148,7 +152,7 @@ def idable_csv(idables:list, outfile=None, delim:str=",", *idcs) -> str:
     if idables is None or len(idables) == 0: # todo throw error?
         #print("no idables")
         return None
-    with open(outfile, "w") as f:
+    with open(outfile, "w", newline="") as f:
         colnames = []
         for idable in idables:
             for col in list(idable.iddict(*idcs).keys()):
@@ -156,7 +160,7 @@ def idable_csv(idables:list, outfile=None, delim:str=",", *idcs) -> str:
                     colnames.append(col)
         #print("colnames:")
         #print(colnames)
-        writer = csv.DictWriter(f, fieldnames=colnames, delimiter=delim)        #bm
+        writer = csv.DictWriter(f, fieldnames=colnames, delimiter=delim) 
         writer.writeheader()
         for idable in idables:
             d = idable.iddict(*idcs)
@@ -210,7 +214,7 @@ def finding_csv(findings:list, outfile=None, delim:str=",", delim_cmp:str=",") -
                 fdict[vkey] = delim_cmp.join(rec.rec)
                 
         fdicts.append(fdict)
-    with open(outfile, "w") as f:
+    with open(outfile, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=colnames, delimiter=delim)
         writer.writeheader()
         for fdict in fdicts:
@@ -666,11 +670,17 @@ class traction:
 
                 -- go from laborfinding to recorded value
                 join centraxx_labfindinglabval as labfindinglabval on labfindinglabval.laborfinding = laborfinding.oid
-                join centraxx_recordedvalue as recordedvalue on labfindinglabval.oid = recordedvalue.oid
-
-                --go from labfindinglabval to the laborvalue for the messparam
-                join centraxx_laborvalue laborvalue on labfindinglabval.laborvalue = laborvalue.oid
-
+                join centraxx_recordedvalue as recordedvalue on labfindinglabval.oid = recordedvalue.oid"""
+            if self.cxx() == "3":
+                query += """--go directly to laborvalue
+                join centraxx_laborvalue laborvalue on labfindinglabval.laborvalue = laborvalue.oid"""
+            elif self.cxx() == "4":
+                query += """                
+                -- go to laborvalue via crftempfield
+                join centraxx_crftempfield crftempfield on labfindinglabval.crftempfield = crftempfield.oid
+                join centraxx_laborvalue laborvalue on crftempfield.laborvalue = laborvalue.oid
+                """
+            query += """
                 --go from laborvalue to unit
                 left join centraxx_unity unit on laborvalue.unit = unit.oid
 
@@ -748,6 +758,8 @@ left join centraxx_catalog catalog
             if dig(row, "catalog") is not None:
                 labval["catalog"] = dig(row, "catalog")
             labval["type"] = row["labval_type"]
+            if labval["type"] == "OPTIONGROUP" or labval["type"] == "ENUMERATION":
+                labval["usageentry"] = self.usageentry(labvals=[labval])
             out[methodcode]["labvals"][labvalcode] = labval
         return out
     def user(self, usernames:list=None, emails:list=None, lastlogin=None, files:dict=None, verbose:list=None):
@@ -819,7 +831,7 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
             entry["name_en"] = dig(entrynames, entrycode + "/en")        
             out[catcode]["entries"][entrycode] = entry
         return out
-    def usageentry(self):
+    def usageentry(self, labvals:list=None):
         """
          usageentry gives the usageentries.
         """
@@ -850,8 +862,18 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
          table: the name of the centraxx table without centraxx_ prefix  
          code: a specific code, if none given, all code - name mappings for table are given  
          lang: de|en  
-         ml_table: if the name of the table connecting to multilingualentry is not simlpy the queried table name followed by "_ml_name", give the connecting table's name here. eg: name('laborvaluegroup', ..., ml_name='labval_grp_ml_name')  
+         ml_table (cxx3): if the name of the table connecting to multilingualentry is not simlpy the queried table name followed by "_ml_name", give the connecting table's name here. eg: name('laborvaluegroup', ..., ml_name='labval_grp_ml_name')
         """
+        if self.cxx() == "3":
+            return self._name_cxx3(table, code, lang, ml_table)
+        elif self.cxx() == "4":
+            return self._name_cxx4(table, code, lang)
+    def _name_cxx3(self, table:str, code:str=None, lang:str=None, ml_table:str=None):
+        """
+         _name_cxx3 gives display names for cxx 3.
+        """
+        if not isidentifier(table) or (ml_table is not None and not isidentifier(ml_table)):
+            raise Exception(f"names {table} and {ml_table} need to be valid sql identifiers.")
         query = "select [" + table + "].code, multilingual.value as name, multilingual.lang as lang"
         query += " from [centraxx_" + table + "] as [" + table + "]"
         ml_name = ""
@@ -884,7 +906,39 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
                out[code] = {}
             out[code][lang] = line["name"]
         return out
-    
+    def _name_cxx4(self, table:str, code:str=None, lang:str=None):
+        """
+         _name_cxx4 gives display names for cxx 4.
+        """
+        if not isidentifier(table):
+            raise Exception(f"name {table} needs to be a valid sql identifier.")
+        fieldname = table
+        if table == "organisationunit":
+            fieldname = "organizationunit"
+        query = f"select lang, ml_name as name, {table}.code from centraxx_multilingual multilingual join centraxx_{table} {table} on {table}.oid = multilingual.{table} where multilingual.{table} is not null"
+        wherestrings = []
+        args = []
+        if code != None:
+            wherestrings.append(self._whereparam("[" + table + "].code"))
+            args.append(code)
+        if lang != None:
+            wherestrings.append(self._whereparam("multilingual.lang"))
+            args.append(lang)
+        if len(wherestrings) > 0:
+            query += " where "
+            # join where clauses by and
+            query += " and ".join(wherestrings)
+        res = self.db.qfad(query, *args)
+        out = {}
+        for line in res:
+            code = line["code"]
+            lang = line["lang"]
+            if not code in out:
+               out[code] = {}
+            out[code][lang] = line["name"]
+        return out
+
+    # from settings
     def sidc(self) -> str:
         """
          sidc returns the main idc code by which samples are referenced as
@@ -901,7 +955,16 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
         if not self.db.target in self.settings['patientid']:
             raise Exception(f"please specify the main patient idcontainer for {self.db.target} in settings.yaml")
         return self.settings['patientid'][self.db.target]
+    def cxx(self) -> str:
+        """
+         cxx gives the centraxx version for db target from settings.
+        """
+        v = dig(self.settings, f"cxx/{self.db.target}")
+        if v is None:
+            return None
+        return str(v)
     
+    # query
     def _selectstr(self, selects, verbose, selecta, idc):
         """
          _selectstr filters the selects by the verbose array and returns the
@@ -1057,7 +1120,7 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
             if needsor:
                 wherestr += " or "
             wherestr += dbfield + " in "
-            wherestr += f"(select stdin from {tmptable})"
+            wherestr += f"(select stdin from tempdb..{tmptable})"#bm
         wherestr += ")"
         return (wherestr, wherearg)
     def _wheredate(self, tpl, dbfield): # -> (str, list)
@@ -1333,7 +1396,8 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
         """
         out = {}
         for key, lst in d.items():
-            name = "tempdb..#" + prefix + key
+            #name = "tempdb..#" + prefix + key
+            name = "#" + prefix + key
             if not isidentifier(name):
                 raise Exception(f"name {name} needs to be a valid sql identifier.")
             self.db.query(f"create table {name} (stdin varchar (255) )")
@@ -1354,6 +1418,6 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
         for key, tablename in tmptables.items():
             if not isidentifier(tablename):
                 raise Exception("table name {tablename} needs to be a valid sql identifier.")
-            q = f"drop table {tablename}"
+            q = f"drop table tempdb..{tablename}"
             #print(q)
             self.db.query(q)  # todo is kairos_spring used again after this?
