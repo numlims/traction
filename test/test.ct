@@ -22,8 +22,16 @@ start up traction and get a sample.
 
 ``
     trac = tr.traction("num_test")
-    res = trac.sample(sampleids=[sampleid])
+    res = trac.sample(sampleids=[sampleid], verbose_all=True)
     assert len(res) == 1
+``
+
+check the sample.
+
+``
+    sample = res[0]
+    assert sample.locationpath == "NUM --> HGW Greifswald --> PP Lager RT SNID"
+    assert sample.id("EXTSAMPLEID") == "asdf4"
 ``
 
 get the patient for a sample.
@@ -33,11 +41,25 @@ get the patient for a sample.
     assert len(res) == 1
 ``
 
+check the patient.
+
+``
+    pat = res[0]
+    assert pat.id("LIMSPSN") == 28365
+``
+
 get the findings for the sample.
 
 ``
     res = trac.finding(sampleids=[sampleid])
     assert len(res) == 1
+``
+
+check the finding.
+
+``
+    finding = res[0]
+    assert "DENGUE" in finding.recs["PATHOGEN2"].rec
 ``
 
 import.
