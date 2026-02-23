@@ -67,6 +67,10 @@ patientid:
 idc:
  - <an idcontainertype code>
  - <another idcontainertype code>
+
+# cxx holds the centraxx version for db target
+cxx:
+  <db target>: 3|4
 """
 
 def _checkverbose(verbose, possible):
@@ -148,7 +152,7 @@ def idable_csv(idables:list, outfile=None, delim:str=",", *idcs) -> str:
     if idables is None or len(idables) == 0: # todo throw error?
         #print("no idables")
         return None
-    with open(outfile, "w") as f:
+    with open(outfile, "w", newline="") as f:
         colnames = []
         for idable in idables:
             for col in list(idable.iddict(*idcs).keys()):
@@ -156,7 +160,7 @@ def idable_csv(idables:list, outfile=None, delim:str=",", *idcs) -> str:
                     colnames.append(col)
         #print("colnames:")
         #print(colnames)
-        writer = csv.DictWriter(f, fieldnames=colnames, delimiter=delim)        #bm
+        writer = csv.DictWriter(f, fieldnames=colnames, delimiter=delim) 
         writer.writeheader()
         for idable in idables:
             d = idable.iddict(*idcs)
@@ -210,7 +214,7 @@ def finding_csv(findings:list, outfile=None, delim:str=",", delim_cmp:str=",") -
                 fdict[vkey] = delim_cmp.join(rec.rec)
                 
         fdicts.append(fdict)
-    with open(outfile, "w") as f:
+    with open(outfile, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=colnames, delimiter=delim)
         writer.writeheader()
         for fdict in fdicts:
@@ -285,7 +289,6 @@ class traction:
             files = {}
         if idc is None:
             idc = {}
-        # print("try:" + tr.sampleid)
         vaa = [cxxkitid, kitid, locationname, locationpath, orga, parentid, 
                project, receptacle, type,
                secondprocessing, stockprocessing, trial]
@@ -293,29 +296,11 @@ class traction:
         vaa.extend(self._sampleidcs())                
         if not self.sidc() in verbose:
             verbose.insert(0, self.sidc())
-        verbose = self._concrete_idcs(verbose, pidc=pidc)
-        #files = self._concrete_idcs_dict(files, pidc=pidc)
-        #print("files:")
-        #print(files)
-
-        if trials:
-            verbose.append(trial)
-        if locationpaths:
-            verbose.append(locationpath)
-        if kitids:
-            verbose.append(kitid)
-        if cxxkitid:
-            verbose.append(cxxkitid)
-        if parentids:
-            verbose.append(parentid)
-        if orgas:
-            verbose.append(orga)
         if verbose_all == True:
             verbose = vaa
-        #print("verbose:")
-        #print(verbose)
+        verbose = self._concrete_idcs(verbose, pidc=pidc)
         if not _checkverbose(verbose, vaa): 
-            return None # throw error?
+            raise Exception(f"verbose keys {verbose} need to be in {vaa}.")
         if incl_parents or incl_childs or incl_tree or primaryref:
             verbosepass = []
             if primaryref:
@@ -399,6 +384,7 @@ class traction:
           f"sample.parent as {parentoid}",
           "sample.*"
         ]
+        selectstr = self._selectstr(jselects, lselects, lists, tmptables, idc, idctmptables, verbose)
         joins = {
             cxxkitid: self.jd["sample_to_samplekit"],
             parentid: self.jd["sample_to_parentid"],
@@ -415,8 +401,7 @@ class traction:
         }
         for pidc in self._patientidcs(pidc):
             joins[pidc] = self.jd["sample_to_patient"]
-        selectstr = self._selectstr(jselects, verbose, lselects, idc)  
-        joinstr = self._joinstr(joins, verbose, idc, pidc=pidc)  
+        joinstr = self._joinstr(joins, lists, tmptables, idc, idctmptables, verbose, pidc=pidc)
         (wherestr, whereargs) = self._where(lists, tmptables, idc, idctmptables, like=like)
         topstr = self._top(top)
         query = f"select {topstr} {selectstr} from centraxx_sample sample \n{joinstr}"
@@ -540,13 +525,6 @@ class traction:
         (tmptables, idctmptables) = self._makemove(files, lists, idc, 100, pidc=pidc)
         if verbose_all == True:
             verbose = vaa
-        if orgas is not None:
-            verbose.append(orga)
-        silent = []
-        if trials:
-            silent.append(trial)
-        if orgas:
-            silent.append(orga)
         if not _checkverbose(verbose, vaa):
             return None # throw error?
         selects = {
@@ -560,8 +538,8 @@ class traction:
         }
         for sidc in self._sampleidcs():
             joins[sidc] = self.jd["patient_to_sample"]
-        selectstr = self._selectstr(selects, verbose, ["patientcontainer.*"], idc)  
-        joinstr = self._joinstr(joins, verbose + silent, idc, pidc=pidc)  
+        selectstr = self._selectstr(selects, ["patientcontainer.*"], lists, tmptables, idc, idctmptables, verbose, pidc=pidc)
+        joinstr = self._joinstr(joins, lists, tmptables, idc, idctmptables, verbose, pidc=pidc)  
         (wherestr, whereargs) = self._where(lists, tmptables, idc, idctmptables, like=like)
         #print(whereargs)
         topstr = self._top(top)
@@ -613,8 +591,6 @@ class traction:
         vaa = [patientid] # include trial?
         if verbose_all == True:
             verbose = vaa
-        if trials is not None:
-            verbose.append(trial)
         if self.sidc() not in verbose:
             verbose.append(self.sidc())
         verbose = self._concrete_idcs(verbose, pidc=pidc)
@@ -630,13 +606,13 @@ class traction:
             self.sidc(): [f"idc_{self.sidc()}.psn as '{sampleid}'"],
             self.pidc(pidc): [f"idc_{self.pidc(pidc)}.psn as '{patientid}'"],                   
         }
-        idcselectstr = self._selectstr(selects, verbose, [], idc)  
+        idcselectstr = self._selectstr(selects, [], lists, tmptables, idc, idctmptables, verbose, pidc=pidc)  
         joins = {
             trial: self.jd["sample_to_trial"]
         }
         for pidc in self._patientidcs(pidc):
             joins[pidc] = self.jd["sample_to_patient"]
-        idcjoinstr = self._joinstr(joins, verbose, idc, pidc=pidc)
+        idcjoinstr = self._joinstr(joins, lists, tmptables, idc, idctmptables, verbose, pidc=pidc)
         topstr = self._top(top)
         query = f"""select {topstr} laborfinding.oid as "laborfinding_oid", laborfinding.*, labormethod.code as {method}, {idcselectstr}
         from centraxx_laborfinding as laborfinding
@@ -666,11 +642,17 @@ class traction:
 
                 -- go from laborfinding to recorded value
                 join centraxx_labfindinglabval as labfindinglabval on labfindinglabval.laborfinding = laborfinding.oid
-                join centraxx_recordedvalue as recordedvalue on labfindinglabval.oid = recordedvalue.oid
-
-                --go from labfindinglabval to the laborvalue for the messparam
-                join centraxx_laborvalue laborvalue on labfindinglabval.laborvalue = laborvalue.oid
-
+                join centraxx_recordedvalue as recordedvalue on labfindinglabval.oid = recordedvalue.oid"""
+            if self.cxx() == "3":
+                query += """--go directly to laborvalue
+                join centraxx_laborvalue laborvalue on labfindinglabval.laborvalue = laborvalue.oid"""
+            elif self.cxx() == "4":
+                query += """                
+                -- go to laborvalue via crftempfield
+                join centraxx_crftempfield crftempfield on labfindinglabval.crftempfield = crftempfield.oid
+                join centraxx_laborvalue laborvalue on crftempfield.laborvalue = laborvalue.oid
+                """
+            query += """
                 --go from laborvalue to unit
                 left join centraxx_unity unit on laborvalue.unit = unit.oid
 
@@ -748,6 +730,8 @@ left join centraxx_catalog catalog
             if dig(row, "catalog") is not None:
                 labval["catalog"] = dig(row, "catalog")
             labval["type"] = row["labval_type"]
+            if labval["type"] == "OPTIONGROUP" or labval["type"] == "ENUMERATION":
+                labval["usageentry"] = self.usageentry(labvals=[labval])
             out[methodcode]["labvals"][labvalcode] = labval
         return out
     def user(self, usernames:list=None, emails:list=None, lastlogin=None, files:dict=None, verbose:list=None):
@@ -758,12 +742,6 @@ left join centraxx_catalog catalog
         if files is None:
             files = {}
         vaa = [tr.address, tr.login]
-        if usernames:
-            verbose.append(tr.username)
-        if emails:
-            verbose.append(tr.address)
-        if lastlogin:
-            verbose.append(tr.login)
         lists = {
           username: usernames,
           address: emails,
@@ -819,7 +797,7 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
             entry["name_en"] = dig(entrynames, entrycode + "/en")        
             out[catcode]["entries"][entrycode] = entry
         return out
-    def usageentry(self):
+    def usageentry(self, labvals:list=None):
         """
          usageentry gives the usageentries.
         """
@@ -850,8 +828,18 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
          table: the name of the centraxx table without centraxx_ prefix  
          code: a specific code, if none given, all code - name mappings for table are given  
          lang: de|en  
-         ml_table: if the name of the table connecting to multilingualentry is not simlpy the queried table name followed by "_ml_name", give the connecting table's name here. eg: name('laborvaluegroup', ..., ml_name='labval_grp_ml_name')  
+         ml_table (cxx3): if the name of the table connecting to multilingualentry is not simlpy the queried table name followed by "_ml_name", give the connecting table's name here. eg: name('laborvaluegroup', ..., ml_name='labval_grp_ml_name')
         """
+        if self.cxx() == "3":
+            return self._name_cxx3(table, code, lang, ml_table)
+        elif self.cxx() == "4":
+            return self._name_cxx4(table, code, lang)
+    def _name_cxx3(self, table:str, code:str=None, lang:str=None, ml_table:str=None):
+        """
+         _name_cxx3 gives display names for cxx 3.
+        """
+        if not isidentifier(table) or (ml_table is not None and not isidentifier(ml_table)):
+            raise Exception(f"names {table} and {ml_table} need to be valid sql identifiers.")
         query = "select [" + table + "].code, multilingual.value as name, multilingual.lang as lang"
         query += " from [centraxx_" + table + "] as [" + table + "]"
         ml_name = ""
@@ -884,78 +872,92 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
                out[code] = {}
             out[code][lang] = line["name"]
         return out
-    
-    def sidc(self) -> str:
+    def _name_cxx4(self, table:str, code:str=None, lang:str=None):
         """
-         sidc returns the main idc code by which samples are referenced as
-         specified in the settings. 
+         _name_cxx4 gives display names for cxx 4.
         """
-        if not self.db.target in self.settings['sampleid']:
-            raise Exception(f"please specify the main sample idcontainer for {self.db.target} in settings.yaml")
-        return self.settings['sampleid'][self.db.target]
-    def pidc(self, pidc:str=None) -> str:
+        if not isidentifier(table):
+            raise Exception(f"name {table} needs to be a valid sql identifier.")
+        fieldname = table
+        if table == "organisationunit":
+            fieldname = "organizationunit"
+        query = f"select lang, ml_name as name, {table}.code from centraxx_multilingual multilingual join centraxx_{table} {table} on {table}.oid = multilingual.{table} where multilingual.{table} is not null"
+        wherestrings = []
+        args = []
+        if code != None:
+            wherestrings.append(self._whereparam("[" + table + "].code"))
+            args.append(code)
+        if lang != None:
+            wherestrings.append(self._whereparam("multilingual.lang"))
+            args.append(lang)
+        if len(wherestrings) > 0:
+            query += " where "
+            # join where clauses by and
+            query += " and ".join(wherestrings)
+        res = self.db.qfad(query, *args)
+        out = {}
+        for line in res:
+            code = line["code"]
+            lang = line["lang"]
+            if not code in out:
+               out[code] = {}
+            out[code][lang] = line["name"]
+        return out
+
+    # query
+    def _selectstr(self, selects, selecta, lists, tmptables, idclists, idctmptables, verbose, pidc:str=None):
         """
-        """
-        if pidc is not None:
-            return pidc
-        if not self.db.target in self.settings['patientid']:
-            raise Exception(f"please specify the main patient idcontainer for {self.db.target} in settings.yaml")
-        return self.settings['patientid'][self.db.target]
-    
-    def _selectstr(self, selects, verbose, selecta, idc):
-        """
-         _selectstr filters the selects by the verbose array and returns the
-         sql select string. selecta is for fields that should be selected
-         regardless if they're in the verbose array or not.
+         _selectstr gives the selects for idc keys and verbose array. unlike
+         _joinstr, keys in lists and tmptables aren't included automatically,
+         cause they may be needed in where but are not necessarily interesting
+         for the output (is that true?). selecta is for fields that should be
+         selected regardless if they're in the verbose array or not.
          
          the idc argument assumes that the sample table is joined it. // todo is this still true?
         """
-        for verb in verbose:
-            if not verb in selects:
+        (vnonidc, vidc) = self._splitidc(verbose, pidc=pidc)
+        nonidc = self._collkeys(lists, tmptables, vnonidc)
+        idc = self._collkeys(idclists, idctmptables, vidc)
+        for key in nonidc:
+            if not key in selects:
                 continue
-            for s in selects[verb]:
+            for s in selects[key]:
                 selecta.append(s)
-        selecta = self._append_idc_select(selecta, idc, verbose)
+        selecta = self._select_idc(selecta, idc)
         selectstr = ", \n".join(selecta)
         return selectstr
-    def _joinstr(self, joins, verbose, idc, pidc=None):
+    def _select_idc(self, selecta, idca:list):
         """
-         _joinstr puts together the joins needed by verbose array and idc keys
-         and returns the sql join string.
+         _select_idc adds the sql select statements for a list of idc keys.
         """
-        joina = []
-        joina = self._append_idc_join(joina, idc, verbose, joins, pidc=pidc)
-        for verb in verbose: 
-            if not verb in joins:
-                continue
-            for s in joins[verb]:
-                if not s in joina:
-                    joina.append(s)
-        joinstr = " \n".join(joina)
-        return joinstr
-    def _append_idc_select(self, selecta, idc, verbose):
-        """
-         _append_idc_select adds the sql select statements for an idc dict.
-        """
-        idca = []
-        for verb in verbose:
-          if verb in self.settings["idc"]:
-            idca.append(verb)
         for item in idca:
           selectstr = f"idc_{item}.psn as '{item}'"
           if not selectstr in selecta:
             selecta.append(selectstr)
         return selecta
-    def _append_idc_join(self, joina, idc, verbose, joins, pidc=None):
+    def _joinstr(self, joins, lists, tmptables, idclists, idctmptables, verbose, pidc:str=None):
         """
-         _append_idc_join adds the sql join statements for an idc dict.
+         _joinstr puts together the joins needed for the lists and temporary
+         tables of non-idc and idc keys, and verbose. it returns the sql join
+         string.
         """
-        idca = []
-        for verb in verbose:
-          if verb in self.settings["idc"] or verb == self.sidc() or verb == self.pidc(pidc):
-            idca.append(verb)
-        if idc is not None:
-          idca.extend(idc.keys())
+        (vnonidc, vidc) = self._splitidc(verbose, pidc=pidc)
+        nonidc = self._collkeys(lists, tmptables, vnonidc)
+        idc = self._collkeys(idclists, idctmptables, vidc)
+        joina = []
+        joina = self._join_idc(joina, idc, joins)
+        for key in nonidc: 
+            if not key in joins:
+                continue
+            for s in joins[key]:
+                if not s in joina:
+                    joina.append(s)
+        joinstr = " \n".join(joina)
+        return joinstr
+    def _join_idc(self, joina, idca:list, joins):
+        """
+         _join_idc adds the sql join statements for the idc keys of the query.
+        """
         for item in idca:
           if item in joins:
             for s in joins[item]:
@@ -1057,7 +1059,7 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
             if needsor:
                 wherestr += " or "
             wherestr += dbfield + " in "
-            wherestr += f"(select stdin from {tmptable})"
+            wherestr += f"(select stdin from tempdb..{tmptable})"#bm
         wherestr += ")"
         return (wherestr, wherearg)
     def _wheredate(self, tpl, dbfield): # -> (str, list)
@@ -1213,6 +1215,115 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
             raise Exception(f"no record class for laborvalue of type {recval['laborvalue_type']}")
         return out
     
+    def _fill_in_primary(self, sample:Sample):
+        """
+         _fill_in_primary adds a reference to the given sample's primary sample,
+         if there is one.
+        """
+        poids = []
+        self._get_parents(sample.id("oid"), poids)
+        if len(poids) > 0:
+            primary_oid = poids[0]
+            primary = self.sample(oids=[primary_oid])[0]
+            sample.primary = Idable(ids=primary.ids, mainidc=primary.mainidc)
+
+    # tmp tables
+    def _makemove(self, files:dict, lists:dict, idclists:dict, cutoff:int, pidc:str=None): # -> (dict, dict)
+        """
+         _makemove makes temporary tables for all files and all lists (non-idc
+         and idc) that are larger than cutoff. moved lists are removed from
+         lists and idclists, respectively. it returns a tuple holding dicts of
+         the non-idc tables and the idc tables created.
+        """
+        files = self._concrete_idcs_dict(files, pidc=pidc)
+        #print("files:")
+        #print(files)
+        (ttlists, ttidclists) = self._readfiles(files)
+        _mvlists(lists, ttlists, cutoff)
+        _mvlists(idclists, ttidclists, cutoff)
+        tmptables = self._maketables(ttlists, "tmp_")
+        idctmptables = self._maketables(ttidclists, "tmp_idc_")
+        return (tmptables, idctmptables) 
+    def _readfiles(self, files):
+        """
+         _readfiles reads the files from which tmp tables should be build into
+         lists.  it returns a tuple of one dict holding the non-idc lists and
+         one dict holding the idc lists.
+        """
+        both = {}
+        for key, filepath in files.items():
+            lst = []
+            with open(filepath, "r") as f:
+                for line in f:
+                    lst.append(line.rstrip())
+            both[key] = lst
+        nonidc = {}
+        idc = {}
+        for key, _ in both.items():
+            if key in self._idcs:
+                idc[key] = both[key]
+            else:
+                nonidc[key] = both[key]
+        return (nonidc, idc)
+    def _maketables(self, d:dict, prefix:str=""): #-> dict
+        """
+         _maketables makes temporary tables for each key in the given dict,
+         inserts the list of values belonging to that key, and returns a dict
+         the table names by key.
+        """
+        out = {}
+        for key, lst in d.items():
+            #name = "tempdb..#" + prefix + key
+            name = "#" + prefix + key
+            if not isidentifier(name):
+                raise Exception(f"name {name} needs to be a valid sql identifier.")
+            self.db.query(f"create table {name} (stdin varchar (255) )")
+            for e in lst:
+                self.db.query(f"insert into {name} values (?)", e)
+            out[key] = name
+        return out
+    def _cleartt(self, tmptables:dict):
+        """
+         _cleartt drops the temporary tables tables that were created with
+         _maketables after the query using their data was run. it takes the
+         dict of filetables that was returned by _maketables.
+         
+         they would be dropped automatically after the session, but in case
+         several queries are sent in one session, maybe it's better to drop
+         them after each query.
+        """
+        for key, tablename in tmptables.items():
+            if not isidentifier(tablename):
+                raise Exception("table name {tablename} needs to be a valid sql identifier.")
+            q = f"drop table tempdb..{tablename}"
+            #print(q)
+            self.db.query(q)  # todo is kairos_spring used again after this?
+
+    # settings / idc related
+    def sidc(self) -> str:
+        """
+         sidc returns the main idc code by which samples are referenced as
+         specified in the settings. 
+        """
+        if not self.db.target in self.settings['sampleid']:
+            raise Exception(f"please specify the main sample idcontainer for {self.db.target} in settings.yaml")
+        return self.settings['sampleid'][self.db.target]
+    def pidc(self, pidc:str=None) -> str:
+        """
+        """
+        if pidc is not None:
+            return pidc
+        if not self.db.target in self.settings['patientid']:
+            raise Exception(f"please specify the main patient idcontainer for {self.db.target} in settings.yaml")
+        return self.settings['patientid'][self.db.target]
+    def cxx(self) -> str:
+        """
+         cxx gives the centraxx version for db target from settings.
+        """
+        v = dig(self.settings, f"cxx/{self.db.target}")
+        if v is None:
+            return None
+        return str(v)
     def _sampleidcs(self) -> list:
         """
          _sampleidcs returns the idcs from settings that are specific for sample.
@@ -1275,85 +1386,46 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
             else:
                 out[key] = val
         return out
-    
-    def _fill_in_primary(self, sample:Sample):
-        """
-         _fill_in_primary adds a reference to the given sample's primary sample,
-         if there is one.
-        """
-        poids = []
-        self._get_parents(sample.id("oid"), poids)
-        if len(poids) > 0:
-            primary_oid = poids[0]
-            primary = self.sample(oids=[primary_oid])[0]
-            sample.primary = Idable(ids=primary.ids, mainidc=primary.mainidc)
 
-    def _makemove(self, files:dict, lists:dict, idclists:dict, cutoff:int, pidc:str=None): # -> (dict, dict)
+    def _is_idc(self, key:str, sidc:str=None, pidc:str=None): # -> bool
         """
-         _makemove makes temporary tables for all files and all lists (non-idc
-         and idc) that are larger than cutoff. moved lists are removed from
-         lists and idclists, respectively. it returns a tuple holding dicts of
-         the non-idc tables and the idc tables created.
+         _is_idc says whether a string is an idcontainer mentioned in
+         settings.yaml or passed as sidc or pidc argument.
         """
-        files = self._concrete_idcs_dict(files, pidc=pidc)
-        #print("files:")
-        #print(files)
-        (ttlists, ttidclists) = self._readfiles(files)
-        _mvlists(lists, ttlists, cutoff)
-        _mvlists(idclists, ttidclists, cutoff)
-        tmptables = self._maketables(ttlists, "tmp_")
-        idctmptables = self._maketables(ttidclists, "tmp_idc_")
-        return (tmptables, idctmptables) 
-    def _readfiles(self, files):
+        return key in self.settings["idc"] or key == self.sidc() or key == self.pidc(pidc)
+    def _splitidc(self, arr:list, pidc:str=None): # -> (list, list)
         """
-         _readfiles reads the files from which tmp tables should be build into
-         lists.  it returns a tuple of one dict holding the non-idc lists and
-         one dict holding the idc lists.
+         _splitidc splits an array of tr constants and idc keys into non-idc
+         (tr constants) and idc keys.
         """
-        both = {}
-        for key, filepath in files.items():
-            lst = []
-            with open(filepath, "r") as f:
-                for line in f:
-                    lst.append(line.rstrip())
-            both[key] = lst
-        nonidc = {}
-        idc = {}
-        for key, _ in both.items():
-            if key in self._idcs:
-                idc[key] = both[key]
+        nonidc = []
+        idc = []
+        for k in arr:
+            if self._is_idc(k, pidc=pidc):
+                idc.append(k)
             else:
-                nonidc[key] = both[key]
+                nonidc.append(k)
         return (nonidc, idc)
-    def _maketables(self, d:dict, prefix:str=""): #-> dict
+    def _collkeys(self, lists:dict=None, tmptables:dict=None, verbose:list=None):
         """
-         _maketables makes temporary tables for each key in the given dict,
-         inserts the list of values belonging to that key, and returns a dict
-         the table names by key.
+         _collkeys collects the keys join needs from lists, temporary tables
+         and verbose. preserves order and ensures uniqueness.
         """
-        out = {}
-        for key, lst in d.items():
-            name = "#" + prefix + key
-            if not isidentifier(name):
-                raise Exception(f"name {name} needs to be a valid sql identifier.")
-            self.db.query(f"create table {name} (stdin varchar (255) )")
-            for e in lst:
-                self.db.query(f"insert into {name} values (?)", e)
-            out[key] = name
+        if lists is None:
+            lists = {}
+        if tmptables is None:
+            tmptables = {}
+        if verbose is None:
+            verbose = []
+        out = []
+        for k in lists.keys():
+            if lists[k] is not None and k not in out:
+                out.append(k)
+        for k in tmptables.keys():
+            if tmptables[k] is not None and k not in out:
+                out.append(k)
+        for k in verbose:
+            if not k in out:
+                out.append(k)
         return out
-    def _cleartt(self, tmptables:dict):
-        """
-         _cleartt drops the temporary tables tables that were created with
-         _maketables after the query using their data was run. it takes the
-         dict of filetables that was returned by _maketables.
-         
-         they would be dropped automatically after the session, but in case
-         several queries are sent in one session, maybe it's better to drop
-         them after each query.
-        """
-        for key, tablename in tmptables.items():
-            if not isidentifier(tablename):
-                raise Exception("table name {tablename} needs to be a valid sql identifier.")
-            q = f"drop table {tablename}"
-            #print(q)
-            self.db.query(q)  # todo is kairos_spring used again after this?
+    

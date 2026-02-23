@@ -4,7 +4,7 @@ import cnf
 from dbcq import dbcq
 from dbcq import TargetException
 import tr
-import simplejson as json
+#import simplejson
 import sys
 import jsonpickle
 import os
@@ -128,7 +128,8 @@ def main():
     parser.add_argument("--primary-ref", help="reference the primary of each derived, without including it", action="store_true")    
     parser.add_argument("--parents", help="include parents starting from the root", action="store_true")
     parser.add_argument("--childs", help="include the childs up to the leafs", action="store_true")
-    parser.add_argument("--tree", help="include the whole tree for each sample", action="store_true")            
+    parser.add_argument("--tree", help="include the whole tree for each sample", action="store_true")
+    parser.add_argument("--ausgabe-safe", help="exclude samples that are in aufgaben or probenlisten or that have a kooperationspartner")
     parser.add_argument("--method", help="labormethod(s) (messprofil)")
     parser.add_argument("--catalog", help="catalog(s))")    
     parser.add_argument("--table", help="the table to get names for codes for")
@@ -186,7 +187,7 @@ def main():
         likes = args.like.split(",")
     if args.what == "sample":
         sample = traction.sample(
-               #sampleids=sampleids,
+               sampleids=sampleids,
                idc=getidc(vars(args), settings),
                parentids=parentids,
                patientids=patientids,
@@ -246,14 +247,16 @@ def main():
             top=args.top,
             print_query=args.query,
             raw=args.raw)
-        #print(json.dumps(patients, default=str))
+        #print(simplejson.dumps(patients, default=str))
         print(jsonpickle.encode(patients, unpicklable=False, indent=4))
     elif args.what == "trial":
         res = traction.trial()
-        print(json.dumps(res, default=str, indent=4))
+        print(jsonpickle.encode(res, unpicklable=False, indent=4))        
+        #print(simplejson.dumps(res, default=str, indent=4))
     elif args.what == "method":
         res = traction.method(methods=methods, files=filemap)
-        print(json.dumps(res, default=str, indent=4))
+        #print(simplejson.dumps(res, default=str, indent=4))
+        print(jsonpickle.encode(res, unpicklable=False, indent=4))                
     elif args.what == "finding":
         res = traction.finding(sampleids=sampleids,
             patientids=patientids,
@@ -280,7 +283,7 @@ def main():
                 print(outfile)
         else:
             print(jsonpickle.encode(res, unpicklable=False, indent=4))
-        #print(json.dumps(res, default=str, indent=4))
+        #print(simplejson.dumps(res, default=str, indent=4))
     elif args.what == "user":
         res = traction.user(username=usernames, emails=emails, lastlogin=datespan(args.last_login), files=filemap, verbose=verbose)
         print(jsonpickle.encode(res, unpicklable=False, indent=4))
@@ -293,7 +296,8 @@ def main():
     elif args.what == "name":
         # res = traction.name("laborfinding")
         res = traction.name(args.table, args.ml_table)
-        print(json.dumps(res, default=str, indent=4))
+        print(jsonpickle.encode(res, unpicklable=False, indent=4))        
+        #print(simplejson.dumps(res, default=str, indent=4))
     else:
         print(f"error: {args.what} not recognized. see traction -h.")
         return 1

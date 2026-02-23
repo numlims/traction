@@ -32,14 +32,14 @@ class traction:
     ``catalog``
     ``usageentry``
     ``name``
-    
-    ``sidc``
-    ``pidc``
-    
+    ``_name_cxx3``
+    ``_name_cxx4``
+
+    # query
     ``_selectstr``
+    ``_select_idc``    
     ``_joinstr``
-    ``_append_idc_select``
-    ``_append_idc_join``
+    ``_join_idc``    
     ``_where``
     ``_whereexact``
     ``_wheredate``    
@@ -52,17 +52,27 @@ class traction:
     ``_idcinit``
     ``_make_rec``
     
-    ``_sampleidcs``
-    ``_patientidcs``
-    ``_concrete_idcs``
-    ``_concrete_idcs_dict``
-    
     ``_fill_in_primary``
 
+    # tmp tables
     ``_makemove``
     ``_readfiles``
     ``_maketables``
     ``_cleartt``
+
+    # settings / idc related
+    ``sidc``
+    ``pidc``
+    ``cxx``
+    ``_sampleidcs``
+    ``_patientidcs``
+    ``_concrete_idcs``
+    ``_concrete_idcs_dict``
+
+    ``_is_idc``
+    ``_splitidc``
+    ``_collkeys``
+    
 ``
 
 at the package level are a series of constants that can be used in
@@ -204,6 +214,10 @@ patientid:
 idc:
  - <an idcontainertype code>
  - <another idcontainertype code>
+
+# cxx holds the centraxx version for db target
+cxx:
+  <db target>: 3|4
 """
 ``
 
@@ -248,11 +262,10 @@ https://www.geeksforgeeks.org/python/use-mutable-default-value-as-an-argument-in
 
 these are all possible verbose options (verbose-all-array).
 
-let sampleid be the first element in vaa so it gets joined in first
+// let sampleid be the first element in vaa so it gets joined in first
 for subsequent joins that depend on it.
 
 `` #py
-        # print("try:" + tr.sampleid)
         vaa = [cxxkitid, kitid, locationname, locationpath, orga, parentid, 
                project, receptacle, type,
                secondprocessing, stockprocessing, trial]
@@ -273,50 +286,24 @@ joins that might need it.
             verbose.insert(0, self.sidc())
 ``
 
-replace traction constants patientid and sampleid with their idc.
-
-``
-        verbose = self._concrete_idcs(verbose, pidc=pidc)
-        #files = self._concrete_idcs_dict(files, pidc=pidc)
-        #print("files:")
-        #print(files)
-``
-
-
-put the keys for the given arguments into the verbose array, so that
-they land in the join, so that the wherestring can access the
-joined-in fields.
-
-`` #py
-
-        if trials:
-            verbose.append(trial)
-        if locationpaths:
-            verbose.append(locationpath)
-        if kitids:
-            verbose.append(kitid)
-        if cxxkitid:
-            verbose.append(cxxkitid)
-        if parentids:
-            verbose.append(parentid)
-        if orgas:
-            verbose.append(orga)
-``
-
 on verbose_all include all constants in the verbose array.
 
 `` #py
         if verbose_all == True:
             verbose = vaa
-        #print("verbose:")
-        #print(verbose)
+``
+
+replace traction constants patientid and sampleid with their idc.
+
+``
+        verbose = self._concrete_idcs(verbose, pidc=pidc)
 ``
 
 make sure that the verbose array only contains keys from the verbose-all-array.
 
 ``
         if not _checkverbose(verbose, vaa): 
-            return None # throw error?
+            raise Exception(f"verbose keys {verbose} need to be in {vaa}.")
 ``
 
 after the verbose array was filled walk the sample tree if needed.
@@ -349,7 +336,7 @@ check if we walk the sample tree.
 
 we fire the call with all the arguments except incl_*, and raw.
 
-we pass only verbose if we add primary references, cause then we only
+we pass verbose only if we add primary references, cause then we only
 run the call once. if we include tree samples later we don't pass
 verbose, cause we eventually run the call again for all tree samples,
 passing verbose here would slow it down.
@@ -547,7 +534,7 @@ rename the field of the main sample idcontainer to sampleid.
         }
 ``
 
-lselects holds the local selects for this table, for field renames.
+lselects holds the local selects for this table, to rename fields.
 
 put sample.* first, that it doesn't overwrite field of the renames?
 
@@ -562,11 +549,15 @@ put sample.* first, that it doesn't overwrite field of the renames?
         ]
 ``
 
-the join statements for optional joins by key. if the same join is
+put together the select string.
+
+``
+        selectstr = self._selectstr(jselects, lselects, lists, tmptables, idc, idctmptables, verbose)
+``
+
+joins holds the join statements needed. if the same join is
 needed for two different keys (e.g. locationname and locationpath),
 filter them out later.
-
-pull the values from the join dict, jd.
 
 `` #py
         joins = {
@@ -586,18 +577,17 @@ pull the values from the join dict, jd.
 ``
 
 for any patient idc, join in patientcontainer, which is needed by
-_append_idc_joins.
+_join_idc.
 
 ``
         for pidc in self._patientidcs(pidc):
             joins[pidc] = self.jd["sample_to_patient"]
 ``
 
-put together the select string and join string for the query.
+put together the join string for the query.
 
 `` #py
-        selectstr = self._selectstr(jselects, verbose, lselects, idc)  
-        joinstr = self._joinstr(joins, verbose, idc, pidc=pidc)  
+        joinstr = self._joinstr(joins, lists, tmptables, idc, idctmptables, verbose, pidc=pidc)
 ``
 
 get the where string.
@@ -914,25 +904,6 @@ on verbose_all include all constants in the verbose array.
             verbose = vaa
 ``
 
-put the keys for the arguments into the verbose array.
-
-``
-        if orgas is not None:
-            verbose.append(orga)
-``
-
-make an array of silent joins for fields that might get queried after
-but shouldn't be included in the output.
-
-`` #py
-        silent = []
-        if trials:
-            silent.append(trial)
-        if orgas:
-            silent.append(orga)
-``
-
-
 make sure that the verbose array only contains keys from the
 verbose-all-array.
 
@@ -969,7 +940,7 @@ pull the values from the join dict, jd.
 ``
 
 for any sample idc, join in sample, which is needed by
-_append_idc_joins.
+_join_idc.
 
 ``
         for sidc in self._sampleidcs():
@@ -980,14 +951,13 @@ put together the select string for the query. always select
 patientcontainer.
 
 `` #py
-        selectstr = self._selectstr(selects, verbose, ["patientcontainer.*"], idc)  
+        selectstr = self._selectstr(selects, ["patientcontainer.*"], lists, tmptables, idc, idctmptables, verbose, pidc=pidc)
 ``
 
-put together the join string for the query. join in verbose and
-silent.
+put together the join string for the query. 
 
 ``
-        joinstr = self._joinstr(joins, verbose + silent, idc, pidc=pidc)  
+        joinstr = self._joinstr(joins, lists, tmptables, idc, idctmptables, verbose, pidc=pidc)  
 ``
 
 get the where string.
@@ -1140,13 +1110,6 @@ on verbose_all include all constants in the verbose array.
             verbose = vaa
 ``
 
-put the keys for the arguments into the verbose array.
-
-``
-        if trials is not None:
-            verbose.append(trial)
-``
-
 for now always include the sampleid.
 
 ``
@@ -1196,11 +1159,11 @@ get the idc part of the select string.
             self.sidc(): [f"idc_{self.sidc()}.psn as '{sampleid}'"],
             self.pidc(pidc): [f"idc_{self.pidc(pidc)}.psn as '{patientid}'"],                   
         }
-        idcselectstr = self._selectstr(selects, verbose, [], idc)  
+        idcselectstr = self._selectstr(selects, [], lists, tmptables, idc, idctmptables, verbose, pidc=pidc)  
 ``
 
 for any patient idc, join in patientcontainer, which is needed by
-_append_idc_joins.
+_join_idc.
 
 ``
         joins = {
@@ -1210,10 +1173,12 @@ _append_idc_joins.
             joins[pidc] = self.jd["sample_to_patient"]
 ``
 
-get the join string for idcs.
+get the join string.
+
+todo why called idcjoinstr?
 
 ``
-        idcjoinstr = self._joinstr(joins, verbose, idc, pidc=pidc)
+        idcjoinstr = self._joinstr(joins, lists, tmptables, idc, idctmptables, verbose, pidc=pidc)
 ``
 
 get the top string.
@@ -1287,6 +1252,8 @@ now iterate the findings and get their recorded values.
 
 construct the query for the recorded values.
 
+go from laborfinding to recordedvalue via labfindinglabval.
+
 todo prefetch units?
 
 ``/finding/values/query:
@@ -1295,11 +1262,27 @@ todo prefetch units?
 
                 -- go from laborfinding to recorded value
                 join centraxx_labfindinglabval as labfindinglabval on labfindinglabval.laborfinding = laborfinding.oid
-                join centraxx_recordedvalue as recordedvalue on labfindinglabval.oid = recordedvalue.oid
+                join centraxx_recordedvalue as recordedvalue on labfindinglabval.oid = recordedvalue.oid"""
+``
 
-                --go from labfindinglabval to the laborvalue for the messparam
-                join centraxx_laborvalue laborvalue on labfindinglabval.laborvalue = laborvalue.oid
+join the laborvalue (messparameter) differently in cxx 3 and cxx 4.
 
+``
+            if self.cxx() == "3":
+                query += """--go directly to laborvalue
+                join centraxx_laborvalue laborvalue on labfindinglabval.laborvalue = laborvalue.oid"""
+            elif self.cxx() == "4":
+                query += """                
+                -- go to laborvalue via crftempfield
+                join centraxx_crftempfield crftempfield on labfindinglabval.crftempfield = crftempfield.oid
+                join centraxx_laborvalue laborvalue on crftempfield.laborvalue = laborvalue.oid
+                """
+``
+
+continue the query the same.
+
+``
+            query += """
                 --go from laborvalue to unit
                 left join centraxx_unity unit on laborvalue.unit = unit.oid
 
@@ -1606,6 +1589,18 @@ add labvals to method.
             if dig(row, "catalog") is not None:
                 labval["catalog"] = dig(row, "catalog")
             labval["type"] = row["labval_type"]
+``
+
+for optiongroups and enumerations, add the allowed controlled vocabulary for this labval.
+
+``
+            if labval["type"] == "OPTIONGROUP" or labval["type"] == "ENUMERATION":
+                labval["usageentry"] = self.usageentry(labvals=[labval])
+``
+
+add the labval.
+
+``
             out[methodcode]["labvals"][labvalcode] = labval
 ``
 
@@ -1630,24 +1625,12 @@ init arrays to avoid multiple default parameters.
             files = {}
 ``
         
-
 verbose all array holds the possible verbose options.
-
-``
-        vaa = [tr.address, tr.login]
-``
-
-put the keys for the given arguments into the verbose array for joining them in.
 
 tr.address and tr.login are catch-alls for address and login related fields.
 
 ``
-        if usernames:
-            verbose.append(tr.username)
-        if emails:
-            verbose.append(tr.address)
-        if lastlogin:
-            verbose.append(tr.login)
+        vaa = [tr.address, tr.login]
 ``
 
 put the arguments in a dict of lists.
@@ -1669,7 +1652,7 @@ tables.
         (tmptables, idctmptables) = self._makemove(files, lists, idc, 100)
 ``
 
-todo wherestring and build query?
+todo selectstr, wherestring and build query?
 
 remove the temporary tables holding bcp data.
 
@@ -1794,7 +1777,7 @@ return.
 usageentry gives the usageentries.
 
 ``/usageentry:
-    def usageentry(self):
+    def usageentry(self, labvals:list=None):
         ``.``
 ``
 
@@ -1843,12 +1826,35 @@ the result is keyed by code and language like this:
 table: the name of the centraxx table without centraxx_ prefix  
 code: a specific code, if none given, all code - name mappings for table are given  
 lang: de|en  
-ml_table: if the name of the table connecting to multilingualentry is not simlpy the queried table name followed by "_ml_name", give the connecting table's name here. eg: name('laborvaluegroup', ..., ml_name='labval_grp_ml_name')  
+ml_table (cxx3): if the name of the table connecting to multilingualentry is not simlpy the queried table name followed by "_ml_name", give the connecting table's name here. eg: name('laborvaluegroup', ..., ml_name='labval_grp_ml_name')
 
 
 ``/name:
     def name(self, table:str, code:str=None, lang:str=None, ml_table:str=None):
         ``.``
+``
+
+the db queries differ for cxx3 and cxx4.
+
+``
+        if self.cxx() == "3":
+            return self._name_cxx3(table, code, lang, ml_table)
+        elif self.cxx() == "4":
+            return self._name_cxx4(table, code, lang)
+``
+
+_name_cxx3 gives display names for cxx 3.
+
+``/_name_cxx3:
+    def _name_cxx3(self, table:str, code:str=None, lang:str=None, ml_table:str=None):
+        ``.``
+``
+
+check that table and ml_table are valid sql identifiers.
+
+``
+        if not isidentifier(table) or (ml_table is not None and not isidentifier(ml_table)):
+            raise Exception(f"names {table} and {ml_table} need to be valid sql identifiers.")
 ``
 
 interlacing the table name assumes that the referencing pattern for
@@ -1919,6 +1925,80 @@ structure by code and lang and return.
         return out
 ``
 
+_name_cxx4 gives display names for cxx 4.
+
+``/_name_cxx4:
+    def _name_cxx4(self, table:str, code:str=None, lang:str=None):
+        ``.``
+``
+
+check that table is a valid sql identifier.
+
+``
+        if not isidentifier(table):
+            raise Exception(f"name {table} needs to be a valid sql identifier.")
+``
+
+the field name is exactly as the table name, except for organisationunit.
+
+``
+        fieldname = table
+        if table == "organisationunit":
+            fieldname = "organizationunit"
+``
+
+the query.
+
+``
+        query = f"select lang, ml_name as name, {table}.code from centraxx_multilingual multilingual join centraxx_{table} {table} on {table}.oid = multilingual.{table} where multilingual.{table} is not null"
+``
+
+the following is actually the same as for cxx 3, scrape the seperate
+_name_cxx3 and _name_cxx4 methods?
+
+restrict the query to specific lang or code if given.
+
+``
+        wherestrings = []
+        args = []
+        if code != None:
+            wherestrings.append(self._whereparam("[" + table + "].code"))
+            args.append(code)
+        if lang != None:
+            wherestrings.append(self._whereparam("multilingual.lang"))
+            args.append(lang)
+``
+
+only add sql-where if needed.
+
+``
+        if len(wherestrings) > 0:
+            query += " where "
+            # join where clauses by and
+            query += " and ".join(wherestrings)
+``
+
+query.
+
+``
+        res = self.db.qfad(query, *args)
+``
+
+structure by code and lang and return.
+
+``
+        out = {}
+        for line in res:
+            code = line["code"]
+            lang = line["lang"]
+            if not code in out:
+               out[code] = {}
+            out[code][lang] = line["name"]
+        return out
+``
+
+
+
 sidc returns the main idc code by which samples are referenced as
 specified in the settings. 
 
@@ -1940,6 +2020,16 @@ instead of the settings' pidc.
         if not self.db.target in self.settings['patientid']:
             raise Exception(f"please specify the main patient idcontainer for {self.db.target} in settings.yaml")
         return self.settings['patientid'][self.db.target]
+``
+
+cxx gives the centraxx version for db target from settings.
+
+``/cxx:
+    def cxx(self) -> str:
+        v = dig(self.settings, f"cxx/{self.db.target}")
+        if v is None:
+            return None
+        return str(v)
 ``
 
 _sampleidcs returns the idcs from settings that are specific for sample.
@@ -2039,6 +2129,75 @@ fill in the concrete idcs when encountering patientid or sampleid.
         return out
 ``
 
+_is_idc says whether a string is an idcontainer mentioned in
+settings.yaml or passed as sidc or pidc argument.
+
+``/_is_idc:
+    def _is_idc(self, key:str, sidc:str=None, pidc:str=None): # -> bool
+        return key in self.settings["idc"] or key == self.sidc() or key == self.pidc(pidc)
+``
+
+_splitidc splits an array of tr constants and idc keys into non-idc
+(tr constants) and idc keys.
+
+``/_splitidc:
+    def _splitidc(self, arr:list, pidc:str=None): # -> (list, list)
+        ``.``
+``
+
+is the verbose key idc?
+
+``
+        nonidc = []
+        idc = []
+        for k in arr:
+            if self._is_idc(k, pidc=pidc):
+                idc.append(k)
+            else:
+                nonidc.append(k)
+        return (nonidc, idc)
+``
+
+_collkeys collects the keys join needs from lists, temporary tables
+and verbose. preserves order and ensures uniqueness.
+
+``/_collkeys:
+    def _collkeys(self, lists:dict=None, tmptables:dict=None, verbose:list=None):
+        ``.``
+``
+
+init None params.
+
+``
+        if lists is None:
+            lists = {}
+        if tmptables is None:
+            tmptables = {}
+        if verbose is None:
+            verbose = []
+``
+
+add the keys of lists and temporary tables.
+
+``
+        out = []
+        for k in lists.keys():
+            if lists[k] is not None and k not in out:
+                out.append(k)
+        for k in tmptables.keys():
+            if tmptables[k] is not None and k not in out:
+                out.append(k)
+``
+
+append the items of the verbose list and return.
+
+``
+        for k in verbose:
+            if not k in out:
+                out.append(k)
+        return out
+``
+
 _fill_in_primary adds a reference to the given sample's primary sample,
 if there is one.
 
@@ -2070,38 +2229,57 @@ Idable.
             sample.primary = Idable(ids=primary.ids, mainidc=primary.mainidc)
 ``
 
-_selectstr filters the selects by the verbose array and returns the
-sql select string. selecta is for fields that should be selected
-regardless if they're in the verbose array or not.
+_selectstr gives the selects for idc keys and verbose array. unlike
+_joinstr, keys in lists and tmptables aren't included automatically,
+cause they may be needed in where but are not necessarily interesting
+for the output (is that true?). selecta is for fields that should be
+selected regardless if they're in the verbose array or not.
 
 the idc argument assumes that the sample table is joined it. // todo is this still true?
 
 ``/_selectstr: #py
-    def _selectstr(self, selects, verbose, selecta, idc):
-        for verb in verbose:
+    def _selectstr(self, selects, selecta, lists, tmptables, idclists, idctmptables, verbose, pidc:str=None):
+        ``.``
+``
+
+split verbose into non-idc and idc.
+
+collect the idc keys.
+
+``
+        (vnonidc, vidc) = self._splitidc(verbose, pidc=pidc)
+        nonidc = self._collkeys(lists, tmptables, vnonidc)
+        idc = self._collkeys(idclists, idctmptables, vidc)
+``
+
+put in the selects for non-idc.
+
+``
+        for key in nonidc:
             ``.``        
 ``
 
-skip verbose entries that are not in the selects dict, they are
-probably idc selects that are handled later.
+skip keys that are not in the selects dict (this way the calling
+functions can control which keys not to include in the result, even
+though they might be needed in the where string).
 
 ``
-            if not verb in selects:
+            if not key in selects:
                 continue
 ``
 
 put in the select line(s).
 
 ``
-            for s in selects[verb]:
+            for s in selects[key]:
                 selecta.append(s)
 ``
 
 append idc selects.
 
 ``/_selectstr #py
-        selecta = self._append_idc_select(selecta, idc, verbose)
-``      
+        selecta = self._select_idc(selecta, idc)
+``
 
 get the selections and joins as string.
 
@@ -2110,72 +2288,12 @@ get the selections and joins as string.
         return selectstr
 ``
 
-_joinstr puts together the joins needed by verbose array and idc keys
-and returns the sql join string.
+_select_idc adds the sql select statements for a list of idc keys.
 
-``/_joinstr: #py
-    def _joinstr(self, joins, verbose, idc, pidc=None):
+``/_select_idc:
+    def _select_idc(self, selecta, idca:list):
         ``.``
 ``
-
-first put in the idc joins, cause other joins might need them.
-
-``
-        joina = []
-        joina = self._append_idc_join(joina, idc, verbose, joins, pidc=pidc)
-``
-
-now put in joins for verbose.
-
-could you substract idc from verbose here cause there were already taken care of?
-
-``
-        for verb in verbose: 
-            ``.``
-``
-
-
-skip verbose entries that are not in the joins dict, //they are 
-probably idc joins that are handled later. ?true?
-
-``
-            if not verb in joins:
-                continue
-``
-
-put in the join line(s). make sure that join clauses aren't included
-double, for example both locationpath and locationname join in
-samplelocation, so check that it's not already in the join array.
-
-``
-            for s in joins[verb]:
-                if not s in joina:
-                    joina.append(s)
-``
-
-
-get the joins as string.
-
-`` #py
-        joinstr = " \n".join(joina)
-        return joinstr
-``
-
-_append_idc_select adds the sql select statements for an idc dict.
-
-``/_append_idc_select:
-    def _append_idc_select(self, selecta, idc, verbose):
-        ``.``
-``
-
-put in the members of verbose touched by idc.
-
-``
-  idca = []
-  for verb in verbose:
-    if verb in self.settings["idc"]:
-      idca.append(verb)
-``    
 
 make select strings and append them.
 
@@ -2192,23 +2310,70 @@ return the selecta with appended strings.
   return selecta
 ``
 
-_append_idc_join adds the sql join statements for an idc dict.
+_joinstr puts together the joins needed for the lists and temporary
+tables of non-idc and idc keys, and verbose. it returns the sql join
+string.
 
-``/_append_idc_join: #py
-    def _append_idc_join(self, joina, idc, verbose, joins, pidc=None):
+``/_joinstr: #py
+    def _joinstr(self, joins, lists, tmptables, idclists, idctmptables, verbose, pidc:str=None):
         ``.``
 ``
 
-put in the members of verbose touched by idc and the keys of idc into
-a common array.
+make two lists of what to join in, one for non-idc, one for idc.
 
 ``
-        idca = []
-        for verb in verbose:
-          if verb in self.settings["idc"] or verb == self.sidc() or verb == self.pidc(pidc):
-            idca.append(verb)
-        if idc is not None:
-          idca.extend(idc.keys())
+        (vnonidc, vidc) = self._splitidc(verbose, pidc=pidc)
+        nonidc = self._collkeys(lists, tmptables, vnonidc)
+        idc = self._collkeys(idclists, idctmptables, vidc)
+``
+
+first put in the idc joins, cause other joins might need them.
+
+``
+        joina = []
+        joina = self._join_idc(joina, idc, joins)
+``
+
+now put in joins for non-idc.
+
+could you substract idc from verbose here cause there were already taken care of?
+
+``
+        for key in nonidc: 
+            ``.``
+``
+
+
+skip keys that are not in the joins dict // still necessary if idc-joins are sorted out before?
+
+``
+            if not key in joins:
+                continue
+``
+
+put in the join line(s). make sure that join clauses aren't included
+double, for example both locationpath and locationname join in
+samplelocation, so check that it's not already in the join array.
+
+``
+            for s in joins[key]:
+                if not s in joina:
+                    joina.append(s)
+``
+
+
+get the joins as string.
+
+`` #py
+        joinstr = " \n".join(joina)
+        return joinstr
+``
+
+_join_idc adds the sql join statements for the idc keys of the query.
+
+``/_join_idc: #py
+    def _join_idc(self, joina, idca:list, joins):
+        ``.``
 ``
 
 add a join for each member of the idc array.
@@ -2264,9 +2429,12 @@ join in idcontainer via patientcontainer for PATIENT:
 
 return the selecta with appended strings.
 
-``/_append_idc_join
+``/_join_idc
         return joina
 ``
+
+
+
 
 _where returns the wherestring and args array for the provided
 lists and temporary tables.
@@ -2464,7 +2632,7 @@ check against the temporary table
             if needsor:
                 wherestr += " or "
             wherestr += dbfield + " in "
-            wherestr += f"(select stdin from {tmptable})"
+            wherestr += f"(select stdin from tempdb..{tmptable})"#bm
 ``
 
 
@@ -2621,7 +2789,7 @@ go over the tables and drop them.
         for key, tablename in tmptables.items():
             if not isidentifier(tablename):
                 raise Exception("table name {tablename} needs to be a valid sql identifier.")
-            q = f"drop table {tablename}"
+            q = f"drop table tempdb..{tablename}"
             #print(q)
             self.db.query(q)  # todo is kairos_spring used again after this?
 ``
@@ -2723,6 +2891,7 @@ make the temporary tables, insert the values and remember the table names.
 ``
         out = {}
         for key, lst in d.items():
+            #name = "tempdb..#" + prefix + key
             name = "#" + prefix + key
             if not isidentifier(name):
                 raise Exception(f"name {name} needs to be a valid sql identifier.")
@@ -2858,7 +3027,7 @@ if no idables return.
 open the file.
 
 ``
-    with open(outfile, "w") as f:
+    with open(outfile, "w", newline="") as f:
         ``write``
 ``
 
@@ -2874,7 +3043,7 @@ collect the column names.
                     colnames.append(col)
         #print("colnames:")
         #print(colnames)
-        writer = csv.DictWriter(f, fieldnames=colnames, delimiter=delim)        #bm
+        writer = csv.DictWriter(f, fieldnames=colnames, delimiter=delim) 
         writer.writeheader()
 ``
 
@@ -3010,7 +3179,7 @@ for date.
                 fdict[vkey] = rec.rec
 ``
 
-for multi and catalog rec, put all entries in it's rec list into one field.
+for multi and catalog rec, put all entries in its rec list into one field.
 
 ``
             if isinstance(rec, MultiRec):
@@ -3031,7 +3200,7 @@ after adding the recorded values append the finding dict.
 after the loop open the csv file.
 
 ``/finding_csv
-    with open(outfile, "w") as f:
+    with open(outfile, "w", newline="") as f:
         ``write``
 ``
 
