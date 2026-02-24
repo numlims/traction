@@ -292,8 +292,8 @@ class traction:
         vaa = [cxxkitid, kitid, locationname, locationpath, orga, parentid, 
                project, receptacle, type,
                secondprocessing, stockprocessing, trial]
-        vaa.extend(self._patientidcs(pidc))
-        vaa.extend(self._sampleidcs())                
+        vaa.extend(self._pidcs(pidc))
+        vaa.extend(self._sidcs())                
         if not self.sidc() in verbose:
             verbose.insert(0, self.sidc())
         if verbose_all == True:
@@ -399,7 +399,7 @@ class traction:
             orga: self.jd["sample_to_orga"],
             trial: self.jd["sample_to_trial"]
         }
-        for pidc in self._patientidcs(pidc):
+        for pidc in self._pidcs(pidc):
             joins[pidc] = self.jd["sample_to_patient"]
         joinstr = self._joinstr(joins, lists, tmptables, idc, idctmptables, verbose, pidc=pidc)
         (wherestr, whereargs) = self._where(lists, tmptables, idc, idctmptables, like=like)
@@ -424,7 +424,7 @@ class traction:
             ids = []
             #if dig(r, sampleid) is not None:
             #    ids.append(Identifier(id=dig(r, sampleid), code=self.sidc()))
-            for idc in self._sampleidcs():
+            for idc in self._sidcs():
                 #print("idc:" + idc)
                 #print("r:" + str(r))
                 if idc.lower() in r and r[idc.lower()] is not None:
@@ -439,9 +439,13 @@ class traction:
             if len(pids) > 0:
                 parent = Idable(ids=pids, mainidc=self.sidc())
             patids = []
-            if dig(r, patientid) is not None:   # todo include patient oid?
-                patids.append(Identifier(id=dig(r, patientid), code=self.pidc(pidc)))
-            patient = None
+            for idc in self._pidcs(pidc):
+                if idc.lower() in r and r[idc.lower()] is not None:
+                    patids.append( Identifier(id=dig(r, idc.lower()), code=idc.upper()) )
+            
+            #if dig(r, patientid) is not None:   # todo include patient oid?
+            #    patids.append(Identifier(id=dig(r, patientid), code=self.pidc(pidc)))
+            #patient = None
             if len(patids) > 0:
                 patient = Idable(ids=patids, mainidc=self.pidc(pidc))
             s = Sample(
@@ -511,7 +515,7 @@ class traction:
         if idc is None:
             idc = {}
         vaa = [orga]
-        vaa.extend(self._patientidcs(pidc))        
+        vaa.extend(self._pidcs(pidc))        
         if not self.pidc(pidc) in verbose:
             verbose.insert(0, self.pidc(pidc))
         verbose = self._concrete_idcs(verbose, pidc=pidc)
@@ -536,7 +540,7 @@ class traction:
             orga: self.jd["patient_to_orga"],
             trial: self.jd["patient_to_trial"]
         }
-        for sidc in self._sampleidcs():
+        for sidc in self._sidcs():
             joins[sidc] = self.jd["patient_to_sample"]
         selectstr = self._selectstr(selects, ["patientcontainer.*"], lists, tmptables, idc, idctmptables, verbose, pidc=pidc)
         joinstr = self._joinstr(joins, lists, tmptables, idc, idctmptables, verbose, pidc=pidc)  
@@ -558,7 +562,7 @@ class traction:
         pats = []
         for r in res:
             ids = [ Identifier(id=dig(r, patientid), code=self.pidc(pidc)) ]
-            for idc in self._patientidcs(pidc):
+            for idc in self._pidcs(pidc):
                 if idc in r and r[idc] is not None:
                     ids.append( Identifier(id=dig(r, idc), code=idc.upper()) )
             pat = Patient(
@@ -610,7 +614,7 @@ class traction:
         joins = {
             trial: self.jd["sample_to_trial"]
         }
-        for pidc in self._patientidcs(pidc):
+        for pidc in self._pidcs(pidc):
             joins[pidc] = self.jd["sample_to_patient"]
         idcjoinstr = self._joinstr(joins, lists, tmptables, idc, idctmptables, verbose, pidc=pidc)
         topstr = self._top(top)
@@ -1316,19 +1320,11 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
         if not self.db.target in self.settings['patientid']:
             raise Exception(f"please specify the main patient idcontainer for {self.db.target} in settings.yaml")
         return self.settings['patientid'][self.db.target]
-    def cxx(self) -> str:
+    def _sidcs(self) -> list:
         """
-         cxx gives the centraxx version for db target from settings.
-        """
-        v = dig(self.settings, f"cxx/{self.db.target}")
-        if v is None:
-            return None
-        return str(v)
-    def _sampleidcs(self) -> list:
-        """
-         _sampleidcs returns the idcs from settings that are specific for sample.
+         _sidcs returns the idcs from settings that are specific for sample.
          
-         rather make this a section in conf?
+         rather make this a section in conf? but maybe not, keep the conf simple and let the program sort out pidc and sidc.
          
          # idc holds idcontainer codes that should be queryable as command line flags 
          idc:
@@ -1346,8 +1342,10 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
         # include the main sample idcontainer
         out.append(self.sidc())
         return out
-    def _patientidcs(self, pidc:str=None) -> list:
+    def _pidcs(self, pidc:str=None) -> list:
         """
+         _pidcs returns the idcs from settings that are specific for
+         sample.
         """
         out = []
         for idc in self.settings["idc"]:
@@ -1386,6 +1384,14 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
             else:
                 out[key] = val
         return out
+    def cxx(self) -> str:
+        """
+         cxx gives the centraxx version for db target from settings.
+        """
+        v = dig(self.settings, f"cxx/{self.db.target}")
+        if v is None:
+            return None
+        return str(v)
 
     def _is_idc(self, key:str, sidc:str=None, pidc:str=None): # -> bool
         """

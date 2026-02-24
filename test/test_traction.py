@@ -10,6 +10,7 @@ def test_run():
     sample = res[0]
     assert sample.locationpath == "NUM --> HGW Greifswald --> PP Lager RT SNID"
     assert sample.id("EXTSAMPLEID") == "asdf4"
+    assert sample.patient.id("LIMSPSN") == "fim-1"
     res = trac.patient(sampleids=[sampleid])
     assert len(res) == 1
     pat = res[0]
