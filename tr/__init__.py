@@ -442,10 +442,8 @@ class traction:
             for idc in self._pidcs(pidc):
                 if idc.lower() in r and r[idc.lower()] is not None:
                     patids.append( Identifier(id=dig(r, idc.lower()), code=idc.upper()) )
-            
-            #if dig(r, patientid) is not None:   # todo include patient oid?
-            #    patids.append(Identifier(id=dig(r, patientid), code=self.pidc(pidc)))
-            #patient = None
+
+            patient = None
             if len(patids) > 0:
                 patient = Idable(ids=patids, mainidc=self.pidc(pidc))
             s = Sample(
