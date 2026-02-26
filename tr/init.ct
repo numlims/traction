@@ -63,11 +63,11 @@ class traction:
     # settings / idc related
     ``sidc``
     ``pidc``
-    ``cxx``
-    ``_sampleidcs``
-    ``_patientidcs``
+    ``_sidcs``
+    ``_pidcs``
     ``_concrete_idcs``
     ``_concrete_idcs_dict``
+    ``cxx``
 
     ``_is_idc``
     ``_splitidc``
@@ -274,8 +274,8 @@ for subsequent joins that depend on it.
 append the idcs for patient and sample to the vaa array.  
 
 ``
-        vaa.extend(self._patientidcs(pidc))
-        vaa.extend(self._sampleidcs())                
+        vaa.extend(self._pidcs(pidc))
+        vaa.extend(self._sidcs())                
 ``
 
 always join in the sampleid, as the first array element for subsequent
@@ -580,7 +580,7 @@ for any patient idc, join in patientcontainer, which is needed by
 _join_idc.
 
 ``
-        for pidc in self._patientidcs(pidc):
+        for pidc in self._pidcs(pidc):
             joins[pidc] = self.jd["sample_to_patient"]
 ``
 
@@ -652,7 +652,7 @@ collect the sample's ids.
             ids = []
             #if dig(r, sampleid) is not None:
             #    ids.append(Identifier(id=dig(r, sampleid), code=self.sidc()))
-            for idc in self._sampleidcs():
+            for idc in self._sidcs():
                 #print("idc:" + idc)
                 #print("r:" + str(r))
                 if idc.lower() in r and r[idc.lower()] is not None:
@@ -684,8 +684,10 @@ also reference the patient as Idable.
 
 ``
             patids = []
-            if dig(r, patientid) is not None:   # todo include patient oid?
-                patids.append(Identifier(id=dig(r, patientid), code=self.pidc(pidc)))
+            for idc in self._pidcs(pidc):
+                if idc.lower() in r and r[idc.lower()] is not None:
+                    patids.append( Identifier(id=dig(r, idc.lower()), code=idc.upper()) )
+
             patient = None
             if len(patids) > 0:
                 patient = Idable(ids=patids, mainidc=self.pidc(pidc))
@@ -852,7 +854,7 @@ sample, cause then one patient with fifteen samples would come out as
 fifteen result rows?
 
 ``
-        vaa.extend(self._patientidcs(pidc))        
+        vaa.extend(self._pidcs(pidc))        
 ``
 
 
@@ -943,7 +945,7 @@ for any sample idc, join in sample, which is needed by
 _join_idc.
 
 ``
-        for sidc in self._sampleidcs():
+        for sidc in self._sidcs():
             joins[sidc] = self.jd["patient_to_sample"]
 ``
 
@@ -1020,7 +1022,7 @@ collect the ids.
 
 ``
             ids = [ Identifier(id=dig(r, patientid), code=self.pidc(pidc)) ]
-            for idc in self._patientidcs(pidc):
+            for idc in self._pidcs(pidc):
                 if idc in r and r[idc] is not None:
                     ids.append( Identifier(id=dig(r, idc), code=idc.upper()) )
 ``
@@ -1169,7 +1171,7 @@ _join_idc.
         joins = {
             trial: self.jd["sample_to_trial"]
         }
-        for pidc in self._patientidcs(pidc):
+        for pidc in self._pidcs(pidc):
             joins[pidc] = self.jd["sample_to_patient"]
 ``
 
@@ -2032,9 +2034,9 @@ cxx gives the centraxx version for db target from settings.
         return str(v)
 ``
 
-_sampleidcs returns the idcs from settings that are specific for sample.
+_sidcs returns the idcs from settings that are specific for sample.
 
-rather make this a section in conf?
+rather make this a section in conf? but maybe not, keep the conf simple and let the program sort out pidc and sidc.
 
 # idc holds idcontainer codes that should be queryable as command line flags 
 idc:
@@ -2045,8 +2047,8 @@ idc:
   patient:
     - mpi
 
-``/_sampleidcs:
-    def _sampleidcs(self) -> list:
+``/_sidcs:
+    def _sidcs(self) -> list:
         ``.``
 ``
 
@@ -2063,11 +2065,11 @@ target, skip them.
         return out
 ``
 
-patientidcs returns the idcs from settings that are specific for
+_pidcs returns the idcs from settings that are specific for
 sample.
 
-``/_patientidcs:
-    def _patientidcs(self, pidc:str=None) -> list:
+``/_pidcs:
+    def _pidcs(self, pidc:str=None) -> list:
         ``.``
 ``
 
