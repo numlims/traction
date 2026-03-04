@@ -35,7 +35,7 @@ get the settings before starting traction for setting up idcontainer flags.
 for now, if no settings, do nothing.
 
 ``
-    if settings == None:
+    if settings is None:
         return
 ``      
 
@@ -113,7 +113,7 @@ split the verbose array.
 
 ``
     verbose = []
-    if args.verbose != None:
+    if args.verbose is not None:
         verbose = args.verbose.split(",")
 ``
 
@@ -351,7 +351,6 @@ import.
 ``/import:
 import argparse
 import cnf
-from dbcq import dbcq
 from dbcq import TargetException
 import tr
 #import simplejson
@@ -442,7 +441,7 @@ whichever case it is in settings["idc"].
     out = {}
     for item in settings["idc"]:
 
-      if item.lower() in args and args[item.lower()] != None:
+      if item.lower() in args and args[item.lower()] is not None:
         out[item] = args[item.lower()].split(",")
     return out
 ``

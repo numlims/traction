@@ -1,7 +1,6 @@
 # automatically generated, DON'T EDIT. please edit main.ct from where this file stems.
 import argparse
 import cnf
-from dbcq import dbcq
 from dbcq import TargetException
 import tr
 #import simplejson
@@ -24,7 +23,7 @@ def getidc(args:dict, settings):
     out = {}
     for item in settings["idc"]:
 
-      if item.lower() in args and args[item.lower()] != None:
+      if item.lower() in args and args[item.lower()] is not None:
         out[item] = args[item.lower()].split(",")
     return out
 def datespan(datestr:str, format:str="%Y-%m-%d"):
@@ -98,7 +97,7 @@ def main():
     except cnf.MakeCnfException as e:
         print("traction: " + str(e))
         return 1
-    if settings == None:
+    if settings is None:
         return
     parser = argparse.ArgumentParser()
 
@@ -156,7 +155,7 @@ def main():
     # print(args.verbose)
     # print(args)
     verbose = []
-    if args.verbose != None:
+    if args.verbose is not None:
         verbose = args.verbose.split(",")
     try:
         traction = tr.traction(args.db)

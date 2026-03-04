@@ -15,6 +15,7 @@ all:
 
 build:
 	make
+	#ruff check tr
 	python3 -m build --no-isolation
 
 install:
