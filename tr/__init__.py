@@ -265,7 +265,7 @@ class traction:
         self.names_catalogentry = None
         self.names_usageentry = None
 
-    def sample(self, sampleids:list|None=None, oids:list|None=None, idc:dict|None=None, patientids:list|None=None, pidc:str|None=None, parentids:list|None=None, parentoids:list|None=None, locationpaths:list|None=None, trials:list|None=None, kitids:list|None=None, cxxkitids:list|None=None, categories:list|None=None, types:list|None=None, orgas:list|None=None, samplingdates:list|None=None, receiptdates:list|None=None, derivaldates:list|None=None, first_repositiondates:list|None=None, repositiondates:list|None=None, stockprocessingdates:list|None=None, secondprocessingdates:list|None=None, files:dict|None=None, verbose:list|None=None, verbose_all:bool=False, primaryref:bool=False, incl_parents:bool=False, incl_childs:bool=False, incl_tree:bool=False, like:list|None=None, missing=False, order_by:str|None=None, top:int|None=None, print_query:bool=False, raw:bool=False):
+    def sample(self, sampleids:list|None=None, oids:list|None=None, idc:dict|None=None, patientids:list|None=None, pidc:str|None=None, parentids:list|None=None, parentoids:list|None=None, locationpaths:list|None=None, locationnames:list|None=None, trials:list|None=None, kitids:list|None=None, cxxkitids:list|None=None, categories:list|None=None, types:list|None=None, orgas:list|None=None, samplingdates:list|None=None, receiptdates:list|None=None, derivaldates:list|None=None, first_repositiondates:list|None=None, repositiondates:list|None=None, stockprocessingdates:list|None=None, secondprocessingdates:list|None=None, files:dict|None=None, verbose:list|None=None, verbose_all:bool=False, primaryref:bool=False, incl_parents:bool=False, incl_childs:bool=False, incl_tree:bool=False, like:list|None=None, missing=False, order_by:str|None=None, top:int|None=None, print_query:bool=False, raw:bool=False):
         """
          sample gets sample(s) and returns them as a list of Sample instances.
          
@@ -345,6 +345,7 @@ class traction:
           parentid: parentids,
           parentoid: parentoids,
           locationpath: locationpaths,
+          locationname: locationnames,
           trial: trials,
           kitid: kitids,
           cxxkitid: cxxkitids,
@@ -684,7 +685,7 @@ class traction:
             finding = Finding(
                 findingdate=dig(res, "findingdate"),
                 method=res["method"],
-                methodname=res["shortname"],
+                name=res["shortname"],
                 patient=patient,
                 recs=res["values"] if "values" in res else None, # todo None ok?
                 sample=Idable(id=res[sampleid], code=self.sidc(), mainidc=self.sidc()),
@@ -748,7 +749,7 @@ left join centraxx_catalog catalog
                 labval["usageentry"] = self.usageentry(labvals=[labval])
             out[methodcode]["labvals"][labvalcode] = labval
         return out
-    def user(self, usernames:list|None, emails:list|None, lastlogin:list|None, files:dict|None, verbose:list|None):
+    def user(self, usernames:list|None, emails:list|None, lastlogins:list|None, files:dict|None, verbose:list|None, top:int|None=None, verbose_all:bool=False, print_query:bool=False):
         """
         """
         if verbose is None:
@@ -756,12 +757,38 @@ left join centraxx_catalog catalog
         if files is None:
             files = {}
         vaa = [address, login]
+        if verbose_all:
+            verbose = vaa
         lists = {
           username: usernames,
           address: emails,
-          login: lastlogin
+          login: lastlogins
         }
         (tmptables, idctmptables) = self._makemove(files, lists, {}, 100)
+        jselects = {
+            address: [f"address.email as email"],
+            login: [f"credential.last_login_on as lastlogin"]#bm
+        }
+        lselects = [
+            f"participant.username as {username}",
+            f"participant.firstname as firstname",
+            f"participant.lastname as lastname"
+        ]
+        selectstr = self._selectstr(jselects, lselects, lists, tmptables, {}, idctmptables, verbose)
+        joins = {
+            address: self.jd["participant_to_address"],
+            login: self.jd["participant_to_credential"]#bm
+        }
+        joinstr = self._joinstr(joins, lists, tmptables, {}, idctmptables, verbose)
+        (wherestr, whereargs) = self._where(lists, tmptables, {}, idctmptables, like=[])
+        topstr = self._top(top)
+        query = f"select {topstr} {selectstr} from centraxx_participant participant\n{joinstr}"
+        if wherestr.strip() != "":
+            query += f"\nwhere {wherestr}"
+        if print_query:
+            print(query)
+            print(whereargs)
+        res = self.db.qfad(query, whereargs)
         self._cleartt(tmptables)
         self._cleartt(idctmptables)        
         out = []
@@ -770,6 +797,8 @@ left join centraxx_catalog catalog
                 email=dig(r, email),
                 lastlogin=dig(r, lastlogin),
                 username=dig(r, username),
+                firstname=dig(r, "firstname"),
+                lastname=dig(r, "lastname")
             )
             out.append(user)
         return out
@@ -1009,6 +1038,7 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
         wheredict = { 
           trial: { "field": "flexistudy.code" },
           locationpath: { "field": "samplelocation.locationpath" },
+          locationname: { "field": "samplelocation.locationid" },          
           method: { "field": "labormethod.code" },
           kitid: { "field": "samplekit.kitid" },
           cxxkitid: { "field": "samplekit.cxxkitid" },
@@ -1025,7 +1055,10 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
           first_repositiondate: { "field": "sample.first_repositiondate", "type": "date" },
           repositiondate: { "field": "sample.repositiondate", "type": "date" },
           stockprocessingdate: { "field": "sample.stockprocessingdate", "type": "date" },
-          secondprocessingdate: { "field": "sample.secondprocessingdate", "type": "date" }
+          secondprocessingdate: { "field": "sample.secondprocessingdate", "type": "date" },
+          username: { "field": "participant.username" },
+          address: { "field": "address.email" },
+          login: { "field": "credential.last_login_on", "type": "date" }
         }
         wherestrs = []
         whereargs = []

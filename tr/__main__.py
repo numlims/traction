@@ -112,6 +112,7 @@ def main():
     parser.add_argument("--parentid", help="sampleid(s) of parent samples")    
     parser.add_argument("--trial", help="trial code(s)")
     parser.add_argument("--locationpath", help="locationpath(s)")
+    parser.add_argument("--locationname", help="locationname(s) (rackids)")    
     parser.add_argument("--kitid", help="kitid(s)")
     parser.add_argument("--cxxkitid", help="cxxkitid(s)")
     parser.add_argument("--category", help="MASTER|DERIVED|ALIQUOTGROUP")
@@ -171,6 +172,7 @@ def main():
     patientids = lof(tr.patientid, args.patientid, files, filemap)
     trials = lof(tr.trial, args.trial, files, filemap)
     locationpaths = lof(tr.locationpath, args.locationpath, files, filemap)
+    locationnames = lof(tr.locationname, args.locationname, files, filemap)    
     methods = lof(tr.method, args.method, files, filemap)
     catalogs = lof(tr.catalog, args.catalog, files, filemap)    
     kitids = lof(tr.kitid, args.method, files, filemap)
@@ -193,6 +195,7 @@ def main():
                pidc=args.pidc,
                trials=trials,
                locationpaths=locationpaths,
+               locationnames=locationnames,               
                kitids=kitids,
                cxxkitids=cxxkitids,
                categories=categories,
@@ -284,7 +287,7 @@ def main():
             print(jsonpickle.encode(res, unpicklable=False, indent=4))
         #print(simplejson.dumps(res, default=str, indent=4))
     elif args.what == "user":
-        res = traction.user(username=usernames, emails=emails, lastlogin=datespan(args.last_login), files=filemap, verbose=verbose)
+        res = traction.user(usernames=usernames, emails=emails, lastlogins=datespan(args.last_login), files=filemap, verbose=verbose, print_query=args.query, verbose_all=args.verbose_all)
         print(jsonpickle.encode(res, unpicklable=False, indent=4))
     elif args.what == "catalog":
         res = traction.catalog(catalogs=catalogs, files=filemap)
