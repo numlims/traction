@@ -29,6 +29,7 @@ class traction:
     ``finding``
     ``method``
     ``user``
+    ``orga``
     ``catalog``
     ``usageentry``
     ``name``
@@ -54,8 +55,9 @@ class traction:
     
     ``_fill_in_primary``
 
-    # tmp tables
+    # lists and tmp tables
     ``_makemove``
+    ``_makealllists``
     ``_readfiles``
     ``_maketables``
     ``_cleartt``
@@ -226,21 +228,23 @@ sample gets sample(s) and returns them as a list of Sample instances.
 pass sampleids and other values to filter for as lists of strings,
 e.g. `sampleids=["a", "b", "c"]`.
 
-use the idc param to filter for idcontainer lists by passing a dict of
-lists keyed by idcontainer code, e.g. `idc={"extsampleid": ["a", "b", "c"]}`.
+pass idcontainer lists to idc, like `idc={"extsampleid": ["a", "b", "c"]}`.
 
-put info that should be joined into the result into the verbose array,
-e.g.  `verbose=[tr.locationpath]`. to join in everything, say
+pass fields that should be joined in into the verbose array, e.g.
+`verbose=[tr.locationpath]`. to join in everything, say
 `verbose_all=True`. this is slower than non-verbose.
 
 pass dates as a tuple of from and to datetime, e.g. `samplingdates=(datefrom, None)`.
 
-to check via like as opposed to exact, put the respective fields into
-the like array, e.g. `like=[tr.locationpath]`.
+to match via like as opposed to exact, pass the respective tr
+constants or idcs to like, e.g. `like=[tr.locationpath]`.
+
+pass `by` to key returned samples by that tr constant or idc. if
+missing is also passed, only missings are returned.
 
 ``/sample: #py
-    def sample(self, sampleids:list|None=None, oids:list|None=None, idc:dict|None=None, patientids:list|None=None, pidc:str|None=None, parentids:list|None=None, parentoids:list|None=None, locationpaths:list|None=None, locationnames:list|None=None, trials:list|None=None, kitids:list|None=None, cxxkitids:list|None=None, categories:list|None=None, types:list|None=None, orgas:list|None=None, samplingdates:list|None=None, receiptdates:list|None=None, derivaldates:list|None=None, first_repositiondates:list|None=None, repositiondates:list|None=None, stockprocessingdates:list|None=None, secondprocessingdates:list|None=None, files:dict|None=None, verbose:list|None=None, verbose_all:bool=False, primaryref:bool=False, incl_parents:bool=False, incl_childs:bool=False, incl_tree:bool=False, like:list|None=None, missing=False, order_by:str|None=None, top:int|None=None, print_query:bool=False, raw:bool=False):
-        ``.``
+    def sample(self, sampleids:list|None=None, oids:list|None=None, idc:dict|None=None, patientids:list|None=None, pidc:str|None=None, parentids:list|None=None, parentoids:list|None=None, locationpaths:list|None=None, locationnames:list|None=None, trials:list|None=None, kitids:list|None=None, cxxkitids:list|None=None, categories:list|None=None, types:list|None=None, orgas:list|None=None, samplingdates:list|None=None, receiptdates:list|None=None, derivaldates:list|None=None, first_repositiondates:list|None=None, repositiondates:list|None=None, stockprocessingdates:list|None=None, secondprocessingdates:list|None=None, files:dict|None=None, verbose:list|None=None, verbose_all:bool=False, primaryref:bool=False, incl_parents:bool=False, incl_childs:bool=False, incl_tree:bool=False, like:list|None=None, missing=False, order_by:str|None=None, top:int|None=None, by=None, print_query:bool=False, raw:bool=False):
+        ``_``
 ``
 
 init arrays.  don't set them as mutable default parameters
@@ -248,7 +252,7 @@ init arrays.  don't set them as mutable default parameters
 method calls. see
 https://www.geeksforgeeks.org/python/use-mutable-default-value-as-an-argument-in-python/
 
-``
+``_:
         if verbose is None:
             verbose = []
         if like is None:
@@ -344,7 +348,7 @@ passing verbose here would slow it down.
 it shouldn't make a difference to pass verbose_all for primary, cause
 verbose should be filled in any case.
 
-``/sample/incl:
+``/sample/_/incl:
             verbosepass = []
             if primaryref:
                 verbosepass = verbose
@@ -370,7 +374,7 @@ when including samples from the tree, take all the sample oids.
 
 use oids to support aliquotgroups.
 
-``/sample/incl
+``/sample/_/incl
             
             s_oids = get_ids(res, "oid")
 ``
@@ -396,7 +400,7 @@ now put in the sample oids of parents, childs or the whole tree.
 if the parent sampleids should be included, get them from root to
 leaf. collect them into the pids list.
 
-``/sample/incl/parents:
+``/sample/_/incl/parents:
                    p_oids = []
                    self._get_parents(s_oid, p_oids)
 ``
@@ -410,7 +414,7 @@ put the parent oids in, followed by our sample oid.
 
 if the child oids should be included, get them from sample to leaf.
 
-``/sample/incl/childs:
+``/sample/_/incl/childs:
                   c_oids = []
                   self._get_childs(s_oid, c_oids)
 ``
@@ -425,7 +429,7 @@ put the child oids in, preceeded by our sample oid.
 if the whole tree should be included, get the root, and include all
 children from there.
 
-``/sample/incl/tree:
+``/sample/_/incl/tree:
                   p_oids = []
                   self._get_parents(s_oid, p_oids)
                   if len(p_oids) > 0:
@@ -452,7 +456,7 @@ after filling withincl, filter out recurring sampleids. keep each id
 where it first appeared in the array to preserve tree dependencies.
 
 
-``/sample/incl
+``/sample/_/incl
             withincl = list(dict.fromkeys(withincl))
 ``
 
@@ -503,6 +507,13 @@ into the idc dict.
 ``
 
 now idc holds all parameters queryable as idcontainers.
+
+read the lists from files and put them together with the lists passed.
+
+``
+        alllists = self._makealllists(lists, idc, files)
+        #print(alllists)
+``
 
 put files and all lists larger than 100 items into temporary
 tables.
@@ -634,15 +645,59 @@ if raw is wished return the raw result.
             return res
 ``
 
+if missing is passed, and no by, and there's only one query
+parameter, set by to that query parameter.
+
+``
+        if missing and by is None:
+            throwtogether = list(alllists["idc"].keys()) + list(alllists["nonidc"].keys())
+            if len(throwtogether) == 1:
+                by = throwtogether[0]
+            else:
+                raise Exception("--missing needs a tr constant or idc passed to --by")
+``
+
+if a by is passed, return the samples keyed by that value.
+
+if missing is True alongside by, only return what's missing.
+
+``
+        bydict = None
+        if by is not None:
+            if missing:
+                missinglst = []
+                # todo wrap this in function: missinglst =  idc_or_not(alllists, by)
+                if by in alllists["idc"]:
+                    missinglst = alllists["idc"][by]
+                elif by in alllists["nonidc"]:
+                    missinglst = alllists["nonidc"][by]
+            else:
+                bydict = {}
+                ``.``
+``
+
+if query params were passed for this by, they become keys in the
+returned by-dict, this way query params for which there are no samples
+can be found.
+
+``
+                if by in alllists["idc"]:
+                    for byval in alllists["idc"][by]:
+                        bydict[byval] = []
+                if by in alllists["nonidc"]:
+                    for byval in alllists["nonidc"][by]:
+                        bydict[byval] = []
+``
+
+turn the result to samples.
+
 the first implementation tried to take the tablenames/colums as keys
 for the returned json fields, but that doesn't quite work for
 patientpsn, where the key would be just 'idcontainer.psn'. so for now
 joined-in fields are renamed to 'sampleid', 'patientid',
 'parentid' etc. // todo still true?
 
-turn the result to samples.
-
-``
+``/sample/_
         sarr = []
         for r in res:
             ``.``
@@ -728,15 +783,48 @@ build the sample.
                 xposition=dig(r, xposition), 
                 yposition=dig(r, yposition)
             )
-            sarr.append(s)
 ``
 
 buffer each fetch to r with dig, for keys that are not in r.
 
-return.
 
-``/sample
-        return sarr
+
+if by was passed, put the sample in the bydict by the specified key.
+
+if missing was passed, just delete the by-key from the missing list.
+
+for now, idcs are also just fields in the result row (dbcq makes them
+lowercase), so this should work for tr constants and idcs.
+
+``
+            if by is not None:
+                bykey = dig(r, by.lower())
+                if missing:
+                    if bykey in missinglst:
+                        missinglst.remove(bykey)
+                else:
+                    if bykey is not None and not bykey in bydict:
+                        bydict[bykey] = []
+                    bydict[bykey].append(s)
+``
+
+if by wasn't passed, append sample to the array.
+
+``
+            else:
+                sarr.append(s)
+``
+
+return, depending on whether by was passed.
+
+``/sample/_
+        if by is not None:
+            if missing:
+                return missinglst
+            else:
+                return bydict
+        else:
+            return sarr
 ``
 
 import.
@@ -1636,7 +1724,7 @@ return.
 
 
 ``/user:
-    def user(self, usernames:list|None, emails:list|None, lastlogins:list|None, files:dict|None, verbose:list|None, top:int|None=None, verbose_all:bool=False, print_query:bool=False):
+    def user(self, usernames:list|None=None, emails:list|None=None, lastlogins:list|None=None, files:dict|None=None, verbose:list|None=None, top:int|None=None, verbose_all:bool=False, print_query:bool=False):
         ``.``
 ``
 
@@ -1688,7 +1776,7 @@ jselects holds the joined in selects.
 ``
         jselects = {
             address: [f"address.email as email"],
-            login: [f"credential.last_login_on as lastlogin"]#bm
+            login: [f"credential.last_login_on as lastlogin"]
         }
 ``
 
@@ -1715,7 +1803,7 @@ joins holds the join statements needed.
 `` #py
         joins = {
             address: self.jd["participant_to_address"],
-            login: self.jd["participant_to_credential"]#bm
+            login: self.jd["participant_to_credential"]
         }
 ``
 
@@ -1800,7 +1888,42 @@ import.
 from tram import User
 ``
 
-catalogentry gives the catalogentries per catalog.
+orga returns organisationunits.
+
+``/orga:
+    def orga(self, names:bool=False):
+        ``_``
+``
+
+make the query.
+
+``_:
+        query = "select code from centraxx_organisationunit"
+``
+
+run the query.
+
+``
+        res = self.db.qfad(query)
+``
+
+if names should be included, include them.
+
+``
+        names = self.name(table="organisationunit", ml_table="organisatunit_ml_name")
+        for i, _ in enumerate(res):
+            nam = names[res[i]["code"]]
+            res[i]["name_de"] = nam["de"]
+            res[i]["name_en"] = nam["en"]
+``
+
+return.
+
+``
+        return res
+``
+
+catalog gives the catalogentries per catalog.
 
 ``/catalog:
     def catalog(self, catalogs:list|None, files:dict|None):
@@ -2749,7 +2872,7 @@ check against the temporary table
             if needsor:
                 wherestr += " or "
             wherestr += dbfield + " in "
-            wherestr += f"(select stdin from tempdb..{tmptable})"#bm
+            wherestr += f"(select stdin from tempdb..{tmptable})"
 ``
 
 
@@ -2955,12 +3078,64 @@ return non-idc and idc tables.
         return (tmptables, idctmptables) 
 ``
 
+_makealllists reads the lists from files, puts them together with the
+lists passed as lists, and returns them all in one dict,
+keeping nonidc and idc seperate.
+
+``/_makealllists:
+    def _makealllists(self, lists, idc, files):
+        ``_``
+``
+
+make the return dict with one chapter for non idc and one for idc.
+
+``_:
+        alllists = {}
+        alllists["nonidc"] = {}
+        alllists["idc"] = {}
+``
+
+put in the lists.
+
+``
+        for key, lst in lists.items():
+            if lst is not None:
+                alllists["nonidc"][key] = lst
+        for key, lst in idc.items():
+            alllists["idc"][key] = lst
+``
+  
+read the lists from files and split them into non-idc and idc.
+
+``
+        (ff, ffidc) = self._readfiles(files)
+``
+
+put in the lists from files.
+
+``
+        for key, lst in ff.items():
+            if key not in alllists["nonidc"]:
+                alllists["nonidc"][key] = []
+            alllists["nonidc"][key].extend(lst)
+        for key, lst in ffidc.items():
+            if key not in alllists["idc"]:
+                alllists["idc"][key] = []
+            alllists["idc"][key].extend(lst)
+``
+
+return.
+
+``
+        return alllists
+``
+
 _readfiles reads the files from which tmp tables should be build into
 lists.  it returns a tuple of one dict holding the non-idc lists and
 one dict holding the idc lists.
 
 ``/_readfiles:
-    def _readfiles(self, files):
+    def _readfiles(self, files, sidc:str=None, pidc:str=None):
         ``.``
 ``
 
@@ -2982,7 +3157,11 @@ split into non-idc and idc dicts.
         nonidc = {}
         idc = {}
         for key, _ in both.items():
-            if key in self._idcs:
+            if key == sampleid:
+                idc[self.sidc()] = both[key]
+            elif key == patientid:
+                idc[self.pidc(pidc)] = both[key]
+            elif self._is_idc(key, sidc=sidc, pidc=pidc):
                 idc[key] = both[key]
             else:
                 nonidc[key] = both[key]

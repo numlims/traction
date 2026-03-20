@@ -265,24 +265,26 @@ class traction:
         self.names_catalogentry = None
         self.names_usageentry = None
 
-    def sample(self, sampleids:list|None=None, oids:list|None=None, idc:dict|None=None, patientids:list|None=None, pidc:str|None=None, parentids:list|None=None, parentoids:list|None=None, locationpaths:list|None=None, locationnames:list|None=None, trials:list|None=None, kitids:list|None=None, cxxkitids:list|None=None, categories:list|None=None, types:list|None=None, orgas:list|None=None, samplingdates:list|None=None, receiptdates:list|None=None, derivaldates:list|None=None, first_repositiondates:list|None=None, repositiondates:list|None=None, stockprocessingdates:list|None=None, secondprocessingdates:list|None=None, files:dict|None=None, verbose:list|None=None, verbose_all:bool=False, primaryref:bool=False, incl_parents:bool=False, incl_childs:bool=False, incl_tree:bool=False, like:list|None=None, missing=False, order_by:str|None=None, top:int|None=None, print_query:bool=False, raw:bool=False):
+    def sample(self, sampleids:list|None=None, oids:list|None=None, idc:dict|None=None, patientids:list|None=None, pidc:str|None=None, parentids:list|None=None, parentoids:list|None=None, locationpaths:list|None=None, locationnames:list|None=None, trials:list|None=None, kitids:list|None=None, cxxkitids:list|None=None, categories:list|None=None, types:list|None=None, orgas:list|None=None, samplingdates:list|None=None, receiptdates:list|None=None, derivaldates:list|None=None, first_repositiondates:list|None=None, repositiondates:list|None=None, stockprocessingdates:list|None=None, secondprocessingdates:list|None=None, files:dict|None=None, verbose:list|None=None, verbose_all:bool=False, primaryref:bool=False, incl_parents:bool=False, incl_childs:bool=False, incl_tree:bool=False, like:list|None=None, missing=False, order_by:str|None=None, top:int|None=None, by=None, print_query:bool=False, raw:bool=False):
         """
          sample gets sample(s) and returns them as a list of Sample instances.
          
          pass sampleids and other values to filter for as lists of strings,
          e.g. `sampleids=["a", "b", "c"]`.
          
-         use the idc param to filter for idcontainer lists by passing a dict of
-         lists keyed by idcontainer code, e.g. `idc={"extsampleid": ["a", "b", "c"]}`.
+         pass idcontainer lists to idc, like `idc={"extsampleid": ["a", "b", "c"]}`.
          
-         put info that should be joined into the result into the verbose array,
-         e.g.  `verbose=[tr.locationpath]`. to join in everything, say
+         pass fields that should be joined in into the verbose array, e.g.
+         `verbose=[tr.locationpath]`. to join in everything, say
          `verbose_all=True`. this is slower than non-verbose.
          
          pass dates as a tuple of from and to datetime, e.g. `samplingdates=(datefrom, None)`.
          
-         to check via like as opposed to exact, put the respective fields into
-         the like array, e.g. `like=[tr.locationpath]`.
+         to match via like as opposed to exact, pass the respective tr
+         constants or idcs to like, e.g. `like=[tr.locationpath]`.
+         
+         pass `by` to key returned samples by that tr constant or idc. if
+         missing is also passed, only missings are returned.
         """
         if verbose is None:
             verbose = []
@@ -362,6 +364,8 @@ class traction:
         }
         _dextend(idc, self.sidc(), sampleids)
         _dextend(idc, self.pidc(pidc), patientids)
+        alllists = self._makealllists(lists, idc, files)
+        #print(alllists)
         (tmptables, idctmptables) = self._makemove(files, lists, idc, 100, pidc=pidc)
         jselects = {
             self.sidc(): [f"idc_{self.sidc()}.psn as '{sampleid}'"],
@@ -424,6 +428,29 @@ class traction:
         self._cleartt(idctmptables)
         if raw:
             return res
+        if missing and by is None:
+            throwtogether = list(alllists["idc"].keys()) + list(alllists["nonidc"].keys())
+            if len(throwtogether) == 1:
+                by = throwtogether[0]
+            else:
+                raise Exception("--missing needs a tr constant or idc passed to --by")
+        bydict = None
+        if by is not None:
+            if missing:
+                missinglst = []
+                # todo wrap this in function: missinglst =  idc_or_not(alllists, by)
+                if by in alllists["idc"]:
+                    missinglst = alllists["idc"][by]
+                elif by in alllists["nonidc"]:
+                    missinglst = alllists["nonidc"][by]
+            else:
+                bydict = {}
+                if by in alllists["idc"]:
+                    for byval in alllists["idc"][by]:
+                        bydict[byval] = []
+                if by in alllists["nonidc"]:
+                    for byval in alllists["nonidc"][by]:
+                        bydict[byval] = []
         sarr = []
         for r in res:
             ids = []
@@ -481,8 +508,24 @@ class traction:
                 xposition=dig(r, xposition), 
                 yposition=dig(r, yposition)
             )
-            sarr.append(s)
-        return sarr
+            if by is not None:
+                bykey = dig(r, by.lower())
+                if missing:
+                    if bykey in missinglst:
+                        missinglst.remove(bykey)
+                else:
+                    if bykey is not None and not bykey in bydict:
+                        bydict[bykey] = []
+                    bydict[bykey].append(s)
+            else:
+                sarr.append(s)
+        if by is not None:
+            if missing:
+                return missinglst
+            else:
+                return bydict
+        else:
+            return sarr
     def _get_parents(self, oid, out):
         """
          _get_parents collects the parent sample oids of a sample in the `out`
@@ -749,7 +792,7 @@ left join centraxx_catalog catalog
                 labval["usageentry"] = self.usageentry(labvals=[labval])
             out[methodcode]["labvals"][labvalcode] = labval
         return out
-    def user(self, usernames:list|None, emails:list|None, lastlogins:list|None, files:dict|None, verbose:list|None, top:int|None=None, verbose_all:bool=False, print_query:bool=False):
+    def user(self, usernames:list|None=None, emails:list|None=None, lastlogins:list|None=None, files:dict|None=None, verbose:list|None=None, top:int|None=None, verbose_all:bool=False, print_query:bool=False):
         """
         """
         if verbose is None:
@@ -767,7 +810,7 @@ left join centraxx_catalog catalog
         (tmptables, idctmptables) = self._makemove(files, lists, {}, 100)
         jselects = {
             address: [f"address.email as email"],
-            login: [f"credential.last_login_on as lastlogin"]#bm
+            login: [f"credential.last_login_on as lastlogin"]
         }
         lselects = [
             f"participant.username as {username}",
@@ -777,7 +820,7 @@ left join centraxx_catalog catalog
         selectstr = self._selectstr(jselects, lselects, lists, tmptables, {}, idctmptables, verbose)
         joins = {
             address: self.jd["participant_to_address"],
-            login: self.jd["participant_to_credential"]#bm
+            login: self.jd["participant_to_credential"]
         }
         joinstr = self._joinstr(joins, lists, tmptables, {}, idctmptables, verbose)
         (wherestr, whereargs) = self._where(lists, tmptables, {}, idctmptables, like=[])
@@ -802,9 +845,21 @@ left join centraxx_catalog catalog
             )
             out.append(user)
         return out
+    def orga(self, names:bool=False):
+        """
+         orga returns organisationunits.
+        """
+        query = "select code from centraxx_organisationunit"
+        res = self.db.qfad(query)
+        names = self.name(table="organisationunit", ml_table="organisatunit_ml_name")
+        for i, _ in enumerate(res):
+            nam = names[res[i]["code"]]
+            res[i]["name_de"] = nam["de"]
+            res[i]["name_en"] = nam["en"]
+        return res
     def catalog(self, catalogs:list|None, files:dict|None):
         """
-         catalogentry gives the catalogentries per catalog.
+         catalog gives the catalogentries per catalog.
         """
         if files is None:
             files = {}
@@ -1106,7 +1161,7 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
             if needsor:
                 wherestr += " or "
             wherestr += dbfield + " in "
-            wherestr += f"(select stdin from tempdb..{tmptable})"#bm
+            wherestr += f"(select stdin from tempdb..{tmptable})"
         wherestr += ")"
         return (wherestr, wherearg)
     def _wheredate(self, tpl, dbfield): # -> (str, list)
@@ -1274,7 +1329,7 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
             primary = self.sample(oids=[primary_oid])[0]
             sample.primary = Idable(ids=primary.ids, mainidc=primary.mainidc)
 
-    # tmp tables
+    # lists and tmp tables
     def _makemove(self, files:dict, lists:dict, idclists:dict, cutoff:int, pidc:str=None): # -> (dict, dict)
         """
          _makemove makes temporary tables for all files and all lists (non-idc
@@ -1291,7 +1346,31 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
         tmptables = self._maketables(ttlists, "tmp_")
         idctmptables = self._maketables(ttidclists, "tmp_idc_")
         return (tmptables, idctmptables) 
-    def _readfiles(self, files):
+    def _makealllists(self, lists, idc, files):
+        """
+         _makealllists reads the lists from files, puts them together with the
+         lists passed as lists, and returns them all in one dict,
+         keeping nonidc and idc seperate.
+        """
+        alllists = {}
+        alllists["nonidc"] = {}
+        alllists["idc"] = {}
+        for key, lst in lists.items():
+            if lst is not None:
+                alllists["nonidc"][key] = lst
+        for key, lst in idc.items():
+            alllists["idc"][key] = lst
+        (ff, ffidc) = self._readfiles(files)
+        for key, lst in ff.items():
+            if key not in alllists["nonidc"]:
+                alllists["nonidc"][key] = []
+            alllists["nonidc"][key].extend(lst)
+        for key, lst in ffidc.items():
+            if key not in alllists["idc"]:
+                alllists["idc"][key] = []
+            alllists["idc"][key].extend(lst)
+        return alllists
+    def _readfiles(self, files, sidc:str=None, pidc:str=None):
         """
          _readfiles reads the files from which tmp tables should be build into
          lists.  it returns a tuple of one dict holding the non-idc lists and
@@ -1307,7 +1386,11 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
         nonidc = {}
         idc = {}
         for key, _ in both.items():
-            if key in self._idcs:
+            if key == sampleid:
+                idc[self.sidc()] = both[key]
+            elif key == patientid:
+                idc[self.pidc(pidc)] = both[key]
+            elif self._is_idc(key, sidc=sidc, pidc=pidc):
                 idc[key] = both[key]
             else:
                 nonidc[key] = both[key]

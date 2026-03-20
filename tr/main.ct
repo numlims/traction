@@ -47,7 +47,7 @@ parse the arguments.
     # in any case take the database target
     parser.add_argument("db", help="db target")
 
-    parser.add_argument("what", help="sample|patient|trial|finding|method|user|catalog|usageentry|name. finding: messbefund; method: messprofil; name: get display names for a table.") # labval: messparameter
+    parser.add_argument("what", help="sample|patient|trial|finding|method|user|orga|catalog|usageentry|name. finding: messbefund; method: messprofil; name: get display names for a table.") # labval: messparameter
     parser.add_argument("--sampleid", help="sampleid(s)")
     parser.add_argument("--patientid", help="patientid(s)")
     parser.add_argument("--sidc", help="patient idcontainer. overrides sampleid in settings.yaml")    
@@ -68,6 +68,7 @@ parse the arguments.
     parser.add_argument("--reposition-date", help="reposition date from:to")
     parser.add_argument("--stockprocessing-date", help="first stock processing date from:to")
     parser.add_argument("--secondprocessing-date", help="second stock processing date from:to")
+    parser.add_argument("--recval", nargs=2, help="a labval code and recorded value")    
     parser.add_argument("--primary-ref", help="reference the primary of each derived, without including it", action="store_true")    
     parser.add_argument("--parents", help="include parents starting from the root", action="store_true")
     parser.add_argument("--childs", help="include the childs up to the leafs", action="store_true")
@@ -85,9 +86,10 @@ parse the arguments.
     parser.add_argument("--names", help="add display names", action="store_true") 
     parser.add_argument("--like", help="comma seperated list of tr constants where to check for like instead of equal")
     parser.add_argument("--files", help="comma seperated list for which flags files are passed")
-    parser.add_argument("--missing", help="get missing. not yet implemented.", action="store_true") # -m?
+    parser.add_argument("--missing", help="pass this alongside --by to only get what's missing.", action="store_true") # -m?
     parser.add_argument("--order-by", help="order by on sql query level")
-    parser.add_argument("--top", help="first n results on sql query level")    
+    parser.add_argument("--top", help="first n results on sql query level")
+    parser.add_argument("--by", help="return results keyed by given tr constant or idc.")        
     parser.add_argument("--query", help="print the query", action="store_true")
     parser.add_argument("--raw", help="return raw results", action="store_true")
     parser.add_argument("--csv", help="write results to csv file or to stdout", default=None, const=True, nargs="?") # if `--csv file` is passed, args.csv is file, if only --csv is passed, args.csv is True (const), if no --csv flag is passed, args.csv is None (default).
@@ -216,6 +218,7 @@ get to the sampleid. todo doesn't work.
                missing=args.missing,
                order_by=args.order_by,
                top=args.top,
+               by=args.by,
                print_query=args.query,
                raw=args.raw)
                
@@ -307,6 +310,14 @@ get finding(s) and their recorded values.
         #print(simplejson.dumps(res, default=str, indent=4))
 ``
 
+get orgas.
+
+``
+    elif args.what == "orga":
+        res = traction.orga(names=args.names)
+        print(jsonpickle.encode(res, unpicklable=False, indent=4))
+``
+
 get user(s).
 
 ``
@@ -336,7 +347,7 @@ get a name.
 ``
     elif args.what == "name":
         # res = traction.name("laborfinding")
-        res = traction.name(args.table, args.ml_table)
+        res = traction.name(table=args.table, ml_table=args.ml_table)
         print(jsonpickle.encode(res, unpicklable=False, indent=4))        
         #print(simplejson.dumps(res, default=str, indent=4))
 ``
