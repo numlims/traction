@@ -219,10 +219,10 @@ def main():
                incl_childs=args.childs,
                incl_tree=args.tree,
                like=likes,
-               missing=args.missing,
                order_by=args.order_by,
                top=args.top,
                by=args.by,
+               missing=args.missing,
                print_query=args.query,
                raw=args.raw)
                
@@ -250,6 +250,8 @@ def main():
             like=likes,
             order_by=args.order_by,
             top=args.top,
+            by=args.by,
+            missing=args.missing,
             print_query=args.query,
             raw=args.raw)
         #print(simplejson.dumps(patients, default=str))

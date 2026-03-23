@@ -14,6 +14,10 @@ commonly used getters (and setters?) for centraxx db.
 ``_dextend``
 ``_mvlists``
 ``_uniq``
+``_byifone``
+``_prepby``
+``_fillby``
+``_updatemissing``
 
 ``idable_csv``
 ``finding_csv``
@@ -650,11 +654,7 @@ parameter, set by to that query parameter.
 
 ``
         if missing and by is None:
-            throwtogether = list(alllists["idc"].keys()) + list(alllists["nonidc"].keys())
-            if len(throwtogether) == 1:
-                by = throwtogether[0]
-            else:
-                raise Exception("--missing needs a tr constant or idc passed to --by")
+            by = _byifone(alllists)
 ``
 
 if a by is passed, return the samples keyed by that value.
@@ -662,31 +662,7 @@ if a by is passed, return the samples keyed by that value.
 if missing is True alongside by, only return what's missing.
 
 ``
-        bydict = None
-        if by is not None:
-            if missing:
-                missinglst = []
-                # todo wrap this in function: missinglst =  idc_or_not(alllists, by)
-                if by in alllists["idc"]:
-                    missinglst = alllists["idc"][by]
-                elif by in alllists["nonidc"]:
-                    missinglst = alllists["nonidc"][by]
-            else:
-                bydict = {}
-                ``.``
-``
-
-if query params were passed for this by, they become keys in the
-returned by-dict, this way query params for which there are no samples
-can be found.
-
-``
-                if by in alllists["idc"]:
-                    for byval in alllists["idc"][by]:
-                        bydict[byval] = []
-                if by in alllists["nonidc"]:
-                    for byval in alllists["nonidc"][by]:
-                        bydict[byval] = []
+        bydict, missinglst = _prepby(alllists, by, missing)
 ``
 
 turn the result to samples.
@@ -793,19 +769,11 @@ if by was passed, put the sample in the bydict by the specified key.
 
 if missing was passed, just delete the by-key from the missing list.
 
-for now, idcs are also just fields in the result row (dbcq makes them
-lowercase), so this should work for tr constants and idcs.
-
 ``
             if by is not None:
-                bykey = dig(r, by.lower())
                 if missing:
-                    if bykey in missinglst:
-                        missinglst.remove(bykey)
-                else:
-                    if bykey is not None and not bykey in bydict:
-                        bydict[bykey] = []
-                    bydict[bykey].append(s)
+                    _updatemissing(missinglst, by, r)
+                _fillby(bydict, by, r, s)
 ``
 
 if by wasn't passed, append sample to the array.
@@ -915,13 +883,13 @@ patient gets patients and returns them as a list of Patient instances.
 the parameters work analog to the sample method.
 
 ``/patient: #py
-    def patient(self, patientids:list|None=None, pidc:str|None=None, sampleids:list|None=None, idc:dict|None=None, trials:list|None=None, orgas:list|None=None, files:dict|None=None, verbose:list|None=None, verbose_all:bool=False, like:list|None=None, order_by:str|None=None, top:int|None=None, print_query:bool=False, raw:bool=False):
-        ``.``
+    def patient(self, patientids:list|None=None, pidc:str|None=None, sampleids:list|None=None, idc:dict|None=None, trials:list|None=None, orgas:list|None=None, files:dict|None=None, verbose:list|None=None, verbose_all:bool=False, like:list|None=None, order_by:str|None=None, top:int|None=None, by:str=None, missing:bool=False, print_query:bool=False, raw:bool=False):
+        ``_``
 ``
 
 init arrays to avoid mutable default parameters.
 
-``
+``_:
         if verbose is None:
             verbose = []
         if like is None:
@@ -980,6 +948,12 @@ into the idc dict.
 ``
 
 now idc holds all parameters queryable as idcontainers.
+
+read the lists from files and put them together with the lists passed.
+
+``
+        alllists = self._makealllists(lists, idc, files)
+``
 
 put files and all lists larger than 100 items into temporary
 tables.
@@ -1099,6 +1073,22 @@ if raw is wished, return raw.
             return res
 ``
 
+if missing is passed, and no by, and there's only one query
+parameter, set by to that query parameter.
+
+``
+        if missing and by is None:
+            by = _byifone(alllists)
+``
+
+if a by is passed, return the samples keyed by that value.
+
+if missing is True alongside by, only return what's missing.
+
+``
+        bydict, missinglst = _prepby(alllists, by, missing)
+``
+
 make patients from the result.
 
 ``
@@ -1123,14 +1113,36 @@ build the patient.
               ids=Idable(ids=ids, mainidc=self.pidc(pidc)),
               orga=dig(r, orga)
             )
-            pats.append(pat)
-            #print("pat: " + str(pat))
 ``
 
-return.
+if by was passed, put the pat in the bydict by the specified key.
 
-``/patient
-        return pats
+if missing was passed, just delete the by-key from the missing list.
+
+``
+            if by is not None:
+                if missing:
+                    _updatemissing(missinglst, by, r)
+                _fillby(bydict, by, r, pat)
+``
+
+if by wasn't passed, append sample to the array.
+
+``
+            else:
+                pats.append(pat)
+``
+
+return, depending on whether by was passed.
+
+``/patient/_
+        if by is not None:
+            if missing:
+                return missinglst
+            else:
+                return bydict
+        else:
+            return pats
 ``
 
 import.
@@ -3293,7 +3305,109 @@ def _uniq(lst): # -> list
             out.append(e)
     return out
 ``
-        
+
+
+_byifone sets by to the only passed query parameter, if missing is
+true and there is only one query parameter.
+
+``/_byifone:
+def _byifone(alllists):
+    throwtogether = list(alllists["idc"].keys()) + list(alllists["nonidc"].keys())
+    if len(throwtogether) == 1:
+        return throwtogether[0]
+    else:
+        raise Exception("--missing needs a tr constant or idc passed to --by")
+``
+
+
+_prepby returns a bydict that holds the query params for the by as key
+(if there are any), and a second list, missinglst, that holds these
+query params so that they can subsequently be deleted so that the
+truly missing remain.
+
+``/_prepby:
+def _prepby(alllists:dict, by:str=None, missing:bool=None):
+    ``_``
+``
+
+make a bydict and missinglst.
+
+``_:
+    bydict = None
+    missinglst = None
+    if by is not None:
+        ``missing``
+        ``bydict``
+``
+
+fill the missing list, if missings should be returned.
+
+``./missing:
+        if missing:
+            missinglst = []
+            # todo wrap this in function: missinglst =  idc_or_not(alllists, by)
+            if by in alllists["idc"]:
+                missinglst = alllists["idc"][by]
+            elif by in alllists["nonidc"]:
+                missinglst = alllists["nonidc"][by]
+``
+
+if query params were passed for this by, they become keys in the
+returned by-dict, this way query params for which there are no samples
+can be found.
+
+``../bydict:
+        else:
+            bydict = {}
+            if by in alllists["idc"]:
+                for byval in alllists["idc"][by]:
+                    bydict[byval] = []
+            if by in alllists["nonidc"]:
+                for byval in alllists["nonidc"][by]:
+                    bydict[byval] = []
+``
+
+return.
+
+``/_prepby/_
+    return bydict, missinglst
+``
+
+_fillby puts a value into the bydict at the key of the by-field.
+
+``/_fillby:
+def _fillby(bydict, by, row, what):
+    ``.``
+``
+
+for now, idcs are just fields in the result row (dbcq makes them
+lowercase), so fetching them from the row should work for both tr
+constants and idcs.
+
+``
+    if bydict is not None:
+        bykey = dig(row, by.lower())
+        if bykey is not None and not bykey in bydict:
+            bydict[bykey] = []
+        bydict[bykey].append(what)
+``
+
+_updatemissing removes the value at the by-field from the missing list.
+
+``/_updatemissing:
+def _updatemissing(missinglst, by, row):
+    ``.``
+``
+
+for now, idcs are just fields in the result row (dbcq makes them
+lowercase), so fetching them from the row should work for both tr
+constants and idcs.
+
+``
+    bykey = dig(row, by.lower())
+    if bykey in missinglst:
+        missinglst.remove(bykey)
+``
        
 idable_csv writes a list of Idables to the given csv file. the given
 idcontainers are included as columns. if no idcontainers are given,

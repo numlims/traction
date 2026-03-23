@@ -139,6 +139,58 @@ def _uniq(lst): # -> list
         if e not in out:
             out.append(e)
     return out
+def _byifone(alllists):
+    """
+     _byifone sets by to the only passed query parameter, if missing is
+     true and there is only one query parameter.
+    """
+    throwtogether = list(alllists["idc"].keys()) + list(alllists["nonidc"].keys())
+    if len(throwtogether) == 1:
+        return throwtogether[0]
+    else:
+        raise Exception("--missing needs a tr constant or idc passed to --by")
+def _prepby(alllists:dict, by:str=None, missing:bool=None):
+    """
+     _prepby returns a bydict that holds the query params for the by as key
+     (if there are any), and a second list, missinglst, that holds these
+     query params so that they can subsequently be deleted so that the
+     truly missing remain.
+    """
+    bydict = None
+    missinglst = None
+    if by is not None:
+        if missing:
+            missinglst = []
+            # todo wrap this in function: missinglst =  idc_or_not(alllists, by)
+            if by in alllists["idc"]:
+                missinglst = alllists["idc"][by]
+            elif by in alllists["nonidc"]:
+                missinglst = alllists["nonidc"][by]
+        else:
+            bydict = {}
+            if by in alllists["idc"]:
+                for byval in alllists["idc"][by]:
+                    bydict[byval] = []
+            if by in alllists["nonidc"]:
+                for byval in alllists["nonidc"][by]:
+                    bydict[byval] = []
+    return bydict, missinglst
+def _fillby(bydict, by, row, what):
+    """
+     _fillby puts a value into the bydict at the key of the by-field.
+    """
+    if bydict is not None:
+        bykey = dig(row, by.lower())
+        if bykey is not None and not bykey in bydict:
+            bydict[bykey] = []
+        bydict[bykey].append(what)
+def _updatemissing(missinglst, by, row):
+    """
+     _updatemissing removes the value at the by-field from the missing list.
+    """
+    bykey = dig(row, by.lower())
+    if bykey in missinglst:
+        missinglst.remove(bykey)
 
 def idable_csv(idables:list, outfile=None, delim:str=",", *idcs) -> str|None:
     """
@@ -429,28 +481,8 @@ class traction:
         if raw:
             return res
         if missing and by is None:
-            throwtogether = list(alllists["idc"].keys()) + list(alllists["nonidc"].keys())
-            if len(throwtogether) == 1:
-                by = throwtogether[0]
-            else:
-                raise Exception("--missing needs a tr constant or idc passed to --by")
-        bydict = None
-        if by is not None:
-            if missing:
-                missinglst = []
-                # todo wrap this in function: missinglst =  idc_or_not(alllists, by)
-                if by in alllists["idc"]:
-                    missinglst = alllists["idc"][by]
-                elif by in alllists["nonidc"]:
-                    missinglst = alllists["nonidc"][by]
-            else:
-                bydict = {}
-                if by in alllists["idc"]:
-                    for byval in alllists["idc"][by]:
-                        bydict[byval] = []
-                if by in alllists["nonidc"]:
-                    for byval in alllists["nonidc"][by]:
-                        bydict[byval] = []
+            by = _byifone(alllists)
+        bydict, missinglst = _prepby(alllists, by, missing)
         sarr = []
         for r in res:
             ids = []
@@ -509,14 +541,9 @@ class traction:
                 yposition=dig(r, yposition)
             )
             if by is not None:
-                bykey = dig(r, by.lower())
                 if missing:
-                    if bykey in missinglst:
-                        missinglst.remove(bykey)
-                else:
-                    if bykey is not None and not bykey in bydict:
-                        bydict[bykey] = []
-                    bydict[bykey].append(s)
+                    _updatemissing(missinglst, by, r)
+                _fillby(bydict, by, r, s)
             else:
                 sarr.append(s)
         if by is not None:
@@ -546,7 +573,7 @@ class traction:
         for child in res:
             out.append(child["oid"])
             self._get_childs(child["oid"], out)
-    def patient(self, patientids:list|None=None, pidc:str|None=None, sampleids:list|None=None, idc:dict|None=None, trials:list|None=None, orgas:list|None=None, files:dict|None=None, verbose:list|None=None, verbose_all:bool=False, like:list|None=None, order_by:str|None=None, top:int|None=None, print_query:bool=False, raw:bool=False):
+    def patient(self, patientids:list|None=None, pidc:str|None=None, sampleids:list|None=None, idc:dict|None=None, trials:list|None=None, orgas:list|None=None, files:dict|None=None, verbose:list|None=None, verbose_all:bool=False, like:list|None=None, order_by:str|None=None, top:int|None=None, by:str=None, missing:bool=False, print_query:bool=False, raw:bool=False):
         """
          patient gets patients and returns them as a list of Patient instances.
          
@@ -572,6 +599,7 @@ class traction:
         }
         _dextend(idc, self.sidc(), sampleids)
         _dextend(idc, self.pidc(pidc), patientids)
+        alllists = self._makealllists(lists, idc, files)
         (tmptables, idctmptables) = self._makemove(files, lists, idc, 100, pidc=pidc)
         if verbose_all:
             verbose = vaa
@@ -605,6 +633,9 @@ class traction:
         self._cleartt(idctmptables)        
         if raw:
             return res
+        if missing and by is None:
+            by = _byifone(alllists)
+        bydict, missinglst = _prepby(alllists, by, missing)
         pats = []
         for r in res:
             ids = [ Identifier(id=dig(r, patientid), code=self.pidc(pidc)) ]
@@ -615,9 +646,19 @@ class traction:
               ids=Idable(ids=ids, mainidc=self.pidc(pidc)),
               orga=dig(r, orga)
             )
-            pats.append(pat)
-            #print("pat: " + str(pat))
-        return pats
+            if by is not None:
+                if missing:
+                    _updatemissing(missinglst, by, r)
+                _fillby(bydict, by, r, pat)
+            else:
+                pats.append(pat)
+        if by is not None:
+            if missing:
+                return missinglst
+            else:
+                return bydict
+        else:
+            return pats
     def trial(self):
         """
          trial gives trials.
