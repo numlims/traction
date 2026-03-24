@@ -12,7 +12,7 @@ commonly used getters (and setters?) for centraxx db.
 ``isnumber``
 ``isidentifier``
 ``_dextend``
-``_mvlists``
+``_tablelists``
 ``_uniq``
 ``_byifone``
 ``_prepby``
@@ -305,6 +305,7 @@ replace traction constants patientid and sampleid with their idc.
 
 ``
         verbose = self._concrete_idcs(verbose, pidc=pidc)
+        files = self._concrete_idcs_dict(files, pidc=pidc)        
 ``
 
 make sure that the verbose array only contains keys from the verbose-all-array.
@@ -516,14 +517,15 @@ read the lists from files and put them together with the lists passed.
 
 ``
         alllists = self._makealllists(lists, idc, files)
-        #print(alllists)
 ``
 
-put files and all lists larger than 100 items into temporary
-tables.
+put all lists longer than 50 items into temporary tables.
+
+nontable holds the remaining lists, table holds the names of the created
+temporary tables, each distinguishing nonidc and idc.
 
 ``
-        (tmptables, idctmptables) = self._makemove(files, lists, idc, 100, pidc=pidc)
+        (nontable, table) = self._makemove(alllists, 50)
 ``
 
 jselect holds statements for optional joins by key.
@@ -569,7 +571,7 @@ put sample.* first, that it doesn't overwrite field of the renames?
 put together the select string.
 
 ``
-        selectstr = self._selectstr(jselects, lselects, lists, tmptables, idc, idctmptables, verbose)
+        selectstr = self._selectstr(jselects, lselects, nontable, table, verbose)
 ``
 
 joins holds the join statements needed. if the same join is
@@ -604,13 +606,13 @@ _join_idc.
 put together the join string for the query.
 
 `` #py
-        joinstr = self._joinstr(joins, lists, tmptables, idc, idctmptables, verbose, pidc=pidc)
+        joinstr = self._joinstr(joins, nontable, table, verbose, pidc=pidc)
 ``
 
 get the where string.
 
 `` #py
-        (wherestr, whereargs) = self._where(lists, tmptables, idc, idctmptables, like=like)
+        (wherestr, whereargs) = self._where(nontable, table, like=like)
 ``
 
 get the top string.
@@ -638,8 +640,8 @@ stick together the query, get the result and return it.
 clear the temporary tables.
 
 ``
-        self._cleartt(tmptables)
-        self._cleartt(idctmptables)
+        self._cleartt(table["nonidc"])
+        self._cleartt(table["idc"])
 ``
 
 if raw is wished return the raw result.
@@ -955,11 +957,13 @@ read the lists from files and put them together with the lists passed.
         alllists = self._makealllists(lists, idc, files)
 ``
 
-put files and all lists larger than 100 items into temporary
-tables.
+put all lists longer than 50 items into temporary tables.
+
+nontable holds the remaining lists, table holds the names of the created
+temporary tables, each distinguishing nonidc and idc.
 
 ``
-        (tmptables, idctmptables) = self._makemove(files, lists, idc, 100, pidc=pidc)
+        (nontable, table) = self._makemove(alllists, 50)
 ``
 
 on verbose_all include all constants in the verbose array.
@@ -1016,19 +1020,19 @@ put together the select string for the query. always select
 patientcontainer.
 
 `` #py
-        selectstr = self._selectstr(selects, ["patientcontainer.*"], lists, tmptables, idc, idctmptables, verbose, pidc=pidc)
+        selectstr = self._selectstr(selects, ["patientcontainer.*"], nontable, table, verbose, pidc=pidc)
 ``
 
 put together the join string for the query. 
 
 ``
-        joinstr = self._joinstr(joins, lists, tmptables, idc, idctmptables, verbose, pidc=pidc)  
+        joinstr = self._joinstr(joins, nontable, table, verbose, pidc=pidc)  
 ``
 
 get the where string.
 
 `` #py
-        (wherestr, whereargs) = self._where(lists, tmptables, idc, idctmptables, like=like)
+        (wherestr, whereargs) = self._where(nontable, table, like=like)
         #print(whereargs)
 ``
 
@@ -1062,8 +1066,8 @@ get the result.
 remove the temporary tables.
 
 ``
-        self._cleartt(tmptables)
-        self._cleartt(idctmptables)        
+        self._cleartt(table["nonidc"])
+        self._cleartt(table["idc"])        
 ``
 
 if raw is wished, return raw.
@@ -1100,10 +1104,10 @@ make patients from the result.
 collect the ids.
 
 ``
-            ids = [ Identifier(id=dig(r, patientid), code=self.pidc(pidc)) ]
+            ids = []
             for idc in self._pidcs(pidc):
-                if idc in r and r[idc] is not None:
-                    ids.append( Identifier(id=dig(r, idc), code=idc.upper()) )
+                if idc.lower() in r and r[idc.lower()] is not None:
+                    ids.append( Identifier(id=dig(r, idc.lower()), code=idc) )
 ``
 
 build the patient.
@@ -1246,11 +1250,19 @@ into the idc dict.
 
 now idc holds all parameters queryable as idcontainers.
 
-put files and all lists larger than 100 items into temporary
-tables.
+read the lists from files and put them together with the lists passed.
 
 ``
-        (tmptables, idctmptables) = self._makemove(files, lists, idc, 100, pidc=pidc)
+        alllists = self._makealllists(lists, idc, files)
+``
+
+put all lists longer than 50 items into temporary tables.
+
+nontable holds the remaining lists, table holds the names of the created
+temporary tables, each distinguishing nonidc and idc.
+
+``
+        (nontable, table) = self._makemove(alllists, 50)
 ``
 
 build the query for findings.  later add recorded values to each finding.
@@ -1262,7 +1274,7 @@ get the idc part of the select string.
             self.sidc(): [f"idc_{self.sidc()}.psn as '{sampleid}'"],
             self.pidc(pidc): [f"idc_{self.pidc(pidc)}.psn as '{patientid}'"],                   
         }
-        idcselectstr = self._selectstr(selects, [], lists, tmptables, idc, idctmptables, verbose, pidc=pidc)  
+        idcselectstr = self._selectstr(selects, [], nontable, table, verbose, pidc=pidc)  
 ``
 
 for any patient idc, join in patientcontainer, which is needed by
@@ -1281,7 +1293,7 @@ get the join string.
 todo why called idcjoinstr?
 
 ``
-        idcjoinstr = self._joinstr(joins, lists, tmptables, idc, idctmptables, verbose, pidc=pidc)
+        idcjoinstr = self._joinstr(joins, nontable, table, verbose, pidc=pidc)
 ``
 
 get the top string.
@@ -1306,7 +1318,7 @@ stick together the query.
 get the where string and append it to the query.
 
 ``
-        (wherestr, whereargs) = self._where(lists, tmptables, idc, idctmptables)        
+        (wherestr, whereargs) = self._where(nontable, table)
         if wherestr.strip() != "":
             query += f"\nwhere {wherestr}"
             
@@ -1324,8 +1336,8 @@ get the result.
 remove the temporary tables holding bcp data.
 
 ``
-        self._cleartt(tmptables)
-        self._cleartt(idctmptables)        
+        self._cleartt(table["nonidc"])
+        self._cleartt(table["idc"])        
 ``
 
 for each of the findings, pull in the recorded values.
@@ -1617,12 +1629,21 @@ put the arguments in a dict of lists.
 
 now idc holds all parameters queryable as idcontainers.
 
-put files and all lists larger than 100 items into temporary
-tables.
+read the lists from files and put them together with the lists passed.
 
 ``
-        (tmptables, idctmptables) = self._makemove(files, lists, {}, 100)
+        alllists = self._makealllists(lists, idc, files)
 ``
+
+put all lists longer than 50 items into temporary tables.
+
+nontable holds the remaining lists, table holds the names of the created
+temporary tables, each distinguishing nonidc and idc.
+
+``
+        (nontable, table) = self._makemove(alllists, 50)
+``
+
 the query.
 
 ``
@@ -1645,7 +1666,7 @@ left join centraxx_catalog catalog
 add the where string.
 
 ``
-        (wherestr, whereargs) = self._where(lists, tmptables, {}, idctmptables)
+        (wherestr, whereargs) = self._where(nontable, table)
 
         if wherestr and wherestr.strip != "()":
           query += " where " + wherestr
@@ -1661,8 +1682,8 @@ return the result.
 remove the temporary tables.
 
 ``
-        self._cleartt(tmptables)
-        self._cleartt(idctmptables)        
+        self._cleartt(table["nonidc"])
+        self._cleartt(table["idc"])
 ``
 
 if raw, return result as is.
@@ -1776,11 +1797,20 @@ put the arguments in a dict of lists.
 
 now idc holds all parameters queryable as idcontainers.
 
-put files and all lists larger than 100 items into temporary
-tables.
+
+read the lists from files and put them together with the lists passed.
 
 ``
-        (tmptables, idctmptables) = self._makemove(files, lists, {}, 100)
+        alllists = self._makealllists(lists, idc, files)
+``
+
+put all lists longer than 50 items into temporary tables.
+
+nontable holds the remaining lists, table holds the names of the created
+temporary tables, each distinguishing nonidc and idc.
+
+``
+        (nontable, table) = self._makemove(alllists, 50)
 ``
 
 jselects holds the joined in selects.
@@ -1807,7 +1837,7 @@ put sample.* first, that it doesn't overwrite field of the renames?
 put together the select string.
 
 ``
-        selectstr = self._selectstr(jselects, lselects, lists, tmptables, {}, idctmptables, verbose)
+        selectstr = self._selectstr(jselects, lselects, nontable, table, verbose)
 ``
 
 joins holds the join statements needed.
@@ -1822,13 +1852,13 @@ joins holds the join statements needed.
 put together the join string for the query.
 
 `` #py
-        joinstr = self._joinstr(joins, lists, tmptables, {}, idctmptables, verbose)
+        joinstr = self._joinstr(joins, nontable, table, verbose)
 ``
 
 get the where string.
 
 `` #py
-        (wherestr, whereargs) = self._where(lists, tmptables, {}, idctmptables, like=[])
+        (wherestr, whereargs) = self._where(nontable, table, like=[])
 ``
 
 get the top string.
@@ -1862,8 +1892,8 @@ run the query.
 remove the temporary tables holding bcp data.
 
 ``
-        self._cleartt(tmptables)
-        self._cleartt(idctmptables)        
+        self._cleartt(tables["nonidc"])
+        self._cleartt(table["idc"])        
 ``
 
 turn the result into user instances.
@@ -1957,11 +1987,19 @@ put the arguments in a dict of lists.
         }
 ``
 
-put files and all lists larger than 100 items into temporary
-tables.
+read the lists from files and put them together with the lists passed.
 
 ``
-        (tmptables, idctmptables) = self._makemove(files, lists, {}, 100)
+        alllists = self._makealllists(lists, idc, files)
+``
+
+put all lists longer than 50 items into temporary tables.
+
+nontable holds the remaining lists, table holds the names of the created
+temporary tables, each distinguishing nonidc and idc.
+
+``
+        (nontable, table) = self._makemove(alllists, 50)
 ``
 
 query the catalogentries, joining in their cataloges.
@@ -1974,7 +2012,7 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
 make the wherestring.
 
 ``
-        (wherestr, whereargs) = self._where(lists, tmptables, {}, idctmptables) # idctmptables not actually needed at the moment
+        (wherestr, whereargs) = self._where(nontable, table) 
         if wherestr and wherestr.strip() != "()":
             query += f"\nwhere {wherestr}"
         res = self.db.qfad(query, whereargs)
@@ -1983,8 +2021,8 @@ make the wherestring.
 remove the temporary tables.
 
 ``
-        self._cleartt(tmptables)
-        self._cleartt(idctmptables)        
+        self._cleartt(table["nonidc"])
+        self._cleartt(table["idc"])
 ``
 
 get the names for catalog entries and cataloges.
@@ -2304,10 +2342,17 @@ target, skip them.
 ``
         out = []
         for idc in self.settings["idc"]:
-            if idc in self._idckind and self._idckind[idc] == "SAMPLE":
+            if idc in self._idckind and self._idckind[idc] == "SAMPLE" and not idc in out:
                 out.append(idc)
-        # include the main sample idcontainer
-        out.append(self.sidc())
+``
+
+
+include the main sample idcontainer. it could already be in out.
+
+``
+        sidc = self.sidc()
+        if sidc not in out:
+            out.append(self.sidc())
         return out
 ``
 
@@ -2324,10 +2369,16 @@ the settings can list idc codes that are not applicable to this target, skip the
 ``
         out = []
         for idc in self.settings["idc"]:
-            if idc in self._idckind and self._idckind[idc] == "PATIENT":
+            if idc in self._idckind and self._idckind[idc] == "PATIENT" and idc not in out:
                 out.append(idc)
-        # include the main patient idcontainer
-        out.append(self.pidc(pidc))
+``
+
+include the main patient idcontainer. it could be already in the array.
+
+``
+        pidc = self.pidc(pidc)
+        if pidc not in out:
+            out.append(pidc)
         return out
 ``
 
@@ -2486,25 +2537,25 @@ selected regardless if they're in the verbose array or not.
 the idc argument assumes that the sample table is joined it. // todo is this still true?
 
 ``/_selectstr: #py
-    def _selectstr(self, selects, selecta, lists, tmptables, idclists, idctmptables, verbose, pidc:str=None):
+    def _selectstr(self, selects, selecta, nontable, table, verbose, pidc:str=None):
         ``.``
 ``
 
 split verbose into non-idc and idc.
 
-collect the idc keys.
+collect the nonidc/idc keys from non tables and tables, respectively.
 
 ``
         (vnonidc, vidc) = self._splitidc(verbose, pidc=pidc)
-        nonidc = self._collkeys(lists, tmptables, vnonidc)
-        idc = self._collkeys(idclists, idctmptables, vidc)
+        nonidc = self._collkeys(nontable["nonidc"], table["nonidc"], vnonidc)
+        idc = self._collkeys(nontable["idc"], table["idc"], vidc)
 ``
 
 put in the selects for non-idc.
 
 ``
         for key in nonidc:
-            ``.``        
+            ``.``
 ``
 
 skip keys that are not in the selects dict (this way the calling
@@ -2563,7 +2614,7 @@ tables of non-idc and idc keys, and verbose. it returns the sql join
 string.
 
 ``/_joinstr: #py
-    def _joinstr(self, joins, lists, tmptables, idclists, idctmptables, verbose, pidc:str|None=None):
+    def _joinstr(self, joins, nontable, table, verbose, pidc:str|None=None):
         ``.``
 ``
 
@@ -2571,8 +2622,8 @@ make two lists of what to join in, one for non-idc, one for idc.
 
 ``
         (vnonidc, vidc) = self._splitidc(verbose, pidc=pidc)
-        nonidc = self._collkeys(lists, tmptables, vnonidc)
-        idc = self._collkeys(idclists, idctmptables, vidc)
+        nonidc = self._collkeys(nontable["nonidc"], table["nonidc"], vnonidc)
+        idc = self._collkeys(nontable["idc"], table["idc"], vidc)
 ``
 
 first put in the idc joins, cause other joins might need them.
@@ -2690,15 +2741,15 @@ lists and temporary tables.
 the user needs to make sure that whatever is used here is joined
 into the query before.
 
-the keys in lists and tmptables are assumed to be the tr constants,
-e.g. tr.locationpath, the keys in idclists and idctmptables are
-assumed to be idcontainers.
+the keys in nontable["nonidc"] and table["nonidc"] are assumed to be
+the tr constants, e.g. tr.locationpath, the keys in nontable["idc"]
+and table["idc"] are assumed to be idcontainers.
 
 like holds tr constants and idcontainers for which to check likeness
 instead of equality.
 
 ``/_where:
-    def _where(self, lists:dict, tmptables:dict, idclists:dict, idctmptables:dict, like:list=None): # -> (str, list)
+    def _where(self, nontable:dict, table:dict, like:list=None): # -> (str, list)
         ``.``
 ``
 
@@ -2756,15 +2807,11 @@ for now do dates only for lists, not tmp tables.
 go over the non-idc keys.
 
 ``
-        #print("lists:")
-        #print(lists)
-        #print("tmptables:")
-        #print(tmptables)
-        for key in _uniq(list(lists.keys()) + list(tmptables.keys())):
-           if dig(lists, key) is not None and dig(wheredict, key + "/type") == "date":
-               (wstr, wargs) = self._wheredate(dig(lists, key), wheredict[key]["field"])
+        for key in _uniq(list(nontable["nonidc"].keys()) + list(table["nonidc"].keys())):
+           if dig(nontable["nonidc"], key) is not None and dig(wheredict, key + "/type") == "date":
+               (wstr, wargs) = self._wheredate(dig(nontable["nonidc"], key), wheredict[key]["field"])
            else:
-               (wstr, wargs) = self._whereexact(dig(lists, key), dig(tmptables, key), wheredict[key]["field"])
+               (wstr, wargs) = self._whereexact(dig(nontable["nonidc"], key), dig(table["nonidc"], key), wheredict[key]["field"])
            if wstr != "()":
                wherestrs.append(wstr)
                whereargs.extend(wargs)
@@ -2775,14 +2822,14 @@ go over the idc keys.
 don't check for date here.
 
 ``
-        for key in _uniq(list(idclists.keys()) + list(idctmptables.keys())):
-            (wstr, wargs) = self._whereexact(dig(idclists, key), dig(idctmptables, key), f"idc_{key}.psn")
+        for key in _uniq(list(nontable["idc"].keys()) + list(table["idc"].keys())):
+            (wstr, wargs) = self._whereexact(dig(nontable["idc"], key), dig(table["idc"], key), f"idc_{key}.psn")
             if wstr != "()":
                 wherestrs.append(wstr)
                 whereargs.extend(wargs)
 ``
 
-chain the where clauses by and.
+chain the where clauses by 'and'.
 
 ``
         wherestr = " and ".join(wherestrs)
@@ -3046,49 +3093,40 @@ go over the tables and drop them.
             self.db.query(q)  # todo is kairos_spring used again after this?
 ``
 
-_makemove makes temporary tables for all files and all lists (non-idc
-and idc) that are larger than cutoff. moved lists are removed from
-lists and idclists, respectively. it returns a tuple holding dicts of
-the non-idc tables and the idc tables created.
+_makemove makes temporary tables from the given lists that are longer
+than cutoff. it returns one dict holding the remaining, non-table
+lists and one dict holding the table names of the created temporary
+tables, both return dicts distinguishing between nonidc and idc.
 
 ``/_makemove:
-    def _makemove(self, files:dict, lists:dict, idclists:dict, cutoff:int, pidc:str=None): # -> (dict, dict)
-``
-
-replace sampleid and patientid keys by their concrete idcontainers.
-
-``
-        files = self._concrete_idcs_dict(files, pidc=pidc)
-        #print("files:")
-        #print(files)
-``
-
-read the files for temporary tables and split them into non-idc and
-idc.
-
-``
-        (ttlists, ttidclists) = self._readfiles(files)
+    def _makemove(self, alllists:dict, cutoff:int): # -> (dict, dict)#bm
+        ``.``
 ``
 
 move large argument lists into the temporary table dicts.
 
 ``
-        _mvlists(lists, ttlists, cutoff)
-        _mvlists(idclists, ttidclists, cutoff)
+        nontables = {}
+        (nontables["nonidc"], ttlists) = _tablelists(alllists["nonidc"], cutoff)
+        (nontables["idc"], ttidclists) = _tablelists(alllists["idc"], cutoff)        
 ``
 
 create the temporary tables.
 
 ``
-        tmptables = self._maketables(ttlists, "tmp_")
-        idctmptables = self._maketables(ttidclists, "tmp_idc_")
+        tables = {}
+        tables["nonidc"] = self._maketables(ttlists, "tmp_")
+        tables["idc"] = self._maketables(ttidclists, "tmp_idc_")
 ``
 
-return non-idc and idc tables.
+return nontable lists and table names.
 
 ``
-        return (tmptables, idctmptables) 
+        return (nontables, tables) 
 ``
+
+
+
 
 _makealllists reads the lists from files, puts them together with the
 lists passed as lists, and returns them all in one dict,
@@ -3273,27 +3311,40 @@ the list should hold values.
         d[key].extend(lst)
 ``
 
-_mvlists moves the lists that are longer than cutoff from dicta to
-dictb, deleting them in dicta. if there is already a list in dictb
-under that key, extend.
+_tablelists returns a dict of the lists smaller than cutoff and a
+second dict of the lists larger than cutoff that go into temporary
+tables.
 
-``/_mvlists:
-def _mvlists(dicta:dict, dictb:dict, cutoff:int):
+
+``/_tablelists:
+def _tablelists(all:dict, cutoff:int): # -> (dict, dict)
     ``.``
+``
+
+the two out dicts.
+
+``
+    outsmall = {}
+    outlarge = {}
 ``
 
 go over dicta, if a list is larger than cutoff, move it to dictb and
 delete it from dicta.
 
 ``
-    for key, lst in dicta.items():
+    for key, lst in all.items():
         if lst is not None and len(lst) > cutoff:
-            if key in dictb:
-                dictb[key].extend(lst)
-            else:
-                dictb[key] = lst
-            del dicta[key]
+            outlarge[key] = lst
+        else:
+            outsmall[key] = lst
 ``
+
+return.
+
+``
+    return outsmall, outlarge
+``
+
 
 _uniq returns a new list containing the unique items of the list passed, preserving order.
 

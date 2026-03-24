@@ -138,12 +138,12 @@ def main():
     parser.add_argument("--username", help="the username of user(s).")
     parser.add_argument("--email", help="the email address of user(s).")                
     parser.add_argument("--last-login", help="the date of the user's last login.")
-    parser.add_argument("--verbose", help="comma-separated tr constants that should be joined in, e.g. 'patientid,locationpath'") # -v?  nargs=1?
-    parser.add_argument("--verbose-all", help="join in all additional info, takes longer", action="store_true") # -a?
+    parser.add_argument("-v", "--verbose", help="comma-separated tr constants that should be joined in, e.g. 'patientid,locationpath'")
+    parser.add_argument("-a", "--verbose-all", help="join in all additional info, takes longer", action="store_true")
     parser.add_argument("--names", help="add display names", action="store_true") 
     parser.add_argument("--like", help="comma seperated list of tr constants where to check for like instead of equal")
     parser.add_argument("--files", help="comma seperated list for which flags files are passed")
-    parser.add_argument("--missing", help="pass this alongside --by to only get what's missing.", action="store_true") # -m?
+    parser.add_argument("--missing", help="pass this alongside --by to only get what's missing.", action="store_true")
     parser.add_argument("--order-by", help="order by on sql query level")
     parser.add_argument("--top", help="first n results on sql query level")
     parser.add_argument("--by", help="return results keyed by given tr constant or idc.")        

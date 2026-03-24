@@ -14,7 +14,7 @@ def test_run():
     res = trac.patient(sampleids=[sampleid])
     assert len(res) == 1
     pat = res[0]
-    assert pat.id("LIMSPSN") == 28365
+    assert pat.id("LIMSPSN") == "1478370269"
     res = trac.finding(sampleids=[sampleid])
     assert len(res) == 1
     finding = res[0]
