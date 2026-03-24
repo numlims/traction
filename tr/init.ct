@@ -1608,7 +1608,7 @@ return.
 method (messprofil) gets method(s) and their labvals (messparameter).
         
 ``/method:
-    def method(self, methods:list|None, files:dict|None):
+    def method(self, methods:list|None=None, files:dict|None=None):
         ``.``
 ``
 
@@ -1632,7 +1632,7 @@ now idc holds all parameters queryable as idcontainers.
 read the lists from files and put them together with the lists passed.
 
 ``
-        alllists = self._makealllists(lists, idc, files)
+        alllists = self._makealllists(lists, {}, files)
 ``
 
 put all lists longer than 50 items into temporary tables.
@@ -1801,7 +1801,7 @@ now idc holds all parameters queryable as idcontainers.
 read the lists from files and put them together with the lists passed.
 
 ``
-        alllists = self._makealllists(lists, idc, files)
+        alllists = self._makealllists(lists, {}, files)
 ``
 
 put all lists longer than 50 items into temporary tables.
@@ -1892,7 +1892,7 @@ run the query.
 remove the temporary tables holding bcp data.
 
 ``
-        self._cleartt(tables["nonidc"])
+        self._cleartt(table["nonidc"])
         self._cleartt(table["idc"])        
 ``
 
@@ -1968,7 +1968,7 @@ return.
 catalog gives the catalogentries per catalog.
 
 ``/catalog:
-    def catalog(self, catalogs:list|None, files:dict|None):
+    def catalog(self, catalogs:list|None=None, files:dict|None=None):
         ``.``
 ``
 
@@ -1990,7 +1990,7 @@ put the arguments in a dict of lists.
 read the lists from files and put them together with the lists passed.
 
 ``
-        alllists = self._makealllists(lists, idc, files)
+        alllists = self._makealllists(lists, {}, files)
 ``
 
 put all lists longer than 50 items into temporary tables.

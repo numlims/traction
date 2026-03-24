@@ -68,10 +68,16 @@ get a sample.
 traction <db> sample --sampleid abc
 ```
 
-get samples from file.
+get samples from a file.
 
 ```
 traction <db> sample --sampleid f:mysampleids.txt
+```
+
+get the missing samples.
+
+```
+traction <db> sample --sampleid f:mysampleids.txt --missing
 ```
 
 get the samples of a patient:
@@ -92,19 +98,19 @@ get all samples in a trial.
 traction <db> sample --trial "NUM RAPID_REVIVE"
 ```
 
-filter out the just the sampleids with jq.
+filter out the sampleids with jq.
 
 ```
 traction <db> sample --trial "NUM RAPID_REVIVE" | jq -r '.[] | .sampleid'
 ```
 
-get all the child samples of a sample.
+get the child samples of a sample.
 
 ```
 traction <db> sample --sampleid abc --childs
 ```
 
-get all patients in the BSI or CNS module of SNID.
+get the patients in the BSI or CNS module of SNID.
 
 ```
 traction <db> patient --trial "NUM S-SNID" --modul "BSI: Bloodstream Infections,CNS: CNS Infections"
@@ -148,7 +154,13 @@ get samples with all joined in info (slower).
 res = trac.sample(sampleids=["sid1", "sid2", "sid3"], verbose_all=True)
 ```
 
-get samples with info from idcontainers (idc).
+get missing samples.
+
+```
+res = trac.sample(sampleids=["sid1", "sid2", "sid3"], missing=True)
+```
+
+get samples using another idcontainer (idc), EXTSAMPLEID.
 
 ```
 res = trac.sample(idc={"EXTSAMPLEID": ["sid1", "sid2", "sid3"]}, verbose=[tr.locationpath])
@@ -206,7 +218,7 @@ acetone_name = trac.name("laborvalue")["NUM_NMR_ACETONE_VALUE"]["en"]
 
 edit [`tr/main.ct`](./tr/main.ct) and [`tr/init.ct`](./tr/init.ct).
 
-to generate the code from the ct files get [ct](https://github.com/tnustrings/ct).
+generate the code from ct with [ct](https://github.com/tnustrings/ct) or [ct for vscode](https://marketplace.visualstudio.com/items?itemName=tnustrings.codetext).
 
 build and install:
 

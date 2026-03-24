@@ -779,7 +779,7 @@ class traction:
             )
             findings.append(finding)
         return findings
-    def method(self, methods:list|None, files:dict|None):
+    def method(self, methods:list|None=None, files:dict|None=None):
         """
          method (messprofil) gets method(s) and their labvals (messparameter).
         """
@@ -788,7 +788,7 @@ class traction:
         lists = {
           method: methods
         }
-        alllists = self._makealllists(lists, idc, files)
+        alllists = self._makealllists(lists, {}, files)
         (nontable, table) = self._makemove(alllists, 50)
         query = """select laborvalue.code as labval, labormethod.code as "method", laborvalue.dtype as labval_type, catalog.code as catalog
 from centraxx_labormethod labormethod
@@ -851,7 +851,7 @@ left join centraxx_catalog catalog
           address: emails,
           login: lastlogins
         }
-        alllists = self._makealllists(lists, idc, files)
+        alllists = self._makealllists(lists, {}, files)
         (nontable, table) = self._makemove(alllists, 50)
         jselects = {
             address: [f"address.email as email"],
@@ -877,7 +877,7 @@ left join centraxx_catalog catalog
             print(query)
             print(whereargs)
         res = self.db.qfad(query, whereargs)
-        self._cleartt(tables["nonidc"])
+        self._cleartt(table["nonidc"])
         self._cleartt(table["idc"])        
         out = []
         for r in res:
@@ -902,7 +902,7 @@ left join centraxx_catalog catalog
             res[i]["name_de"] = nam["de"]
             res[i]["name_en"] = nam["en"]
         return res
-    def catalog(self, catalogs:list|None, files:dict|None):
+    def catalog(self, catalogs:list|None=None, files:dict|None=None):
         """
          catalog gives the catalogentries per catalog.
         """
@@ -911,7 +911,7 @@ left join centraxx_catalog catalog
         lists = {
             catalog: catalogs
         }
-        alllists = self._makealllists(lists, idc, files)
+        alllists = self._makealllists(lists, {}, files)
         (nontable, table) = self._makemove(alllists, 50)
         query = """select catalogentry.code as 'entry_code', catalog.code as 'catalog_code' from centraxx_catalogentry catalogentry
 join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
