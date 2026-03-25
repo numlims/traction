@@ -232,13 +232,14 @@ def main():
                 file = True
             else:
                 file = args.csv
-            outfile = tr.idable_csv(sample, file, delim=args.D) # rename csv?
+            outfile = tr.idable_csv(sample, outfile=file, delim=args.D) # rename csv?
             if isinstance(outfile, str):
                 print(outfile)
         else:
             print(jsonpickle.encode(sample, unpicklable=False, indent=4)) # somehow include_properties=True doesn't work
     elif args.what == "patient":
-        patients = traction.patient(patientids=patientids,
+        patients = traction.patient(
+            patientids=patientids,
             pidc=args.pidc,
             sampleids=sampleids,
             idc=getidc(vars(args), settings),
@@ -261,7 +262,7 @@ def main():
                 file = True
             else:
                 file = args.csv
-            outfile = tr.idable_csv(patients, file, delim=args.D) # rename csv?
+            outfile = tr.idable_csv(patients, outfile=file, delim=args.D) # rename csv?
             if isinstance(outfile, str):
                 print(outfile)
         else:        
@@ -274,7 +275,7 @@ def main():
                 file = True
             else:
                 file = args.csv
-            outfile = tr.dict_csv(res, file, delim=args.D) # rename csv?
+            outfile = tr.dict_csv(res, outfile=file, delim=args.D) # rename csv?
             if isinstance(outfile, str):
                 print(outfile)
         else:        
@@ -329,7 +330,7 @@ def main():
                 file = True
             else:
                 file = args.csv
-            outfile = tr.flat_csv(res, file, delim=args.D) # rename csv?
+            outfile = tr.dict_csv(res, outfile=file, delim=args.D) # rename csv?
             if isinstance(outfile, str):
                 print(outfile)
         else:                
@@ -342,22 +343,50 @@ def main():
                 file = True
             else:
                 file = args.csv
-            outfile = tr.flat_csv(res, file, delim=args.D) # rename csv?
+            outfile = tr.flat_csv(res, outfile=file, delim=args.D) # rename csv?
             if isinstance(outfile, str):
                 print(outfile)
         else:        
             print(jsonpickle.encode(res, unpicklable=False, indent=4))
     elif args.what == "catalog":
-        res = traction.catalog(catalogs=catalogs, files=filemap)
-        print(jsonpickle.encode(res, unpicklable=False, indent=4))
+        res = traction.catalog(catalogs=catalogs, files=filemap)    
+        if args.csv is not None:
+            if args.csv is True:
+                #file = sys.stdout # todo fix
+                file = True
+            else:
+                file = args.csv
+            outfile = tr.catalog_csv(list(res.values()), outfile=file, delim=args.D) # res.values() because res is dict keyed by code
+            if isinstance(outfile, str):
+                print(outfile)
+        else:        
+            print(jsonpickle.encode(res, unpicklable=False, indent=4))
     elif args.what == "usageentry":
-        res = traction.usageentry()
-        print(jsonpickle.encode(res, unpicklable=False, indent=4))
+        res = traction.usageentry()    
+        if args.csv is not None:
+            if args.csv is True:
+                #file = sys.stdout # todo fix
+                file = True
+            else:
+                file = args.csv
+            outfile = tr.dict_csv(list(res.values()), outfile=file, delim=args.D) # res.values() because res is dict keyed by code
+            if isinstance(outfile, str):
+                print(outfile)
+        else:        
+            print(jsonpickle.encode(res, unpicklable=False, indent=4))
     elif args.what == "name":
-        # res = traction.name("laborfinding")
         res = traction.name(table=args.table, ml_table=args.ml_table)
-        print(jsonpickle.encode(res, unpicklable=False, indent=4))        
-        #print(simplejson.dumps(res, default=str, indent=4))
+        if args.csv is not None:
+            if args.csv is True:
+                #file = sys.stdout # todo fix
+                file = True
+            else:
+                file = args.csv
+            outfile = tr.dict_csv(list(res.values()), outfile=file, delim=args.D) # res.values() because res is dict keyed by code
+            if isinstance(outfile, str):
+                print(outfile)
+        else:        
+            print(jsonpickle.encode(res, unpicklable=False, indent=4))        
     else:
         print(f"error: {args.what} not recognized. see traction -h.")
         return 1

@@ -353,6 +353,28 @@ def method_csv(methods:list, outfile=None, delim:str=",", delim_usageentry:str="
                 row["labval_usageentry"] = delim_usageentry.join(list(labval["usageentry"].keys()))
             rows.append(row)
     return dict_csv(rows, colnames=list(colnames.keys()), outfile=outfile, delim=delim)
+def catalog_csv(catalogs:list, outfile=None, delim:str=",") -> str:
+    """
+     catalog_csv writes a list of catalog dicts to the given csv file, one
+     row per entry in the catalog. if True is passed as file the output is
+     printed. todo use sys.stdout instead of True.
+    """
+    if delim is None:
+        delim = ","
+    if catalogs is None or len(catalogs) == 0: # todo throw error?
+        return None
+    rows = []
+    for catalog in catalogs:
+        for entry in catalog["entries"].values():
+            row = {}
+            row["catalog"] = catalog["code"]
+            row["catalog_de"] = catalog["name_de"]
+            row["catalog_en"] = catalog["name_en"]
+            row["entry"] = entry["code"]
+            row["entry_de"] = entry["name_de"]
+            row["entry_en"] = entry["name_en"]
+            rows.append(row)
+    return dict_csv(rows, outfile=outfile, delim=delim)
 
 class traction:
     def __init__(self, target):
@@ -743,7 +765,7 @@ class traction:
         """
          trial gives trials.
         """
-        query = "select code from centraxx_flexistudy"
+        query = "select code, study_name as name from centraxx_flexistudy"
         res = self.db.qfad(query)
         return res
     def finding(self, sampleids:list|None=None, patientids:list|None=None, pidc:str|None=None, idc:dict|None=None, methods:list|None=None, trials:list|None=None, values:bool=True, verbose:list|None=None, files:dict|None=None, verbose_all:bool=False, names:bool=False, top:int|None=None, print_query:bool=False, raw:bool=False):

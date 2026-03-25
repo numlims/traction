@@ -24,6 +24,7 @@ commonly used getters (and setters?) for centraxx db.
 ``idable_csv``
 ``finding_csv``
 ``method_csv``
+``catalog_csv``
 
 class traction:
     ``init``
@@ -1181,7 +1182,7 @@ trial gives trials.
 return the trial codes for now.
 
 ``
-        query = "select code from centraxx_flexistudy"
+        query = "select code, study_name as name from centraxx_flexistudy"
         res = self.db.qfad(query)
         return res
 ``
@@ -2021,6 +2022,11 @@ make the wherestring.
         (wherestr, whereargs) = self._where(nontable, table) 
         if wherestr and wherestr.strip() != "()":
             query += f"\nwhere {wherestr}"
+``
+
+get the result.
+
+``
         res = self.db.qfad(query, whereargs)
 ``
 
@@ -3977,6 +3983,74 @@ write the csv.
 ``/method_csv/_
     return dict_csv(rows, colnames=list(colnames.keys()), outfile=outfile, delim=delim)
 ``
-    
+
+
+catalog_csv writes a list of catalog dicts to the given csv file, one
+row per entry in the catalog. if True is passed as file the output is
+printed. todo use sys.stdout instead of True.
+
+``/catalog_csv:
+def catalog_csv(catalogs:list, outfile=None, delim:str=",") -> str:
+    ``_``
+``
+
+arg parse passes None for delim if it wasn't set, set it here.
+
+``_:
+    if delim is None:
+        delim = ","
+``
+
+
+if no catalogs return. 
+
+``
+    if catalogs is None or len(catalogs) == 0: # todo throw error?
+        return None
+``
+
+make the rows.
+
+``
+    rows = []
+    for catalog in catalogs:
+        for entry in catalog["entries"].values():
+            ``.``
+``
+
+make a row for each entry.
+
+``
+            row = {}
+``
+
+put in the catalog info. 
+
+``
+            row["catalog"] = catalog["code"]
+            row["catalog_de"] = catalog["name_de"]
+            row["catalog_en"] = catalog["name_en"]
+``
+
+put in the entry info.
+
+``
+            row["entry"] = entry["code"]
+            row["entry_de"] = entry["name_de"]
+            row["entry_en"] = entry["name_en"]
+``
+
+add.
+
+``
+            rows.append(row)
+``
+
+write the csv. column names need not be passed, cause they are the same for each row.
+
+``/catalog_csv/_
+    return dict_csv(rows, outfile=outfile, delim=delim)
+``
+
 
             
