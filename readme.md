@@ -58,20 +58,30 @@ idc:
 ```
 
 
-## more usage
+## usage
 
 **command line**
 
 get a sample.
 
 ```
-traction <db> sample --sampleid abc
+traction <db> sample --sampleid abc -a
+```
+
+`-a` joins in all values. this takes longer than without joining. use
+`--verbose` to tailor which values should be joined in,
+e.g. `--verbose locationpath,patient`.
+
+get a sample as csv.
+
+```
+traction <db> sample --sampleid abc -a --csv
 ```
 
 get samples from a file.
 
 ```
-traction <db> sample --sampleid f:mysampleids.txt
+traction <db> sample --sampleid f:mysampleids.txt -a
 ```
 
 get the missing samples.
@@ -83,7 +93,7 @@ traction <db> sample --sampleid f:mysampleids.txt --missing
 get the samples of a patient:
 
 ```
-traction <db> sample --patientid lims_565551365
+traction <db> sample --patientid lims_565551365 -a
 ```
 
 get the samples of a patient that were taken after a specific date.
@@ -110,10 +120,11 @@ get the child samples of a sample.
 traction <db> sample --sampleid abc --childs
 ```
 
-get the patients in the BSI or CNS module of SNID.
+get the patients in the BSI or CNS module of SNID. like for sample,
+pass `-a` to join in all info for patient.
 
 ```
-traction <db> patient --trial "NUM S-SNID" --modul "BSI: Bloodstream Infections,CNS: CNS Infections"
+traction <db> patient --trial "NUM S-SNID" --modul "BSI: Bloodstream Infections,CNS: CNS Infections" -a
 ```
 
 get the findings (messbefunde) and their values for a bunch of samples:
@@ -122,13 +133,37 @@ get the findings (messbefunde) and their values for a bunch of samples:
 traction <db> finding --sampleid A0942214,A0941343,A0941344
 ```
 
-get all methods and their labvals.
+get the trials and their display names.
 
 ```
-traction <db> method
+traction <db> trial
 ```
 
-get names for messparameters.
+get a method (messprofil) and its labvals.
+
+```
+traction <db> method --method COV_2_SEQ
+```
+
+get a catalog and its entries, as csv.
+
+```
+traction <db> catalog --catalog CP --csv
+```
+
+get the usage entries (kontrolliertes vokabular).
+
+```
+traction <db> usageentry
+```
+
+get a user.
+
+```
+traction <db> user --username bob -a
+```
+
+get the display names for a table, here for labvals (messparameters).
 
 ```
 traction <db> name --table laborvalue
@@ -142,17 +177,15 @@ start a new traction instance.
 trac = tr.traction("db_target")
 ```
 
-get samples barebone.
-
-```
-res = trac.sample(sampleids=["sid1", "sid2", "sid3"])
-```
-
-get samples with all joined in info (slower).
+get samples.
 
 ```
 res = trac.sample(sampleids=["sid1", "sid2", "sid3"], verbose_all=True)
 ```
+
+`verbose_all=True` joins in all values. this takes longer than without
+verbose_all. use `verbose` to tailor which values should be joined in,
+e.g. `verbose=[tr.locationpath,tr.patient]`.
 
 get missing samples.
 
@@ -160,7 +193,7 @@ get missing samples.
 res = trac.sample(sampleids=["sid1", "sid2", "sid3"], missing=True)
 ```
 
-get samples using another idcontainer (idc), EXTSAMPLEID.
+get samples using another idcontainer (idc), EXTSAMPLEID, join in the locationpath.
 
 ```
 res = trac.sample(idc={"EXTSAMPLEID": ["sid1", "sid2", "sid3"]}, verbose=[tr.locationpath])
