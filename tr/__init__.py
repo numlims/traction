@@ -24,6 +24,7 @@ initialunit = "initialunit"
 first_repositiondate = "first_repositiondate" # datum der ersten einlagerung / date of first storage (not in fhir). is identical to derivaldate. first_repositiondate in db.
 method = "method"
 kitid = "kitid"
+labval = "labval"
 lastlogin = "lastlogin"
 login = "login"
 locationname = "locationname"
@@ -193,6 +194,49 @@ def _updatemissing(missinglst, by, row):
     if bykey in missinglst:
         missinglst.remove(bykey)
 
+def dict_csv(lst:list, colnames=None, outfile=None, delim:str=",") -> str|None:
+    """
+     dict_csv writes a list dicts to csv file.
+    """
+    if delim is None:
+        delim = ","
+    if lst is None or len(lst) == 0: # todo throw error?
+        return None
+    out = sys.stdout 
+    if isinstance(outfile, str):
+        out = open(outfile, "w", newline="")
+    if colnames is None:
+        colnames = list(lst[0].keys())
+    
+    writer = csv.DictWriter(out, fieldnames=colnames, delimiter=delim) 
+    writer.writeheader()
+    for d in lst:
+        writer.writerow(d)
+    out.close()
+    return outfile
+def flat_csv(lst:list, outfile=None, delim:str=",") -> str|None:
+    """
+     flat_csv writes a list of 'flat' tram objects to csv file, like Trial
+     or User, that don't need to pull in data into their dict root or so.
+    """
+    if delim is None:
+        delim = ","
+    if lst is None or len(lst) == 0: # todo throw error?
+        #print("no idables")
+        return None
+    out = sys.stdout 
+    if isinstance(outfile, str):
+        out = open(outfile, "w", newline="")
+    colnames = []
+    colnames = list(lst[0].__dict__.keys())
+    
+    writer = csv.DictWriter(out, fieldnames=colnames, delimiter=delim) 
+    writer.writeheader()
+    for e in lst:
+        d = e.__dict__
+        writer.writerow(d)
+    out.close()
+    return outfile
 def idable_csv(idables:list, outfile=None, delim:str=",", *idcs) -> str|None:
     """
      idable_csv writes a list of Idables to the given csv file. the given
@@ -276,6 +320,39 @@ def finding_csv(findings:list, outfile=None, delim:str=",", delim_cmp:str=",") -
         for fdict in fdicts:
             writer.writerow(fdict)
     return outfile
+def method_csv(methods:list, outfile=None, delim:str=",", delim_usageentry:str=",") -> str:
+    """
+     method_csv writes a list of Methods to the given csv file, one row per labval in the method. if True is passed as file the output is printed. todo use sys.stdout instead of True.
+    """
+    if delim is None:
+        delim = ","
+    if delim_usageentry is None:
+        delim_usageentry = ","
+    if methods is None or len(methods) == 0: # todo throw error?
+        return None
+    rows = []
+    colnames = { "method": None, "method_de": None, "method_en": None, "labval": None, "labval_en": None, "labval_de": None, "labval_type": None }
+
+    for method in methods:
+        for labval in method["labvals"].values():
+            row = {}
+            row["method"] = method["code"]
+            row["method_de"] = method["name_de"]
+            row["method_en"] = method["name_en"]
+            row["labval"] = labval["code"]
+            row["labval_de"] = labval["name_de"]
+            row["labval_en"] = labval["name_en"]
+            row["labval_type"] = labval["type"]
+            if "catalog" in labval:
+                if "labval_catalog" not in colnames:
+                    colnames["labval_catalog"] = None
+                row["labval_catalog"] = labval["catalog"]
+            if "usageentry" in labval:
+                if "labval_usageentry" not in colnames:
+                    colnames["labval_usageentry"] = None
+                row["labval_usageentry"] = delim_usageentry.join(list(labval["usageentry"].keys()))
+            rows.append(row)
+    return dict_csv(rows, colnames=list(colnames.keys()), outfile=outfile, delim=delim)
 
 class traction:
     def __init__(self, target):
@@ -313,6 +390,8 @@ class traction:
             ,
             "participant_to_address": ["left join centraxx_participantaddress participantaddress on participantaddress.participant = participant.oid", "left join centraxx_address address on address.oid = participantaddress.oid"],
             "participant_to_credential": ["left join centraxx_credential credential on credential.participant = participant.oid"]
+            ,
+            "usageentry_to_labval": [ "left join centraxx_labvalenum_usageentry labvalenum_usageentry on labvalenum_usageentry.usageentry = usageentry.oid", "left join centraxx_laborvalue labval on labvalenum_usageentry.labvalueenum = labval.oid" ]
         }
         self.names_labval = None
         self.names_catalogentry = None
@@ -833,7 +912,7 @@ left join centraxx_catalog catalog
                 labval["catalog"] = dig(row, "catalog")
             labval["type"] = row["labval_type"]
             if labval["type"] == "OPTIONGROUP" or labval["type"] == "ENUMERATION":
-                labval["usageentry"] = self.usageentry(labvals=[labval])
+                labval["usageentry"] = self.usageentry(labvals=[labval["code"]])
             out[methodcode]["labvals"][labvalcode] = labval
         return out
     def user(self, usernames:list|None=None, emails:list|None=None, lastlogins:list|None=None, files:dict|None=None, verbose:list|None=None, top:int|None=None, verbose_all:bool=False, print_query:bool=False):
@@ -941,12 +1020,30 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
             entry["name_en"] = dig(entrynames, entrycode + "/en")        
             out[catcode]["entries"][entrycode] = entry
         return out
-    def usageentry(self, labvals:list=None):
+    def usageentry(self, labvals:list=None, files:dict=None):
         """
          usageentry gives the usageentries.
         """
-        query = "select code from centraxx_usageentry"
-        res = self.db.qfad(query)
+        lists = {
+           labval: labvals
+        }
+        alllists = self._makealllists(lists, {}, files)
+        (nontable, table) = self._makemove(alllists, 50)
+        selectstr = self._selectstr([], ["usageentry.code"], nontable, table, verbose=[])
+        joins = {
+                labval: self.jd["usageentry_to_labval"]
+        }
+        joinstr = self._joinstr(joins, nontable, table, [])
+        (wherestr, whereargs) = self._where(nontable, table, like=[])
+        query = f"select {selectstr} from centraxx_usageentry usageentry \n{joinstr}"
+        if wherestr.strip() != "":
+            query += f"\nwhere {wherestr}"
+        #if print_query:
+        #    print(query)
+        #    print(whereargs)
+        res = self.db.qfad(query, whereargs)
+        self._cleartt(table["nonidc"])
+        self._cleartt(table["idc"])
         names = self.name(table="usageentry")
         out = {}
         for row in res:
@@ -1159,7 +1256,8 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
           secondprocessingdate: { "field": "sample.secondprocessingdate", "type": "date" },
           username: { "field": "participant.username" },
           address: { "field": "address.email" },
-          login: { "field": "credential.last_login_on", "type": "date" }
+          login: { "field": "credential.last_login_on", "type": "date" },
+          labval: { "field": "labval.code" }
         }
         wherestrs = []
         whereargs = []
@@ -1416,6 +1514,8 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
          lists.  it returns a tuple of one dict holding the non-idc lists and
          one dict holding the idc lists.
         """
+        if files is None:
+            return ({}, {})
         both = {}
         for key, filepath in files.items():
             lst = []

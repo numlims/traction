@@ -255,15 +255,45 @@ def main():
             print_query=args.query,
             raw=args.raw)
         #print(simplejson.dumps(patients, default=str))
-        print(jsonpickle.encode(patients, unpicklable=False, indent=4))
+        if args.csv is not None:
+            if args.csv is True:
+                #file = sys.stdout # todo fix
+                file = True
+            else:
+                file = args.csv
+            outfile = tr.idable_csv(patients, file, delim=args.D) # rename csv?
+            if isinstance(outfile, str):
+                print(outfile)
+        else:        
+            print(jsonpickle.encode(patients, unpicklable=False, indent=4))
     elif args.what == "trial":
         res = traction.trial()
-        print(jsonpickle.encode(res, unpicklable=False, indent=4))        
-        #print(simplejson.dumps(res, default=str, indent=4))
+        if args.csv is not None:
+            if args.csv is True:
+                #file = sys.stdout # todo fix
+                file = True
+            else:
+                file = args.csv
+            outfile = tr.dict_csv(res, file, delim=args.D) # rename csv?
+            if isinstance(outfile, str):
+                print(outfile)
+        else:        
+            print(jsonpickle.encode(res, unpicklable=False, indent=4))        
+            #print(simplejson.dumps(res, default=str, indent=4))
     elif args.what == "method":
         res = traction.method(methods=methods, files=filemap)
-        #print(simplejson.dumps(res, default=str, indent=4))
-        print(jsonpickle.encode(res, unpicklable=False, indent=4))                
+        if args.csv is not None:
+            if args.csv is True:
+                #file = sys.stdout # todo fix
+                file = True
+            else:
+                file = args.csv
+            outfile = tr.method_csv(list(res.values()), file, delim=args.D) # .values() because keyed by code
+            if isinstance(outfile, str):
+                print(outfile)
+        else:          
+            #print(simplejson.dumps(res, default=str, indent=4))
+            print(jsonpickle.encode(res, unpicklable=False, indent=4))                
     elif args.what == "finding":
         res = traction.finding(sampleids=sampleids,
             patientids=patientids,
@@ -293,10 +323,30 @@ def main():
         #print(simplejson.dumps(res, default=str, indent=4))
     elif args.what == "orga":
         res = traction.orga(names=args.names)
-        print(jsonpickle.encode(res, unpicklable=False, indent=4))
+        if args.csv is not None:
+            if args.csv is True:
+                #file = sys.stdout # todo fix
+                file = True
+            else:
+                file = args.csv
+            outfile = tr.flat_csv(res, file, delim=args.D) # rename csv?
+            if isinstance(outfile, str):
+                print(outfile)
+        else:                
+            print(jsonpickle.encode(res, unpicklable=False, indent=4))
     elif args.what == "user":
         res = traction.user(usernames=usernames, emails=emails, lastlogins=datespan(args.last_login), files=filemap, verbose=verbose, print_query=args.query, verbose_all=args.verbose_all)
-        print(jsonpickle.encode(res, unpicklable=False, indent=4))
+        if args.csv is not None:
+            if args.csv is True:
+                #file = sys.stdout # todo fix
+                file = True
+            else:
+                file = args.csv
+            outfile = tr.flat_csv(res, file, delim=args.D) # rename csv?
+            if isinstance(outfile, str):
+                print(outfile)
+        else:        
+            print(jsonpickle.encode(res, unpicklable=False, indent=4))
     elif args.what == "catalog":
         res = traction.catalog(catalogs=catalogs, files=filemap)
         print(jsonpickle.encode(res, unpicklable=False, indent=4))
