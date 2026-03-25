@@ -280,7 +280,6 @@ def main():
                 print(outfile)
         else:        
             print(jsonpickle.encode(res, unpicklable=False, indent=4))        
-            #print(simplejson.dumps(res, default=str, indent=4))
     elif args.what == "method":
         res = traction.method(methods=methods, files=filemap)
         if args.csv is not None:
@@ -293,7 +292,6 @@ def main():
             if isinstance(outfile, str):
                 print(outfile)
         else:          
-            #print(simplejson.dumps(res, default=str, indent=4))
             print(jsonpickle.encode(res, unpicklable=False, indent=4))                
     elif args.what == "finding":
         res = traction.finding(sampleids=sampleids,
@@ -321,7 +319,6 @@ def main():
                 print(outfile)
         else:
             print(jsonpickle.encode(res, unpicklable=False, indent=4))
-        #print(simplejson.dumps(res, default=str, indent=4))
     elif args.what == "orga":
         res = traction.orga(names=args.names)
         if args.csv is not None:
