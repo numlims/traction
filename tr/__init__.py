@@ -1,12 +1,12 @@
 # automatically generated, DON'T EDIT. please edit init.ct from where this file stems.
-from dbcq import *
+from dbcq import dbcq
 import cnf
-from datetime import datetime
-from dip import dig, dis
+from dip import dig
 from tram import Sample, Idable, Amount, Identifier
 from tram import Patient
 from tram import Finding
 from tram import Rec, BooleanRec, NumberRec, StringRec, DateRec, MultiRec, CatalogRec
+from tram import User
 import re
 import csv
 import sys
@@ -24,6 +24,7 @@ initialunit = "initialunit"
 first_repositiondate = "first_repositiondate" # datum der ersten einlagerung / date of first storage (not in fhir). is identical to derivaldate. first_repositiondate in db.
 method = "method"
 kitid = "kitid"
+labval = "labval"
 lastlogin = "lastlogin"
 login = "login"
 locationname = "locationname"
@@ -78,7 +79,7 @@ def _checkverbose(verbose, possible):
      _checkverbose makes shure that only allowed keys are in the verbose array. 
     """
     for verb in verbose:
-        if not verb in possible: 
+        if verb not in possible: 
             print(f"error: verbose entry {verb} must be in {possible}.")
             return False
     return True
@@ -90,7 +91,7 @@ def floatornull(x):
     if x is None:
         return None
     return float(x)
-def get_ids(idables:list, code:str=None) -> list:
+def get_ids(idables:list, code:str|None=None) -> list:
     """
      get_ids returns a list of string ids from a list of Idables (Sample or
      Patient).
@@ -101,35 +102,36 @@ def isnumber(a) -> bool:
      isnumber returns if a string is a number to prevent sql injection.  is
      this handled better by an existing library function?
     """
-    return re.match(r"^[0-9](.[0-9]*)?$", a)
+    return re.match(r"^[0-9](.[0-9]*)?$", a) is not None
 def isidentifier(a) -> bool:
     """
      isidentifier returns whether a string is a sql identifier to prevent
      sql injection.  like isnumber, could this be handled better by a library?
     """
-    return re.match(r"^[A-Za-z_0-9\.#]+$", a)
-def _dextend(d:dict, key, l:list):
+    return re.match(r"^[A-Za-z_0-9\.#]+$", a) is not None
+def _dextend(d:dict, key, lst:list|None):
     """
      _dextends extends an array in a dictionary at the given key with the
      values in the passed list.
     """
-    if l is not None:
-        if not key in d:
+    if lst is not None:
+        if key not in d:
             d[key] = []
-        d[key].extend(l)
-def _mvlists(dicta:dict, dictb:dict, cutoff:int):
+        d[key].extend(lst)
+def _tablelists(all:dict, cutoff:int): # -> (dict, dict)
     """
-     _mvlists moves the lists that are longer than cutoff from dicta to
-     dictb, deleting them in dicta. if there is already a list in dictb
-     under that key, extend.
+     _tablelists returns a dict of the lists smaller than cutoff and a
+     second dict of the lists larger than cutoff that go into temporary
+     tables.
     """
-    for key, lst in dicta.items():
+    outsmall = {}
+    outlarge = {}
+    for key, lst in all.items():
         if lst is not None and len(lst) > cutoff:
-            if key in dictb:
-                dictb[key].extend(lst)
-            else:
-                dictb[key] = lst
-            del dicta[key]
+            outlarge[key] = lst
+        else:
+            outsmall[key] = lst
+    return outsmall, outlarge
 def _uniq(lst): # -> list
     """
      _uniq returns a new list containing the unique items of the list passed, preserving order.
@@ -139,11 +141,98 @@ def _uniq(lst): # -> list
         if e not in out:
             out.append(e)
     return out
+def _byifone(alllists):
+    """
+     _byifone sets by to the only passed query parameter, if missing is
+     true and there is only one query parameter.
+    """
+    throwtogether = list(alllists["idc"].keys()) + list(alllists["nonidc"].keys())
+    if len(throwtogether) == 1:
+        return throwtogether[0]
+    else:
+        raise Exception("--missing needs a tr constant or idc passed to --by")
+def _prepby(alllists:dict, by:str=None, missing:bool=None):
+    """
+     _prepby returns a bydict that holds the query params for the by as key
+     (if there are any), and a second list, missinglst, that holds these
+     query params so that they can subsequently be deleted so that the
+     truly missing remain.
+    """
+    bydict = None
+    missinglst = None
+    if by is not None:
+        if missing:
+            missinglst = []
+            # todo wrap this in function: missinglst =  idc_or_not(alllists, by)
+            if by in alllists["idc"]:
+                missinglst = alllists["idc"][by]
+            elif by in alllists["nonidc"]:
+                missinglst = alllists["nonidc"][by]
+        else:
+            bydict = {}
+            if by in alllists["idc"]:
+                for byval in alllists["idc"][by]:
+                    bydict[byval] = []
+            if by in alllists["nonidc"]:
+                for byval in alllists["nonidc"][by]:
+                    bydict[byval] = []
+    return bydict, missinglst
+def _fillby(bydict, by, row, what):
+    """
+     _fillby puts a value into the bydict at the key of the by-field.
+    """
+    if bydict is not None:
+        bykey = dig(row, by.lower())
+        if bykey is not None and not bykey in bydict:
+            bydict[bykey] = []
+        bydict[bykey].append(what)
+def _updatemissing(missinglst, by, row):
+    """
+     _updatemissing removes the value at the by-field from the missing list.
+    """
+    bykey = dig(row, by.lower())
+    if bykey in missinglst:
+        missinglst.remove(bykey)
 
-def idable_csv(idables:list, outfile=None, delim:str=",", *idcs) -> str:
+def dict_csv(lst:list, colnames=None, outfile=None, delim:str=",") -> str|None:
+    """
+     dict_csv writes a list of dicts to csv file. if no column names are
+     given, the fields in the first dict are used as column names.
+    """
+    if delim is None:
+        delim = ","
+    if lst is None or len(lst) == 0: # todo throw error?
+        return None
+    out = sys.stdout 
+    if isinstance(outfile, str):
+        out = open(outfile, "w", newline="")
+    if colnames is None:
+        colnames = list(lst[0].keys())
+    
+    writer = csv.DictWriter(out, fieldnames=colnames, delimiter=delim) 
+    writer.writeheader()
+    for d in lst:
+        writer.writerow(d)
+    out.close()
+    return outfile
+def flat_csv(lst:list, outfile=None, delim:str=",") -> str|None:
+    """
+     flat_csv writes a list of 'flat' tram objects like User (that don't
+     need to pull in nested data into their dict root) to csv file.
+    """
+    if delim is None:
+        delim = ","
+    if lst is None or len(lst) == 0: # todo throw error?
+        #print("no idables")
+        return None
+    rows = []
+    for e in lst:
+        rows.append(e.__dict__)
+    return dict_csv(rows, outfile=outfile, delim=delim)    
+def idable_csv(idables:list, outfile=None, delim:str=",", *idcs) -> str|None:
     """
      idable_csv writes a list of Idables to the given csv file. the given
-     idcontainers are included as columns. if no idcontainers are given,
+     idcontainers become columns in the csv. if no idcontainers are given,
      all are included. if True is passed as file, the output is
      printed. (todo pass sys.stdout instead?)
     """
@@ -152,20 +241,16 @@ def idable_csv(idables:list, outfile=None, delim:str=",", *idcs) -> str:
     if idables is None or len(idables) == 0: # todo throw error?
         #print("no idables")
         return None
-    with open(outfile, "w", newline="") as f:
-        colnames = []
-        for idable in idables:
-            for col in list(idable.iddict(*idcs).keys()):
-                if not col in colnames:
-                    colnames.append(col)
-        #print("colnames:")
-        #print(colnames)
-        writer = csv.DictWriter(f, fieldnames=colnames, delimiter=delim) 
-        writer.writeheader()
-        for idable in idables:
-            d = idable.iddict(*idcs)
-            writer.writerow(d)
-    return outfile
+    colnames = []
+    for idable in idables:
+        for col in list(idable.iddict(*idcs).keys()):
+            if col not in colnames:
+                colnames.append(col)
+    rows = []
+    for idable in idables:
+        d = idable.iddict(*idcs)
+        rows.append(d)
+    return dict_csv(rows, colnames=colnames, outfile=outfile, delim=delim)    
 def finding_csv(findings:list, outfile=None, delim:str=",", delim_cmp:str=",") -> str:
     """
      finding_csv writes a list of Findings along their recorded values to
@@ -214,12 +299,62 @@ def finding_csv(findings:list, outfile=None, delim:str=",", delim_cmp:str=",") -
                 fdict[vkey] = delim_cmp.join(rec.rec)
                 
         fdicts.append(fdict)
-    with open(outfile, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=colnames, delimiter=delim)
-        writer.writeheader()
-        for fdict in fdicts:
-            writer.writerow(fdict)
-    return outfile
+    return dict_csv(fdicts, colnames=colnames, outfile=outfile, delim=delim)    
+def method_csv(methods:list, outfile=None, delim:str=",", delim_usageentry:str=",") -> str:
+    """
+     method_csv writes a list of Methods to the given csv file, one row per labval in the method. if True is passed as file the output is printed. todo use sys.stdout instead of True.
+    """
+    if delim is None:
+        delim = ","
+    if delim_usageentry is None:
+        delim_usageentry = ","
+    if methods is None or len(methods) == 0: # todo throw error?
+        return None
+    rows = []
+    colnames = { "method": None, "method_de": None, "method_en": None, "labval": None, "labval_en": None, "labval_de": None, "labval_type": None }
+
+    for method in methods:
+        for labval in method["labvals"].values():
+            row = {}
+            row["method"] = method["code"]
+            row["method_de"] = method["name_de"]
+            row["method_en"] = method["name_en"]
+            row["labval"] = labval["code"]
+            row["labval_de"] = labval["name_de"]
+            row["labval_en"] = labval["name_en"]
+            row["labval_type"] = labval["type"]
+            if "catalog" in labval:
+                if "labval_catalog" not in colnames:
+                    colnames["labval_catalog"] = None
+                row["labval_catalog"] = labval["catalog"]
+            if "usageentry" in labval:
+                if "labval_usageentry" not in colnames:
+                    colnames["labval_usageentry"] = None
+                row["labval_usageentry"] = delim_usageentry.join(list(labval["usageentry"].keys()))
+            rows.append(row)
+    return dict_csv(rows, colnames=list(colnames.keys()), outfile=outfile, delim=delim)
+def catalog_csv(catalogs:list, outfile=None, delim:str=",") -> str:
+    """
+     catalog_csv writes a list of catalog dicts to the given csv file, one
+     row per entry in the catalog. if True is passed as file the output is
+     printed. todo use sys.stdout instead of True.
+    """
+    if delim is None:
+        delim = ","
+    if catalogs is None or len(catalogs) == 0: # todo throw error?
+        return None
+    rows = []
+    for catalog in catalogs:
+        for entry in catalog["entries"].values():
+            row = {}
+            row["catalog"] = catalog["code"]
+            row["catalog_de"] = catalog["name_de"]
+            row["catalog_en"] = catalog["name_en"]
+            row["entry"] = entry["code"]
+            row["entry_de"] = entry["name_de"]
+            row["entry_en"] = entry["name_en"]
+            rows.append(row)
+    return dict_csv(rows, outfile=outfile, delim=delim)
 
 class traction:
     def __init__(self, target):
@@ -227,7 +362,7 @@ class traction:
          __init__ takes the db target either as string or dbcq object.
         """
         self.settings = cnf.makeload(path=".traction/settings.yaml", root=cnf.home, fmt="yaml", make=cnftemplate)        
-        if self.settings == None:
+        if self.settings is None:
             raise Exception("no settings.")
             return
         if isinstance(target, str):
@@ -257,29 +392,33 @@ class traction:
             ,
             "participant_to_address": ["left join centraxx_participantaddress participantaddress on participantaddress.participant = participant.oid", "left join centraxx_address address on address.oid = participantaddress.oid"],
             "participant_to_credential": ["left join centraxx_credential credential on credential.participant = participant.oid"]
+            ,
+            "usageentry_to_labval": [ "left join centraxx_labvalenum_usageentry labvalenum_usageentry on labvalenum_usageentry.usageentry = usageentry.oid", "left join centraxx_laborvalue labval on labvalenum_usageentry.labvalueenum = labval.oid" ]
         }
         self.names_labval = None
         self.names_catalogentry = None
         self.names_usageentry = None
 
-    def sample(self, sampleids:list=None, oids:list=None, idc=None, patientids:list=None, pidc:str=None, parentids:list=None, parentoids:list=None, locationpaths:list=None, trials:list=None, kitids:list=None, cxxkitids:list=None, categories:list=None, types:list=None, orgas:list=None, samplingdates=None, receiptdates=None, derivaldates=None, first_repositiondates=None, repositiondates=None, stockprocessingdates=None, secondprocessingdates=None, files:dict=None, verbose:list=None, verbose_all=False, primaryref:bool=False, incl_parents:bool=False, incl_childs:bool=False, incl_tree:bool=False, like:list=None, missing=False, order_by=None, top=None, print_query:bool=False, raw:bool=False):
+    def sample(self, sampleids:list|None=None, oids:list|None=None, idc:dict|None=None, patientids:list|None=None, pidc:str|None=None, parentids:list|None=None, parentoids:list|None=None, locationpaths:list|None=None, locationnames:list|None=None, trials:list|None=None, kitids:list|None=None, cxxkitids:list|None=None, categories:list|None=None, types:list|None=None, orgas:list|None=None, samplingdates:list|None=None, receiptdates:list|None=None, derivaldates:list|None=None, first_repositiondates:list|None=None, repositiondates:list|None=None, stockprocessingdates:list|None=None, secondprocessingdates:list|None=None, files:dict|None=None, verbose:list|None=None, verbose_all:bool=False, primaryref:bool=False, incl_parents:bool=False, incl_childs:bool=False, incl_tree:bool=False, like:list|None=None, missing=False, order_by:str|None=None, top:int|None=None, by=None, print_query:bool=False, raw:bool=False):
         """
          sample gets sample(s) and returns them as a list of Sample instances.
          
          pass sampleids and other values to filter for as lists of strings,
          e.g. `sampleids=["a", "b", "c"]`.
          
-         use the idc param to filter for idcontainer lists by passing a dict of
-         lists keyed by idcontainer code, e.g. `idc={"extsampleid": ["a", "b", "c"]}`.
+         pass idcontainer lists to idc, like `idc={"extsampleid": ["a", "b", "c"]}`.
          
-         put info that should be joined into the result into the verbose array,
-         e.g.  `verbose=[tr.locationpath]`. to join in everything, say
+         pass fields that should be joined in into the verbose array, e.g.
+         `verbose=[tr.locationpath]`. to join in everything, say
          `verbose_all=True`. this is slower than non-verbose.
          
          pass dates as a tuple of from and to datetime, e.g. `samplingdates=(datefrom, None)`.
          
-         to check via like as opposed to exact, put the respective fields into
-         the like array, e.g. `like=[tr.locationpath]`.
+         to match via like as opposed to exact, pass the respective tr
+         constants or idcs to like, e.g. `like=[tr.locationpath]`.
+         
+         pass `by` to key returned samples by that tr constant or idc. if
+         missing is also passed, only missings are returned.
         """
         if verbose is None:
             verbose = []
@@ -289,16 +428,17 @@ class traction:
             files = {}
         if idc is None:
             idc = {}
-        vaa = [cxxkitid, kitid, locationname, locationpath, orga, parentid, 
+        vaa = [cxxkitid, kitid, locationname, locationpath, orga, parentid, patientid,
                project, receptacle, type,
                secondprocessing, stockprocessing, trial]
         vaa.extend(self._pidcs(pidc))
         vaa.extend(self._sidcs())                
-        if not self.sidc() in verbose:
+        if self.sidc() not in verbose:
             verbose.insert(0, self.sidc())
-        if verbose_all == True:
+        if verbose_all:
             verbose = vaa
         verbose = self._concrete_idcs(verbose, pidc=pidc)
+        files = self._concrete_idcs_dict(files, pidc=pidc)        
         if not _checkverbose(verbose, vaa): 
             raise Exception(f"verbose keys {verbose} need to be in {vaa}.")
         if incl_parents or incl_childs or incl_tree or primaryref:
@@ -342,6 +482,7 @@ class traction:
           parentid: parentids,
           parentoid: parentoids,
           locationpath: locationpaths,
+          locationname: locationnames,
           trial: trials,
           kitid: kitids,
           cxxkitid: cxxkitids,
@@ -353,11 +494,13 @@ class traction:
           first_repositiondate: first_repositiondates,
           repositiondate: repositiondates,
           stockprocessingdate: stockprocessingdates,
-          secondprocessingdate: secondprocessingdates
+          secondprocessingdate: secondprocessingdates,
+          type: types
         }
         _dextend(idc, self.sidc(), sampleids)
         _dextend(idc, self.pidc(pidc), patientids)
-        (tmptables, idctmptables) = self._makemove(files, lists, idc, 100, pidc=pidc)
+        alllists = self._makealllists(lists, idc, files)
+        (nontable, table) = self._makemove(alllists, 50)
         jselects = {
             self.sidc(): [f"idc_{self.sidc()}.psn as '{sampleid}'"],
             self.pidc(pidc): [f"idc_{self.pidc(pidc)}.psn as '{patientid}'"],                   
@@ -384,7 +527,7 @@ class traction:
           f"sample.parent as {parentoid}",
           "sample.*"
         ]
-        selectstr = self._selectstr(jselects, lselects, lists, tmptables, idc, idctmptables, verbose)
+        selectstr = self._selectstr(jselects, lselects, nontable, table, verbose)
         joins = {
             cxxkitid: self.jd["sample_to_samplekit"],
             parentid: self.jd["sample_to_parentid"],
@@ -401,8 +544,8 @@ class traction:
         }
         for pidc in self._pidcs(pidc):
             joins[pidc] = self.jd["sample_to_patient"]
-        joinstr = self._joinstr(joins, lists, tmptables, idc, idctmptables, verbose, pidc=pidc)
-        (wherestr, whereargs) = self._where(lists, tmptables, idc, idctmptables, like=like)
+        joinstr = self._joinstr(joins, nontable, table, verbose, pidc=pidc)
+        (wherestr, whereargs) = self._where(nontable, table, like=like)
         topstr = self._top(top)
         query = f"select {topstr} {selectstr} from centraxx_sample sample \n{joinstr}"
         if wherestr.strip() != "":
@@ -415,10 +558,13 @@ class traction:
            print(whereargs)
 
         res = self.db.qfad(query, whereargs)
-        self._cleartt(tmptables)
-        self._cleartt(idctmptables)
+        self._cleartt(table["nonidc"])
+        self._cleartt(table["idc"])
         if raw:
             return res
+        if missing and by is None:
+            by = _byifone(alllists)
+        bydict, missinglst = _prepby(alllists, by, missing)
         sarr = []
         for r in res:
             ids = []
@@ -476,8 +622,19 @@ class traction:
                 xposition=dig(r, xposition), 
                 yposition=dig(r, yposition)
             )
-            sarr.append(s)
-        return sarr
+            if by is not None:
+                if missing:
+                    _updatemissing(missinglst, by, r)
+                _fillby(bydict, by, r, s)
+            else:
+                sarr.append(s)
+        if by is not None:
+            if missing:
+                return missinglst
+            else:
+                return bydict
+        else:
+            return sarr
     def _get_parents(self, oid, out):
         """
          _get_parents collects the parent sample oids of a sample in the `out`
@@ -498,7 +655,7 @@ class traction:
         for child in res:
             out.append(child["oid"])
             self._get_childs(child["oid"], out)
-    def patient(self, patientids=None, pidc=None, sampleids=None, idc=None, trials=None, orgas:list=None, files:dict=None, verbose:list=None, verbose_all=False, like:list=None, order_by=None, top=None, print_query:bool=False, raw:bool=False):
+    def patient(self, patientids:list|None=None, pidc:str|None=None, sampleids:list|None=None, idc:dict|None=None, trials:list|None=None, orgas:list|None=None, files:dict|None=None, verbose:list|None=None, verbose_all:bool=False, like:list|None=None, order_by:str|None=None, top:int|None=None, by:str=None, missing:bool=False, print_query:bool=False, raw:bool=False):
         """
          patient gets patients and returns them as a list of Patient instances.
          
@@ -514,7 +671,7 @@ class traction:
             idc = {}
         vaa = [orga]
         vaa.extend(self._pidcs(pidc))        
-        if not self.pidc(pidc) in verbose:
+        if self.pidc(pidc) not in verbose:
             verbose.insert(0, self.pidc(pidc))
         verbose = self._concrete_idcs(verbose, pidc=pidc)
         files = self._concrete_idcs_dict(files, pidc=pidc)
@@ -524,8 +681,9 @@ class traction:
         }
         _dextend(idc, self.sidc(), sampleids)
         _dextend(idc, self.pidc(pidc), patientids)
-        (tmptables, idctmptables) = self._makemove(files, lists, idc, 100, pidc=pidc)
-        if verbose_all == True:
+        alllists = self._makealllists(lists, idc, files)
+        (nontable, table) = self._makemove(alllists, 50)
+        if verbose_all:
             verbose = vaa
         if not _checkverbose(verbose, vaa):
             return None # throw error?
@@ -540,9 +698,9 @@ class traction:
         }
         for sidc in self._sidcs():
             joins[sidc] = self.jd["patient_to_sample"]
-        selectstr = self._selectstr(selects, ["patientcontainer.*"], lists, tmptables, idc, idctmptables, verbose, pidc=pidc)
-        joinstr = self._joinstr(joins, lists, tmptables, idc, idctmptables, verbose, pidc=pidc)  
-        (wherestr, whereargs) = self._where(lists, tmptables, idc, idctmptables, like=like)
+        selectstr = self._selectstr(selects, ["patientcontainer.*"], nontable, table, verbose, pidc=pidc)
+        joinstr = self._joinstr(joins, nontable, table, verbose, pidc=pidc)  
+        (wherestr, whereargs) = self._where(nontable, table, like=like)
         #print(whereargs)
         topstr = self._top(top)
         query = f"select distinct {topstr} {selectstr} from centraxx_patientcontainer patientcontainer \n{joinstr}"
@@ -553,31 +711,44 @@ class traction:
         if print_query:
            print(query)
         res = self.db.qfad(query, whereargs)
-        self._cleartt(tmptables)
-        self._cleartt(idctmptables)        
+        self._cleartt(table["nonidc"])
+        self._cleartt(table["idc"])        
         if raw:
             return res
+        if missing and by is None:
+            by = _byifone(alllists)
+        bydict, missinglst = _prepby(alllists, by, missing)
         pats = []
         for r in res:
-            ids = [ Identifier(id=dig(r, patientid), code=self.pidc(pidc)) ]
+            ids = []
             for idc in self._pidcs(pidc):
-                if idc in r and r[idc] is not None:
-                    ids.append( Identifier(id=dig(r, idc), code=idc.upper()) )
+                if idc.lower() in r and r[idc.lower()] is not None:
+                    ids.append( Identifier(id=dig(r, idc.lower()), code=idc) )
             pat = Patient(
               ids=Idable(ids=ids, mainidc=self.pidc(pidc)),
               orga=dig(r, orga)
             )
-            pats.append(pat)
-            #print("pat: " + str(pat))
-        return pats
+            if by is not None:
+                if missing:
+                    _updatemissing(missinglst, by, r)
+                _fillby(bydict, by, r, pat)
+            else:
+                pats.append(pat)
+        if by is not None:
+            if missing:
+                return missinglst
+            else:
+                return bydict
+        else:
+            return pats
     def trial(self):
         """
          trial gives trials.
         """
-        query = "select code from centraxx_flexistudy"
+        query = "select code, study_name as name from centraxx_flexistudy"
         res = self.db.qfad(query)
         return res
-    def finding(self, sampleids=None, patientids=None, pidc:str=None, idc=None, methods=None, trials=None, values:bool=True, verbose:list=None, files:dict=None, verbose_all:bool=False, names:bool=False, top:int=None, print_query:bool=False, raw:bool=False):
+    def finding(self, sampleids:list|None=None, patientids:list|None=None, pidc:str|None=None, idc:dict|None=None, methods:list|None=None, trials:list|None=None, values:bool=True, verbose:list|None=None, files:dict|None=None, verbose_all:bool=False, names:bool=False, top:int|None=None, print_query:bool=False, raw:bool=False):
         """
          finding gets the laborfindings ("messbefund" / "begleitschein") for
          sampleids or method.  it returns a list of Finding instances.
@@ -591,7 +762,7 @@ class traction:
         if idc is None:
             idc = {}
         vaa = [patientid] # include trial?
-        if verbose_all == True:
+        if verbose_all:
             verbose = vaa
         if self.sidc() not in verbose:
             verbose.append(self.sidc())
@@ -603,18 +774,19 @@ class traction:
         }
         _dextend(idc, self.sidc(), sampleids)
         _dextend(idc, self.pidc(pidc), patientids)
-        (tmptables, idctmptables) = self._makemove(files, lists, idc, 100, pidc=pidc)
+        alllists = self._makealllists(lists, idc, files)
+        (nontable, table) = self._makemove(alllists, 50)
         selects = {
             self.sidc(): [f"idc_{self.sidc()}.psn as '{sampleid}'"],
             self.pidc(pidc): [f"idc_{self.pidc(pidc)}.psn as '{patientid}'"],                   
         }
-        idcselectstr = self._selectstr(selects, [], lists, tmptables, idc, idctmptables, verbose, pidc=pidc)  
+        idcselectstr = self._selectstr(selects, [], nontable, table, verbose, pidc=pidc)  
         joins = {
             trial: self.jd["sample_to_trial"]
         }
         for pidc in self._pidcs(pidc):
             joins[pidc] = self.jd["sample_to_patient"]
-        idcjoinstr = self._joinstr(joins, lists, tmptables, idc, idctmptables, verbose, pidc=pidc)
+        idcjoinstr = self._joinstr(joins, nontable, table, verbose, pidc=pidc)
         topstr = self._top(top)
         query = f"""select {topstr} laborfinding.oid as "laborfinding_oid", laborfinding.*, labormethod.code as {method}, {idcselectstr}
         from centraxx_laborfinding as laborfinding
@@ -624,7 +796,7 @@ class traction:
         left join centraxx_labormapping as labormapping on labormapping.laborfinding = laborfinding.oid
         left join centraxx_sample sample on labormapping.relatedoid = sample.oid
         {idcjoinstr}"""
-        (wherestr, whereargs) = self._where(lists, tmptables, idc, idctmptables)        
+        (wherestr, whereargs) = self._where(nontable, table)
         if wherestr.strip() != "":
             query += f"\nwhere {wherestr}"
             
@@ -632,14 +804,14 @@ class traction:
             print(query)
             print(whereargs)
         results = self.db.qfad(query, whereargs)
-        self._cleartt(tmptables)
-        self._cleartt(idctmptables)        
+        self._cleartt(table["nonidc"])
+        self._cleartt(table["idc"])        
         if names is True:
             self.names_laborvalue = self.name(table="laborvalue")
         for i, finding in enumerate(results):
-            if values != True: # todo put this outside of the loop?
+            if not values: # todo put this outside of the loop?
                 continue
-            query = f"""select recordedvalue.*, laborvalue.code as laborvalue_code, laborvalue.dtype as laborvalue_type, laborvalue.custom_catalog as laborvalue_catalog_oid, unit.code as laborvalue_unit
+            query = """select recordedvalue.*, laborvalue.code as laborvalue_code, laborvalue.dtype as laborvalue_type, laborvalue.custom_catalog as laborvalue_catalog_oid, unit.code as laborvalue_unit
                 from centraxx_laborfinding as laborfinding
 
                 -- go from laborfinding to recorded value
@@ -669,18 +841,26 @@ class traction:
             return results
         findings = []
         for res in results:
+            patids = []
+            for idc in self._pidcs(pidc):
+                if idc.lower() in res and res[idc.lower()] is not None:
+                    patids.append( Identifier(id=dig(res, idc.lower()), code=idc.upper()) )
+
+            patient = None
+            if len(patids) > 0:
+                patient = Idable(ids=patids, mainidc=self.pidc(pidc))
             finding = Finding(
                 findingdate=dig(res, "findingdate"),
                 method=res["method"],
-                methodname=res["shortname"],
-                patient=Idable(id=dig(res, patientid), code=self.pidc(pidc), mainidc=self.pidc(pidc)) if dig(res, patientid) is not None else None, 
+                name=res["shortname"],
+                patient=patient,
                 recs=res["values"] if "values" in res else None, # todo None ok?
                 sample=Idable(id=res[sampleid], code=self.sidc(), mainidc=self.sidc()),
                 sender=None
             )
             findings.append(finding)
         return findings
-    def method(self, methods=None, files:dict=None):
+    def method(self, methods:list|None=None, files:dict|None=None):
         """
          method (messprofil) gets method(s) and their labvals (messparameter).
         """
@@ -689,8 +869,9 @@ class traction:
         lists = {
           method: methods
         }
-        (tmptables, idctmptables) = self._makemove(files, lists, {}, 100)
-        query = f"""select laborvalue.code as labval, labormethod.code as "method", laborvalue.dtype as labval_type, catalog.code as catalog
+        alllists = self._makealllists(lists, {}, files)
+        (nontable, table) = self._makemove(alllists, 50)
+        query = """select laborvalue.code as labval, labormethod.code as "method", laborvalue.dtype as labval_type, catalog.code as catalog
 from centraxx_labormethod labormethod
 inner join centraxx_crftemplate crf_t
     on labormethod.crf_template=crf_t.oid
@@ -704,14 +885,14 @@ inner join centraxx_laborvalue laborvalue
     on crf_tf.laborvalue=laborvalue.oid
 left join centraxx_catalog catalog
     on catalog.oid = laborvalue.custom_catalog"""
-        (wherestr, whereargs) = self._where(lists, tmptables, {}, idctmptables)
+        (wherestr, whereargs) = self._where(nontable, table)
 
         if wherestr and wherestr.strip != "()":
           query += " where " + wherestr
         # print(query)
         res = self.db.qfad(query, whereargs)
-        self._cleartt(tmptables)
-        self._cleartt(idctmptables)        
+        self._cleartt(table["nonidc"])
+        self._cleartt(table["idc"])
         methodnames = self.name(table="labormethod")
         labvalnames = self.name(table="laborvalue")
         out = {}
@@ -733,52 +914,94 @@ left join centraxx_catalog catalog
                 labval["catalog"] = dig(row, "catalog")
             labval["type"] = row["labval_type"]
             if labval["type"] == "OPTIONGROUP" or labval["type"] == "ENUMERATION":
-                labval["usageentry"] = self.usageentry(labvals=[labval])
+                labval["usageentry"] = self.usageentry(labvals=[labval["code"]])
             out[methodcode]["labvals"][labvalcode] = labval
         return out
-    def user(self, usernames:list=None, emails:list=None, lastlogin=None, files:dict=None, verbose:list=None):
+    def user(self, usernames:list|None=None, emails:list|None=None, lastlogins:list|None=None, files:dict|None=None, verbose:list|None=None, top:int|None=None, verbose_all:bool=False, print_query:bool=False):
         """
         """
         if verbose is None:
             verbose = []
         if files is None:
             files = {}
-        vaa = [tr.address, tr.login]
+        vaa = [address, login]
+        if verbose_all:
+            verbose = vaa
         lists = {
           username: usernames,
           address: emails,
-          login: lastlogin
+          login: lastlogins
         }
-        (tmptables, idctmptables) = self._makemove(files, lists, idc, 100)
-        self._cleartt(tmptables)
-        self._cleartt(idctmptables)        
+        alllists = self._makealllists(lists, {}, files)
+        (nontable, table) = self._makemove(alllists, 50)
+        jselects = {
+            address: [f"address.email as email"],
+            login: [f"credential.last_login_on as lastlogin"]
+        }
+        lselects = [
+            f"participant.username as {username}",
+            f"participant.firstname as firstname",
+            f"participant.lastname as lastname"
+        ]
+        selectstr = self._selectstr(jselects, lselects, nontable, table, verbose)
+        joins = {
+            address: self.jd["participant_to_address"],
+            login: self.jd["participant_to_credential"]
+        }
+        joinstr = self._joinstr(joins, nontable, table, verbose)
+        (wherestr, whereargs) = self._where(nontable, table, like=[])
+        topstr = self._top(top)
+        query = f"select {topstr} {selectstr} from centraxx_participant participant\n{joinstr}"
+        if wherestr.strip() != "":
+            query += f"\nwhere {wherestr}"
+        if print_query:
+            print(query)
+            print(whereargs)
+        res = self.db.qfad(query, whereargs)
+        self._cleartt(table["nonidc"])
+        self._cleartt(table["idc"])        
         out = []
         for r in res:
             user = User(
-                email=dig(r, tr.email),
-                lastlogin=dig(r, tr.lastlogin),
-                username=dig(r, tr.username),
+                email=dig(r, email),
+                lastlogin=dig(r, lastlogin),
+                username=dig(r, username),
+                firstname=dig(r, "firstname"),
+                lastname=dig(r, "lastname")
             )
             out.append(user)
         return out
-    def catalog(self, catalogs:list=None, files:dict=None):
+    def orga(self, names:bool=False):
         """
-         catalogentry gives the catalogentries per catalog.
+         orga returns organisationunits.
+        """
+        query = "select code from centraxx_organisationunit"
+        res = self.db.qfad(query)
+        names = self.name(table="organisationunit", ml_table="organisatunit_ml_name")
+        for i, _ in enumerate(res):
+            nam = names[res[i]["code"]]
+            res[i]["name_de"] = nam["de"]
+            res[i]["name_en"] = nam["en"]
+        return res
+    def catalog(self, catalogs:list|None=None, files:dict|None=None):
+        """
+         catalog gives the catalogentries per catalog.
         """
         if files is None:
             files = {}
         lists = {
             catalog: catalogs
         }
-        (tmptables, idctmptables) = self._makemove(files, lists, {}, 100)
+        alllists = self._makealllists(lists, {}, files)
+        (nontable, table) = self._makemove(alllists, 50)
         query = """select catalogentry.code as 'entry_code', catalog.code as 'catalog_code' from centraxx_catalogentry catalogentry
 join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
-        (wherestr, whereargs) = self._where(lists, tmptables, {}, idctmptables) # idctmptables not actually needed at the moment
+        (wherestr, whereargs) = self._where(nontable, table) 
         if wherestr and wherestr.strip() != "()":
             query += f"\nwhere {wherestr}"
         res = self.db.qfad(query, whereargs)
-        self._cleartt(tmptables)
-        self._cleartt(idctmptables)        
+        self._cleartt(table["nonidc"])
+        self._cleartt(table["idc"])
         catnames = self.name(table="catalog")
         entrynames = self.name(table="catalogentry")
         out = {}
@@ -786,7 +1009,7 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
             entrycode = dig(row, "entry_code")
             catcode = dig(row, "catalog_code")
             # create the catalog
-            if not catcode in out:
+            if catcode not in out:
                 out[catcode] = {}
                 out[catcode]["code"] = catcode
                 out[catcode]["name_de"] = dig(catnames, catcode + "/de")
@@ -799,12 +1022,30 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
             entry["name_en"] = dig(entrynames, entrycode + "/en")        
             out[catcode]["entries"][entrycode] = entry
         return out
-    def usageentry(self, labvals:list=None):
+    def usageentry(self, labvals:list=None, files:dict=None):
         """
          usageentry gives the usageentries.
         """
-        query = "select code from centraxx_usageentry"
-        res = self.db.qfad(query)
+        lists = {
+           labval: labvals
+        }
+        alllists = self._makealllists(lists, {}, files)
+        (nontable, table) = self._makemove(alllists, 50)
+        selectstr = self._selectstr([], ["usageentry.code"], nontable, table, verbose=[])
+        joins = {
+                labval: self.jd["usageentry_to_labval"]
+        }
+        joinstr = self._joinstr(joins, nontable, table, [])
+        (wherestr, whereargs) = self._where(nontable, table, like=[])
+        query = f"select {selectstr} from centraxx_usageentry usageentry \n{joinstr}"
+        if wherestr.strip() != "":
+            query += f"\nwhere {wherestr}"
+        #if print_query:
+        #    print(query)
+        #    print(whereargs)
+        res = self.db.qfad(query, whereargs)
+        self._cleartt(table["nonidc"])
+        self._cleartt(table["idc"])
         names = self.name(table="usageentry")
         out = {}
         for row in res:
@@ -845,7 +1086,7 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
         query = "select [" + table + "].code, multilingual.value as name, multilingual.lang as lang"
         query += " from [centraxx_" + table + "] as [" + table + "]"
         ml_name = ""
-        if ml_table != None: # the name is different
+        if ml_table is not None: # the name is different
             ml_name = "centraxx_" + ml_table
         else: # the name is the same
             ml_name = "centraxx_" + table + "_ml_name"
@@ -853,10 +1094,10 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
         query += " inner join centraxx_multilingualentry multilingual on mlname.oid = multilingual.oid"
         wherestrings = []
         args = []
-        if code != None:
+        if code is not None:
             wherestrings.append(self._whereparam("[" + table + "].code"))
             args.append(code)
-        if lang != None:
+        if lang is not None:
             wherestrings.append(self._whereparam("multilingual.lang"))
             args.append(lang)
         if len(wherestrings) > 0:
@@ -870,7 +1111,7 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
         for line in res:
             code = line["code"]
             lang = line["lang"]
-            if not code in out:
+            if code not in out:
                out[code] = {}
             out[code][lang] = line["name"]
         return out
@@ -883,13 +1124,13 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
         fieldname = table
         if table == "organisationunit":
             fieldname = "organizationunit"
-        query = f"select lang, ml_name as name, {table}.code from centraxx_multilingual multilingual join centraxx_{table} {table} on {table}.oid = multilingual.{table} where multilingual.{table} is not null"
+        query = f"select lang, ml_name as name, {table}.code from centraxx_multilingual multilingual join centraxx_{table} {table} on {table}.oid = multilingual.{table} where multilingual.{fieldname} is not null"
         wherestrings = []
         args = []
-        if code != None:
+        if code is not None:
             wherestrings.append(self._whereparam("[" + table + "].code"))
             args.append(code)
-        if lang != None:
+        if lang is not None:
             wherestrings.append(self._whereparam("multilingual.lang"))
             args.append(lang)
         if len(wherestrings) > 0:
@@ -901,13 +1142,13 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
         for line in res:
             code = line["code"]
             lang = line["lang"]
-            if not code in out:
+            if code not in out:
                out[code] = {}
             out[code][lang] = line["name"]
         return out
 
     # query
-    def _selectstr(self, selects, selecta, lists, tmptables, idclists, idctmptables, verbose, pidc:str=None):
+    def _selectstr(self, selects, selecta, nontable, table, verbose, pidc:str=None):
         """
          _selectstr gives the selects for idc keys and verbose array. unlike
          _joinstr, keys in lists and tmptables aren't included automatically,
@@ -918,10 +1159,10 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
          the idc argument assumes that the sample table is joined it. // todo is this still true?
         """
         (vnonidc, vidc) = self._splitidc(verbose, pidc=pidc)
-        nonidc = self._collkeys(lists, tmptables, vnonidc)
-        idc = self._collkeys(idclists, idctmptables, vidc)
+        nonidc = self._collkeys(nontable["nonidc"], table["nonidc"], vnonidc)
+        idc = self._collkeys(nontable["idc"], table["idc"], vidc)
         for key in nonidc:
-            if not key in selects:
+            if key not in selects:
                 continue
             for s in selects[key]:
                 selecta.append(s)
@@ -934,25 +1175,25 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
         """
         for item in idca:
           selectstr = f"idc_{item}.psn as '{item}'"
-          if not selectstr in selecta:
+          if selectstr not in selecta:
             selecta.append(selectstr)
         return selecta
-    def _joinstr(self, joins, lists, tmptables, idclists, idctmptables, verbose, pidc:str=None):
+    def _joinstr(self, joins, nontable, table, verbose, pidc:str|None=None):
         """
          _joinstr puts together the joins needed for the lists and temporary
          tables of non-idc and idc keys, and verbose. it returns the sql join
          string.
         """
         (vnonidc, vidc) = self._splitidc(verbose, pidc=pidc)
-        nonidc = self._collkeys(lists, tmptables, vnonidc)
-        idc = self._collkeys(idclists, idctmptables, vidc)
+        nonidc = self._collkeys(nontable["nonidc"], table["nonidc"], vnonidc)
+        idc = self._collkeys(nontable["idc"], table["idc"], vidc)
         joina = []
         joina = self._join_idc(joina, idc, joins)
         for key in nonidc: 
-            if not key in joins:
+            if key not in joins:
                 continue
             for s in joins[key]:
-                if not s in joina:
+                if s not in joina:
                     joina.append(s)
         joinstr = " \n".join(joina)
         return joinstr
@@ -968,16 +1209,16 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
           if self._idckind[item] == "SAMPLE":
             joinstr = f"left join centraxx_sampleidcontainer as idc_{item} on idc_{item}.sample = sample.oid and idc_{item}.idcontainertype = {self._idcoid[item]}"
     
-            if not joinstr in joina:
+            if joinstr not in joina:
               joina.append(joinstr)
           elif self._idckind[item] == "PATIENT":
             joinstr = f"left join centraxx_idcontainer as idc_{item} on idc_{item}.patientcontainer = patientcontainer.oid and idc_{item}.idcontainertype = {self._idcoid[item]}"
-            if not joinstr in joina: # neccessary?
+            if joinstr not in joina: # neccessary?
               joina.append(joinstr)
           else:
             print(f"error: idcontainer kind {self._idckind[item]} not supported.")
         return joina
-    def _where(self, lists:dict, tmptables:dict, idclists:dict, idctmptables:dict, like:list=None): # -> (str, list)
+    def _where(self, nontable:dict, table:dict, like:list=None): # -> (str, list)
         """
          _where returns the wherestring and args array for the provided
          lists and temporary tables.
@@ -985,9 +1226,9 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
          the user needs to make sure that whatever is used here is joined
          into the query before.
          
-         the keys in lists and tmptables are assumed to be the tr constants,
-         e.g. tr.locationpath, the keys in idclists and idctmptables are
-         assumed to be idcontainers.
+         the keys in nontable["nonidc"] and table["nonidc"] are assumed to be
+         the tr constants, e.g. tr.locationpath, the keys in nontable["idc"]
+         and table["idc"] are assumed to be idcontainers.
          
          like holds tr constants and idcontainers for which to check likeness
          instead of equality.
@@ -997,6 +1238,7 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
         wheredict = { 
           trial: { "field": "flexistudy.code" },
           locationpath: { "field": "samplelocation.locationpath" },
+          locationname: { "field": "samplelocation.locationid" },          
           method: { "field": "labormethod.code" },
           kitid: { "field": "samplekit.kitid" },
           cxxkitid: { "field": "samplekit.cxxkitid" },
@@ -1013,24 +1255,24 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
           first_repositiondate: { "field": "sample.first_repositiondate", "type": "date" },
           repositiondate: { "field": "sample.repositiondate", "type": "date" },
           stockprocessingdate: { "field": "sample.stockprocessingdate", "type": "date" },
-          secondprocessingdate: { "field": "sample.secondprocessingdate", "type": "date" }
+          secondprocessingdate: { "field": "sample.secondprocessingdate", "type": "date" },
+          username: { "field": "participant.username" },
+          address: { "field": "address.email" },
+          login: { "field": "credential.last_login_on", "type": "date" },
+          labval: { "field": "labval.code" }
         }
         wherestrs = []
         whereargs = []
-        #print("lists:")
-        #print(lists)
-        #print("tmptables:")
-        #print(tmptables)
-        for key in _uniq(list(lists.keys()) + list(tmptables.keys())):
-           if dig(lists, key) is not None and dig(wheredict, key + "/type") == "date":
-               (wstr, wargs) = self._wheredate(dig(lists, key), wheredict[key]["field"])
+        for key in _uniq(list(nontable["nonidc"].keys()) + list(table["nonidc"].keys())):
+           if dig(nontable["nonidc"], key) is not None and dig(wheredict, key + "/type") == "date":
+               (wstr, wargs) = self._wheredate(dig(nontable["nonidc"], key), wheredict[key]["field"])
            else:
-               (wstr, wargs) = self._whereexact(dig(lists, key), dig(tmptables, key), wheredict[key]["field"])
+               (wstr, wargs) = self._whereexact(dig(nontable["nonidc"], key), dig(table["nonidc"], key), wheredict[key]["field"])
            if wstr != "()":
                wherestrs.append(wstr)
                whereargs.extend(wargs)
-        for key in _uniq(list(idclists.keys()) + list(idctmptables.keys())):
-            (wstr, wargs) = self._whereexact(dig(idclists, key), dig(idctmptables, key), f"idc_{key}.psn")
+        for key in _uniq(list(nontable["idc"].keys()) + list(table["idc"].keys())):
+            (wstr, wargs) = self._whereexact(dig(nontable["idc"], key), dig(table["idc"], key), f"idc_{key}.psn")
             if wstr != "()":
                 wherestrs.append(wstr)
                 whereargs.extend(wargs)
@@ -1061,7 +1303,7 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
             if needsor:
                 wherestr += " or "
             wherestr += dbfield + " in "
-            wherestr += f"(select stdin from tempdb..{tmptable})"#bm
+            wherestr += f"(select stdin from tempdb..{tmptable})"
         wherestr += ")"
         return (wherestr, wherearg)
     def _wheredate(self, tpl, dbfield): # -> (str, list)
@@ -1074,7 +1316,7 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
         if tpl == 'NULL':
             wstr = "(" + dbfield + " is NULL)"
         else:
-            s = f"(CAST(" + dbfield + " as date) between ISNULL(?, " + dbfield + ") and ISNULL(?, " + dbfield + "))"
+            s = "(CAST(" + dbfield + " as date) between ISNULL(?, " + dbfield + ") and ISNULL(?, " + dbfield + "))"
             wstr = s
             wargs.extend(tpl)
         return (wstr, wargs)
@@ -1097,7 +1339,7 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
          _whereparam gives a ?-parameterized sql where expression for name
          equal or like parameter for use in queries.
         """
-        if like == None or like == False:
+        if like is None or not like:
             return name + " = ?"
         else:
             return name + " like '%' + ? + '%'"
@@ -1171,12 +1413,12 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
             out = DateRec(method=finding["method"], labval=recval["laborvalue_code"], rec=recval["datevalueprecision"])
         elif recval["laborvalue_type"] == "CATALOG":
             # get the catalog code
-            query = f"""select catalog.code as 'catalog_code' from centraxx_catalog as catalog
+            query = """select catalog.code as 'catalog_code' from centraxx_catalog as catalog
             where catalog.oid = ?""" # do this once for all catalogs on startup or finding() call?
             res = self.db.qfad(query, recval['laborvalue_catalog_oid'])
             catalog_code = res[0]["catalog_code"]
             # get the catalog entries
-            query = f"""select catalogentry.code as 'catalogentry_code' from centraxx_recordedvalue as recordedvalue
+            query = """select catalogentry.code as 'catalogentry_code' from centraxx_recordedvalue as recordedvalue
             join centraxx_recordedval_catentry as recordedval_catentry on recordedval_catentry.recordedvalue_oid = recordedvalue.oid
             join centraxx_catalogentry as catalogentry on catalogentry.oid = recordedval_catentry.catalogentry_oid
             where recordedvalue.oid = ?"""
@@ -1194,10 +1436,10 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
             
             out = CatalogRec(method=finding["method"], labval=recval["laborvalue_code"], catalog=catalog_code, rec=entries, rec_name=value_name)
         elif recval["laborvalue_type"] == "ENUMERATION" or recval["laborvalue_type"] == "OPTIONGROUP":
-            query = f"""select usageentry.code as 'usageentry_code' from centraxx_recordedvalue as recordedvalue
+            query = """select usageentry.code as 'usageentry_code' from centraxx_recordedvalue as recordedvalue
             join centraxx_recordedval_usagentry as recordedval_usagentry on recordedval_usagentry.recordedvalue_oid = recordedvalue.oid
             join centraxx_usageentry as usageentry on usageentry.oid = recordedval_usagentry.usageentry_oid
-            where recordedvalue.oid = ?"""            
+            where recordedvalue.oid = ?"""
             res = self.db.qfad(query, recval['oid'])
 
             # get the usageentry names if they are not already loaded, and cache them. maybe it's faster to load the whole names map once instead of joining them in each time?
@@ -1229,29 +1471,53 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
             primary = self.sample(oids=[primary_oid])[0]
             sample.primary = Idable(ids=primary.ids, mainidc=primary.mainidc)
 
-    # tmp tables
-    def _makemove(self, files:dict, lists:dict, idclists:dict, cutoff:int, pidc:str=None): # -> (dict, dict)
+    # lists and tmp tables
+    def _makemove(self, alllists:dict, cutoff:int): # -> (dict, dict)#bm
         """
-         _makemove makes temporary tables for all files and all lists (non-idc
-         and idc) that are larger than cutoff. moved lists are removed from
-         lists and idclists, respectively. it returns a tuple holding dicts of
-         the non-idc tables and the idc tables created.
+         _makemove makes temporary tables from the given lists that are longer
+         than cutoff. it returns one dict holding the remaining, non-table
+         lists and one dict holding the table names of the created temporary
+         tables, both return dicts distinguishing between nonidc and idc.
         """
-        files = self._concrete_idcs_dict(files, pidc=pidc)
-        #print("files:")
-        #print(files)
-        (ttlists, ttidclists) = self._readfiles(files)
-        _mvlists(lists, ttlists, cutoff)
-        _mvlists(idclists, ttidclists, cutoff)
-        tmptables = self._maketables(ttlists, "tmp_")
-        idctmptables = self._maketables(ttidclists, "tmp_idc_")
-        return (tmptables, idctmptables) 
-    def _readfiles(self, files):
+        nontables = {}
+        (nontables["nonidc"], ttlists) = _tablelists(alllists["nonidc"], cutoff)
+        (nontables["idc"], ttidclists) = _tablelists(alllists["idc"], cutoff)        
+        tables = {}
+        tables["nonidc"] = self._maketables(ttlists, "tmp_")
+        tables["idc"] = self._maketables(ttidclists, "tmp_idc_")
+        return (nontables, tables) 
+    def _makealllists(self, lists, idc, files):
+        """
+         _makealllists reads the lists from files, puts them together with the
+         lists passed as lists, and returns them all in one dict,
+         keeping nonidc and idc seperate.
+        """
+        alllists = {}
+        alllists["nonidc"] = {}
+        alllists["idc"] = {}
+        for key, lst in lists.items():
+            if lst is not None:
+                alllists["nonidc"][key] = lst
+        for key, lst in idc.items():
+            alllists["idc"][key] = lst
+        (ff, ffidc) = self._readfiles(files)
+        for key, lst in ff.items():
+            if key not in alllists["nonidc"]:
+                alllists["nonidc"][key] = []
+            alllists["nonidc"][key].extend(lst)
+        for key, lst in ffidc.items():
+            if key not in alllists["idc"]:
+                alllists["idc"][key] = []
+            alllists["idc"][key].extend(lst)
+        return alllists
+    def _readfiles(self, files, sidc:str=None, pidc:str=None):
         """
          _readfiles reads the files from which tmp tables should be build into
          lists.  it returns a tuple of one dict holding the non-idc lists and
          one dict holding the idc lists.
         """
+        if files is None:
+            return ({}, {})
         both = {}
         for key, filepath in files.items():
             lst = []
@@ -1262,7 +1528,11 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
         nonidc = {}
         idc = {}
         for key, _ in both.items():
-            if key in self._idcs:
+            if key == sampleid:
+                idc[self.sidc()] = both[key]
+            elif key == patientid:
+                idc[self.pidc(pidc)] = both[key]
+            elif self._is_idc(key, sidc=sidc, pidc=pidc):
                 idc[key] = both[key]
             else:
                 nonidc[key] = both[key]
@@ -1307,15 +1577,15 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
          sidc returns the main idc code by which samples are referenced as
          specified in the settings. 
         """
-        if not self.db.target in self.settings['sampleid']:
+        if self.db.target not in self.settings['sampleid']:
             raise Exception(f"please specify the main sample idcontainer for {self.db.target} in settings.yaml")
         return self.settings['sampleid'][self.db.target]
-    def pidc(self, pidc:str=None) -> str:
+    def pidc(self, pidc:str|None=None) -> str:
         """
         """
         if pidc is not None:
             return pidc
-        if not self.db.target in self.settings['patientid']:
+        if self.db.target not in self.settings['patientid']:
             raise Exception(f"please specify the main patient idcontainer for {self.db.target} in settings.yaml")
         return self.settings['patientid'][self.db.target]
     def _sidcs(self) -> list:
@@ -1335,10 +1605,11 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
         """
         out = []
         for idc in self.settings["idc"]:
-            if idc in self._idckind and self._idckind[idc] == "SAMPLE":
+            if idc in self._idckind and self._idckind[idc] == "SAMPLE" and not idc in out:
                 out.append(idc)
-        # include the main sample idcontainer
-        out.append(self.sidc())
+        sidc = self.sidc()
+        if sidc not in out:
+            out.append(self.sidc())
         return out
     def _pidcs(self, pidc:str=None) -> list:
         """
@@ -1347,10 +1618,11 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
         """
         out = []
         for idc in self.settings["idc"]:
-            if idc in self._idckind and self._idckind[idc] == "PATIENT":
+            if idc in self._idckind and self._idckind[idc] == "PATIENT" and idc not in out:
                 out.append(idc)
-        # include the main patient idcontainer
-        out.append(self.pidc(pidc))
+        pidc = self.pidc(pidc)
+        if pidc not in out:
+            out.append(pidc)
         return out
     def _concrete_idcs(self, verbose, pidc=None):
         """
@@ -1429,7 +1701,7 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
             if tmptables[k] is not None and k not in out:
                 out.append(k)
         for k in verbose:
-            if not k in out:
+            if k not in out:
                 out.append(k)
         return out
     

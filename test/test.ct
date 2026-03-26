@@ -35,6 +35,17 @@ check the sample.
     assert sample.patient.id("LIMSPSN") == "fim-1"
 ``
 
+get trials.
+
+``
+    res = trac.trial()
+    hassnid = False
+    for r in res:
+        if r["code"] == "NUM S-SNID":
+            hassnid = True
+    assert hassnid == True
+``
+
 get the patient for a sample.
 
 ``
@@ -46,7 +57,7 @@ check the patient.
 
 ``
     pat = res[0]
-    assert pat.id("LIMSPSN") == 28365
+    assert pat.id("LIMSPSN") == "fim-1"
 ``
 
 get the findings for the sample.
@@ -61,6 +72,33 @@ check the finding.
 ``
     finding = res[0]
     assert "DENGUE" in finding.recs["PATHOGEN2"].rec
+``
+
+get methods.
+
+``
+    res = trac.method()
+``
+
+get users.
+
+``
+    res = trac.user(usernames=["hauboldm"], verbose_all=True)
+    assert res[0].email == "max.haubold@med.uni-greifswald.de"
+``
+
+get a catalog.
+
+``
+    res = trac.catalog(catalogs=["PATHOGEN"])
+    assert res["PATHOGEN"]["entries"]["CHIKUNGUNYA"]["name_de"] == "Chikungunya"
+``
+
+get usageentries.
+
+``
+    res = trac.usageentry()
+    assert res["YES"]["name_de"] == "ja"
 ``
 
 import.

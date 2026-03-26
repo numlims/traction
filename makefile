@@ -15,6 +15,7 @@ all:
 
 build:
 	make
+	#ruff check tr
 	python3 -m build --no-isolation
 
 install:
@@ -44,6 +45,7 @@ publish:
 	make
 	git push --tags
 	gh release create "v${version}" "./dist/${name}-${version}-py3-none-any.whl"
+	make doc-publish
 
 publish-update: # if an asset was already uploaded, delete it before uploading again
 	make
@@ -57,3 +59,4 @@ publish-update: # if an asset was already uploaded, delete it before uploading a
 	gh release upload "v${version}" "./dist/${name}-${version}-py3-none-any.whl"
 	# apparently the tag change rolled the release back to draft, set it to publish again
 	gh release edit "v${version}" --draft=false
+	make doc-publish
