@@ -281,7 +281,7 @@ these are all possible verbose options (verbose-all-array).
 for subsequent joins that depend on it.
 
 `` #py
-        vaa = [cxxkitid, kitid, locationname, locationpath, orga, parentid, 
+        vaa = [cxxkitid, kitid, locationname, locationpath, orga, parentid, patientid,
                project, receptacle, type,
                secondprocessing, stockprocessing, trial]
 ``
@@ -3549,7 +3549,8 @@ constants and idcs.
         missinglst.remove(bykey)
 ``
 
-dict_csv writes a list dicts to csv file.
+dict_csv writes a list of dicts to csv file. if no column names are
+given, the fields in the first dict are used as column names.
 
 ``/dict_csv:
 def dict_csv(lst:list, colnames=None, outfile=None, delim:str=",") -> str|None:
@@ -3604,8 +3605,8 @@ close and return the out file.
     return outfile
 ``
 
-flat_csv writes a list of 'flat' tram objects to csv file, like Trial
-or User, that don't need to pull in data into their dict root or so.
+flat_csv writes a list of 'flat' tram objects like User (that don't
+need to pull in nested data into their dict root) to csv file.
 
 ``/flat_csv:
 def flat_csv(lst:list, outfile=None, delim:str=",") -> str|None:
@@ -3627,44 +3628,22 @@ if no list return.
         return None
 ``
 
-if a path is passed, open the file, else assume it's sys.stdout.
+put the dict of each element into an array for dict_csv.
 
 ``
-    out = sys.stdout 
-    if isinstance(outfile, str):
-        out = open(outfile, "w", newline="")
-``        
-
-make a csv dict writer.
-
-take the fields of the first list entry as column names.
-
-``
-    colnames = []
-    colnames = list(lst[0].__dict__.keys())
-    
-    writer = csv.DictWriter(out, fieldnames=colnames, delimiter=delim) 
-    writer.writeheader()
-``
-
-write a row for each idable.
-
-``
+    rows = []
     for e in lst:
-        d = e.__dict__
-        writer.writerow(d)
+        rows.append(e.__dict__)
 ``
 
-close and return the out file.
+send the rows to dict_csv and return the written filename, if any.
 
 ``
-    out.close()
-    return outfile
+    return dict_csv(rows, outfile=outfile, delim=delim)    
 ``
-
        
 idable_csv writes a list of Idables to the given csv file. the given
-idcontainers are included as columns. if no idcontainers are given,
+idcontainers become columns in the csv. if no idcontainers are given,
 all are included. if True is passed as file, the output is
 printed. (todo pass sys.stdout instead?)
 
@@ -3688,18 +3667,8 @@ if no idables return.
         return None
 ``
 
-if a path is passed, open the file, else assume it's sys.stdout.
-
-``
-    out = sys.stdout 
-    if isinstance(outfile, str):
-        out = open(outfile, "w", newline="")
-``        
-
-
-make a csv dict writer.
-
-collect the column names.
+collect the column names, since we don't know from the get-go which
+idcontainers will be there.
 
 ``
     colnames = []
@@ -3707,26 +3676,23 @@ collect the column names.
         for col in list(idable.iddict(*idcs).keys()):
             if col not in colnames:
                 colnames.append(col)
-    #print("colnames:")
-    #print(colnames)
-    writer = csv.DictWriter(out, fieldnames=colnames, delimiter=delim) 
-    writer.writeheader()
 ``
 
-write a row for each idable.
+get the dict for each idable.
 
 ``
+    rows = []
     for idable in idables:
         d = idable.iddict(*idcs)
-        writer.writerow(d)
+        rows.append(d)
 ``
 
-close and return the out file.
+send the rows to dict_csv and return the written filename, if any.
 
 ``
-    out.close()
-    return outfile
+    return dict_csv(rows, colnames=colnames, outfile=outfile, delim=delim)    
 ``
+
 
 import csv and sys.
 
@@ -3734,7 +3700,6 @@ import csv and sys.
 import csv
 import sys
 ``
-
 
 finding_csv writes a list of Findings along their recorded values to
 the given csv file, the recorded values in the same row as their
@@ -3753,7 +3718,6 @@ arg parse passes None for delim if it wasn't set, set it here.
     if delim_cmp is None:
         delim_cmp = ","
 ``
-
 
 if no findings return. 
 
@@ -3864,38 +3828,10 @@ after adding the recorded values append the finding dict.
         fdicts.append(fdict)
 ``
 
-after the loop open the csv file.
-
-todo do the following with dict_csv().
-
-``/finding_csv
-    with open(outfile, "w", newline="") as f:
-        ``write``
-``
-
-make a csv writer. pass the field names from all findings.
-
-``./write:
-        writer = csv.DictWriter(f, fieldnames=colnames, delimiter=delim)
-``
-
-write the header.
+send the ficts to dict_csv and return the written filename, if any.
 
 ``
-        writer.writeheader()
-``
-
-write the csv rows for each finding (and its recorded values).
-
-``
-        for fdict in fdicts:
-            writer.writerow(fdict)
-``
-
-return the out file.
-
-``
-    return outfile
+    return dict_csv(fdicts, colnames=colnames, outfile=outfile, delim=delim)    
 ``
 
 method_csv writes a list of Methods to the given csv file, one row per labval in the method. if True is passed as file the output is printed. todo use sys.stdout instead of True.

@@ -78,6 +78,8 @@ get a sample as csv.
 traction <db> sample --sampleid abc -a --csv
 ```
 
+`--csv` can also be used for patients, findings, methods etc.
+
 get samples from a file.
 
 ```

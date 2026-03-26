@@ -196,7 +196,8 @@ def _updatemissing(missinglst, by, row):
 
 def dict_csv(lst:list, colnames=None, outfile=None, delim:str=",") -> str|None:
     """
-     dict_csv writes a list dicts to csv file.
+     dict_csv writes a list of dicts to csv file. if no column names are
+     given, the fields in the first dict are used as column names.
     """
     if delim is None:
         delim = ","
@@ -216,31 +217,22 @@ def dict_csv(lst:list, colnames=None, outfile=None, delim:str=",") -> str|None:
     return outfile
 def flat_csv(lst:list, outfile=None, delim:str=",") -> str|None:
     """
-     flat_csv writes a list of 'flat' tram objects to csv file, like Trial
-     or User, that don't need to pull in data into their dict root or so.
+     flat_csv writes a list of 'flat' tram objects like User (that don't
+     need to pull in nested data into their dict root) to csv file.
     """
     if delim is None:
         delim = ","
     if lst is None or len(lst) == 0: # todo throw error?
         #print("no idables")
         return None
-    out = sys.stdout 
-    if isinstance(outfile, str):
-        out = open(outfile, "w", newline="")
-    colnames = []
-    colnames = list(lst[0].__dict__.keys())
-    
-    writer = csv.DictWriter(out, fieldnames=colnames, delimiter=delim) 
-    writer.writeheader()
+    rows = []
     for e in lst:
-        d = e.__dict__
-        writer.writerow(d)
-    out.close()
-    return outfile
+        rows.append(e.__dict__)
+    return dict_csv(rows, outfile=outfile, delim=delim)    
 def idable_csv(idables:list, outfile=None, delim:str=",", *idcs) -> str|None:
     """
      idable_csv writes a list of Idables to the given csv file. the given
-     idcontainers are included as columns. if no idcontainers are given,
+     idcontainers become columns in the csv. if no idcontainers are given,
      all are included. if True is passed as file, the output is
      printed. (todo pass sys.stdout instead?)
     """
@@ -249,23 +241,16 @@ def idable_csv(idables:list, outfile=None, delim:str=",", *idcs) -> str|None:
     if idables is None or len(idables) == 0: # todo throw error?
         #print("no idables")
         return None
-    out = sys.stdout 
-    if isinstance(outfile, str):
-        out = open(outfile, "w", newline="")
     colnames = []
     for idable in idables:
         for col in list(idable.iddict(*idcs).keys()):
             if col not in colnames:
                 colnames.append(col)
-    #print("colnames:")
-    #print(colnames)
-    writer = csv.DictWriter(out, fieldnames=colnames, delimiter=delim) 
-    writer.writeheader()
+    rows = []
     for idable in idables:
         d = idable.iddict(*idcs)
-        writer.writerow(d)
-    out.close()
-    return outfile
+        rows.append(d)
+    return dict_csv(rows, colnames=colnames, outfile=outfile, delim=delim)    
 def finding_csv(findings:list, outfile=None, delim:str=",", delim_cmp:str=",") -> str:
     """
      finding_csv writes a list of Findings along their recorded values to
@@ -314,12 +299,7 @@ def finding_csv(findings:list, outfile=None, delim:str=",", delim_cmp:str=",") -
                 fdict[vkey] = delim_cmp.join(rec.rec)
                 
         fdicts.append(fdict)
-    with open(outfile, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=colnames, delimiter=delim)
-        writer.writeheader()
-        for fdict in fdicts:
-            writer.writerow(fdict)
-    return outfile
+    return dict_csv(fdicts, colnames=colnames, outfile=outfile, delim=delim)    
 def method_csv(methods:list, outfile=None, delim:str=",", delim_usageentry:str=",") -> str:
     """
      method_csv writes a list of Methods to the given csv file, one row per labval in the method. if True is passed as file the output is printed. todo use sys.stdout instead of True.
@@ -448,7 +428,7 @@ class traction:
             files = {}
         if idc is None:
             idc = {}
-        vaa = [cxxkitid, kitid, locationname, locationpath, orga, parentid, 
+        vaa = [cxxkitid, kitid, locationname, locationpath, orga, parentid, patientid,
                project, receptacle, type,
                secondprocessing, stockprocessing, trial]
         vaa.extend(self._pidcs(pidc))
