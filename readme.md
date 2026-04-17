@@ -1,6 +1,6 @@
 # traction
 
-samples and patients in centraxx
+samples, patient and else from centraxx
 
 ```
 trac = new tr.traction("num_test")
@@ -70,7 +70,7 @@ traction <db> sample --sampleid abc -a
 
 `-a` joins in all values. this takes longer than without joining. use
 `--verbose` to tailor which values should be joined in,
-e.g. `--verbose locationpath,patient`.
+e.g. `--verbose locationpath,patientid`.
 
 get a sample as csv.
 
@@ -187,7 +187,7 @@ res = trac.sample(sampleids=["sid1", "sid2", "sid3"], verbose_all=True)
 
 `verbose_all=True` joins in all values. this takes longer than without
 verbose_all. use `verbose` to tailor which values should be joined in,
-e.g. `verbose=[tr.locationpath,tr.patient]`.
+e.g. `verbose=[tr.locationpath,tr.patientid]`.
 
 get missing samples.
 
