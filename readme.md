@@ -19,11 +19,11 @@ see `traction -h`.
 
 ## jump
 
-<a href="https://github.com/numlims/traction#install>install</a>
+<a href="https://github.com/numlims/traction#install">install</a>
 
-<a href="https://github.com/numlims/traction#use>use</a>
+<a href="https://github.com/numlims/traction#use">use</a>
 
-<a href="https://github.com/numlims/traction#dev>dev</a>
+<a href="https://github.com/numlims/traction#dev">dev</a>
 
 ## install
 
