@@ -17,13 +17,11 @@ traction num_test sample --sampleid 1449330267 -a
 
 see `traction -h`.
 
-## jump
+## go to
 
-<a href="https://github.com/numlims/traction#install">install</a>
-
-<a href="https://github.com/numlims/traction#use">use</a>
-
-<a href="https://github.com/numlims/traction#dev">dev</a>
+<a href="https://github.com/numlims/traction#install">install</a>\ 
+<a href="https://github.com/numlims/traction#use">use</a>\ 
+<a href="https://github.com/numlims/traction#dev">dev</a>\ 
 
 ## install
 
