@@ -19,9 +19,9 @@ see `traction -h`.
 
 ## go to
 
-<a href="https://github.com/numlims/traction#install">install</a>\ 
-<a href="https://github.com/numlims/traction#use">use</a>\ 
-<a href="https://github.com/numlims/traction#dev">dev</a>\ 
+<a href="https://github.com/numlims/traction#install">install</a><br>
+<a href="https://github.com/numlims/traction#use">use</a><br>
+<a href="https://github.com/numlims/traction#dev">dev</a><br>
 
 ## install
 
