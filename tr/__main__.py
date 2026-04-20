@@ -6,6 +6,7 @@ import tr
 #import simplejson
 import sys
 import jsonpickle
+import versionflag
 import os
 import os.path
 import re
@@ -152,6 +153,7 @@ def main():
     parser.add_argument("--csv", help="write results to csv file or to stdout", default=None, const=True, nargs="?") # if `--csv file` is passed, args.csv is file, if only --csv is passed, args.csv is True (const), if no --csv flag is passed, args.csv is None (default).
     parser.add_argument("-D", help="csv output delimiter, default comma")
     parser.add_argument("--delim-cmp", help="delimiter of multi and catalog lists in csv output")
+    versionflag.flag(parser, "traction")
     add_args(parser, settings)
     args = parser.parse_args()
 
