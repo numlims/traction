@@ -104,9 +104,6 @@ after setting up traction, you should be ready to go. try to get a sample:
 traction mycxx sample -a --top 3
 ```
 
-for more, see [use.md](./use.md).
-
-
 ## use
 
 <!-- see [use.md](./use.md).-->
