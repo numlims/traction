@@ -3,8 +3,9 @@
 samples, patient and else from centraxx
 
 ```
-trac = new tr.traction("num_test")
-result = trac.sample(sampleids=["1449330267"], verbose=[tr.locationpath])
+import tr
+t = tr.traction("num_test")
+result = t.sample(sampleids=["1449330267"], verbose=[tr.locationpath])
 ```
 
 api docs [here](https://numlims.github.io/traction/).
@@ -48,7 +49,7 @@ you'll get a message showing the path to the `.dbc` config file:
 dbcq: please edit /your/home/.dbc, then run again.
 ```
 
-put your connection info into `.dbc`, for example:
+put your connection info into the `.dbc` config file like this:
 
 ```
 [mycxx]
@@ -63,8 +64,7 @@ driver = {ODBC Driver 18 for SQL Server}
 # driver = /path/to/my/libmsodbcsql-18.3.so.2.1
 ```
 
-in this example, the target `mycxx` would later be used in traction calls:
-(`traction mycxx ...`).
+in this example, the db target `mycxx` would later be used in traction calls.
 
 after setting up dbcq, run traction once to create the traction config file,
 `~/.traction/settings.yaml`:
@@ -101,8 +101,10 @@ the db target(s) listed in `~/.dbc`.
 after setting up traction, you should be ready to go. try to get a sample:
 
 ```
-traction mycxx sample -a --top 3
+traction <db target> sample -a --top 3
 ```
+
+for `<db target>` put in one of the db target(s) in `~/.dbc`.
 
 ## use
 
