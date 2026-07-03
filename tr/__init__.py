@@ -7,6 +7,7 @@ from tram import Patient
 from tram import Finding
 from tram import Rec, BooleanRec, NumberRec, StringRec, DateRec, MultiRec, CatalogRec
 from tram import User
+from tram import Address
 import re
 import csv
 import sys
@@ -939,14 +940,11 @@ left join centraxx_catalog catalog
         alllists = self._makealllists(lists, {}, files)
         (nontable, table) = self._makemove(alllists, 50)
         jselects = {
-            address: [f"address.email as email"],
+            address: [f"address.*"],
             login: [f"credential.last_login_on as lastlogin"]
         }
         lselects = [
-            f"participant.username as {username}",
-            f"participant.divisional_admin as divisional_admin",            
-            f"participant.firstname as firstname",
-            f"participant.lastname as lastname",
+            f"participant.*"
         ]
         selectstr = self._selectstr(jselects, lselects, nontable, table, verbose)
         joins = {
@@ -967,9 +965,24 @@ left join centraxx_catalog catalog
         self._cleartt(table["idc"])        
         out = []
         for r in res:
+            my_address = Address(
+                    country_descriptor = dig(r, "country_descriptor"),
+                    city = dig(r, "city"),
+                    email = dig(r, "email"),
+                    fax = dig(r, "fax"),
+                    mobile = dig(r, "mobile"),
+                    phone1 = dig(r, "phone1"),
+                    phone2 = dig(r, "phone2"),
+                    street = dig(r, "street"),
+                    street_no = dig(r, "street_no"),
+                    zip_code = dig(r, "zip_code"),
+                    po_box = dig(r, "po_box"),
+                    contact_person = dig(r, "contact_person"),
+                    contact = dig(r, "contact")
+            )
             user = User(
-                divisional_admin=True if dig(r, "divisional_admin") == 1 else False,
-                email=dig(r, email),
+                address= my_address,
+                divisional_admin=dig(r, "divisional_admin"),
                 lastlogin=dig(r, lastlogin),
                 username=dig(r, username),
                 firstname=dig(r, "firstname"),
