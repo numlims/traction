@@ -1,6 +1,6 @@
 # traction
 
-samples, patient and else from centraxx
+samples, patients and else from centraxx
 
 ```
 import tr
@@ -43,12 +43,6 @@ file, `~/.dbc`:
 dbcq
 ```
 
-you'll get a message showing the path to the `.dbc` config file:
-
-```
-dbcq: please edit /your/home/.dbc, then run again.
-```
-
 put your connection info into the `.dbc` config file like this:
 
 ```
@@ -73,9 +67,10 @@ after setting up dbcq, run traction once to create the traction config file,
 traction
 ```
 
-edit `~/.traction/settings.yaml` to set your default idcontainer types
-for sample and patient, and to set which idcontainer types should be
-queryable as command line flags.
+put your idcontainer types for sample and patient into `~/.traction/settings.yaml`.
+
+set which additional idcontainer types should be queryable as command
+line flags.
 
 ```
 # sampleid sets the idcontainertype code that is used when searching for sampleid.

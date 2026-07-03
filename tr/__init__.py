@@ -595,10 +595,13 @@ class traction:
             s = Sample(
                 appointment=dig(r, appointment),
                 category=dig(r, category),
-                samplingdate=dig(r, samplingdate),
+                change_date=dig(r, "change_date"), # change_*: for audit queries
+                change_id=dig(r, "change_id"),
+                change_kind=dig(r, "change_kind"),
+                change_user=dig(r, "change_user"),
                 concentration=dig(r, concentration),
-                cxxkitid=dig(r, cxxkitid),
                 creationdate=dig(r, creationdate),
+                cxxkitid=dig(r, cxxkitid),                
                 derivaldate=dig(r, derivaldate),
                 ids=Idable(ids=ids, mainidc=self.sidc()),
                 initialamount=Amount(floatornull(dig(r, initialamount)), dig(r, initialunit)), # apparently the cast to float is explicitly needed
@@ -613,6 +616,7 @@ class traction:
                 receptacle=dig(r, receptacle),
                 repositiondate=dig(r, repositiondate),
                 restamount=Amount(floatornull(dig(r, restamount)), dig(r, restunit)),
+                samplingdate=dig(r, samplingdate),
                 secondprocessing=dig(r, secondprocessing),
                 secondprocessingdate=dig(r, secondprocessingdate),
                 stockprocessing=dig(r, stockprocessing),
@@ -940,8 +944,9 @@ left join centraxx_catalog catalog
         }
         lselects = [
             f"participant.username as {username}",
+            f"participant.divisional_admin as divisional_admin",            
             f"participant.firstname as firstname",
-            f"participant.lastname as lastname"
+            f"participant.lastname as lastname",
         ]
         selectstr = self._selectstr(jselects, lselects, nontable, table, verbose)
         joins = {
@@ -963,6 +968,7 @@ left join centraxx_catalog catalog
         out = []
         for r in res:
             user = User(
+                divisional_admin=dig(r, "divisional_admin"),
                 email=dig(r, email),
                 lastlogin=dig(r, lastlogin),
                 username=dig(r, username),
