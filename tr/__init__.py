@@ -968,7 +968,7 @@ left join centraxx_catalog catalog
         out = []
         for r in res:
             user = User(
-                divisional_admin=dig(r, "divisional_admin"),
+                divisional_admin=True if dig(r, "divisional_admin") == 1 else False,
                 email=dig(r, email),
                 lastlogin=dig(r, lastlogin),
                 username=dig(r, username),
