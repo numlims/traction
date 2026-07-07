@@ -1919,8 +1919,8 @@ turn the result into user instances.
                     phone1 = dig(r, "phone1"),
                     phone2 = dig(r, "phone2"),
                     street = dig(r, "street"),
-                    street_no = dig(r, "street_no"),
-                    zip_code = dig(r, "zip_code"),
+                    street_no = dig(r, "streetno"),
+                    zip_code = dig(r, "zipcode"),
                     po_box = dig(r, "po_box"),
                     contact_person = dig(r, "contact_person"),
                     contact = dig(r, "contact")
