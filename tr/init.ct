@@ -60,6 +60,7 @@ class traction:
     ``_order_by``    
     ``_idcinit``
     ``_make_rec``
+    ``_query``
     
     ``_fill_in_primary``
 
@@ -275,111 +276,31 @@ https://www.geeksforgeeks.org/python/use-mutable-default-value-as-an-argument-in
 ``
 
 
-these are all possible verbose options (verbose-all-array).
-
-// let sampleid be the first element in vaa so it gets joined in first
-for subsequent joins that depend on it.
-
-`` #py
-        vaa = [cxxkitid, kitid, locationname, locationpath, orga, parentid, patientid,
-               project, receptacle, type,
-               secondprocessing, stockprocessing, trial]
-``
-
-append the idcs for patient and sample to the vaa array.  
-
-``
-        vaa.extend(self._pidcs(pidc))
-        vaa.extend(self._sidcs())                
-``
-
-always join in the sampleid, as the first array element for subsequent
-joins that might need it.
-
-`` #py
-        if self.sidc() not in verbose:
-            verbose.insert(0, self.sidc())
-``
-
-on verbose_all include all constants in the verbose array.
-
-`` #py
-        if verbose_all:
-            verbose = vaa
-``
-
-replace traction constants patientid and sampleid with their idc.
-
-``
-        verbose = self._concrete_idcs(verbose, pidc=pidc)
-        files = self._concrete_idcs_dict(files, pidc=pidc)        
-``
-
-make sure that the verbose array only contains keys from the verbose-all-array.
-
-``
-        if not _checkverbose(verbose, vaa): 
-            raise Exception(f"verbose keys {verbose} need to be in {vaa}.")
-``
-
-after the verbose array was filled walk the sample tree if needed.
-
-there are two cases where we walk the sample tree:
-
-(a) including other samples.
+walk the sample tree if needed.
 
 if the sample's parents, children or it's whole tree should be
-included in the result, first run this call, take the sample oids
-returned, then add the oids of the parents / childs / tree samples (in
-order from root to leaf), and then run the query with its verboses for
-all the sample oids.
-
-(b) referencing the primary sample for each derived sample.
-
-if each derived sample should reference its primary, also
-run the call, and then fill in the primary field for each sample.
-
-at first it was thought to do the primary referencing via verbose, but
-then each verbose all call would include the primary references, which
-might slow it down?
+included in the result, first run this call without the verboses, take
+the sample oids returned, then add the oids of the parents / childs /
+tree samples (in order from root to leaf), and then run the query with
+the original verboses for all the sample oids.
 
 check if we walk the sample tree.
 
 ``
-        if incl_parents or incl_childs or incl_tree or primaryref:
+        if incl_parents or incl_childs or incl_tree:
             ``incl``
 ``
 
-we fire the call with all the arguments except incl_*, and raw.
+we fire the call with all the arguments except incl_*, verbose, by, and raw.
 
-we pass verbose only if we add primary references, cause then we only
-run the call once. if we include tree samples later we don't pass
-verbose, cause we eventually run the call again for all tree samples,
-passing verbose here would slow it down.
-
-it shouldn't make a difference to pass verbose_all for primary, cause
-verbose should be filled in any case.
-
-``/sample/_/incl:
-            verbosepass = []
-            if primaryref:
-                verbosepass = verbose
-``
+we don't include verbose, by, and raw, cause we use this call only to get oids. after we included the child or parent samples later we run the call again for all samples with verbose etc. 
 
 fire the call, then add to the result.
 
-``
-            res = self.sample(sampleids=sampleids, idc=idc, parentids=parentids, parentoids=parentoids, patientids=patientids, pidc=pidc, trials=trials, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, categories=categories, samplingdates=samplingdates, receiptdates=receiptdates, derivaldates=derivaldates, first_repositiondates=first_repositiondates, repositiondates=repositiondates, stockprocessingdates=stockprocessingdates, secondprocessingdates=secondprocessingdates, verbose=verbosepass, verbose_all=False, like=like, missing=missing, order_by=order_by, top=top, print_query=print_query)
-``
+TODO what about missing? does it make sense here?
 
-proceed differently if primary info should be added or if samples from
-the tree should be included.
-
-``
-            if primaryref:
-                for sample in res:
-                    self._fill_in_primary(sample)
-                return res
+``/sample/_/incl:
+            res = self.sample(sampleids=sampleids, idc=idc, parentids=parentids, parentoids=parentoids, patientids=patientids, pidc=pidc, trials=trials, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, categories=categories, samplingdates=samplingdates, receiptdates=receiptdates, derivaldates=derivaldates, first_repositiondates=first_repositiondates, repositiondates=repositiondates, stockprocessingdates=stockprocessingdates, secondprocessingdates=secondprocessingdates, verbose=[], verbose_all=False, like=like, missing=missing, order_by=order_by, top=top, print_query=print_query)  
 ``
 
 when including samples from the tree, take all the sample oids.
@@ -485,6 +406,32 @@ here they could filter out parent/child/tree samples we'd like to keep.
             return self.sample(oids=withincl, verbose=verbose, print_query=print_query, raw=raw) # todo pass verbose_all?
 ``
 
+these are all possible verbose options (verbose-all-array).
+
+// let sampleid be the first element in vaa so it gets joined in first
+for subsequent joins that depend on it.
+
+``/sample/_ #py
+        vaa = [cxxkitid, kitid, locationname, locationpath, orga, parentid,
+	       patientid, project, receptacle, type,
+               secondprocessing, stockprocessing, trial]
+``
+
+append the idcs for patient and sample to the vaa array.  
+
+``
+        vaa.extend(self._pidcs(pidc))
+        vaa.extend(self._sidcs())                
+``
+
+always join in the sampleid, as the first array element for subsequent
+joins that might need it.
+
+`` #py
+        if self.sidc() not in verbose:
+            verbose.insert(0, self.sidc())
+``
+
 put the arguments in a dict of lists.
 
 ``
@@ -510,37 +457,22 @@ put the arguments in a dict of lists.
         }
 ``
 
-resolve the sampleid and patientid shortcut by putting their lists
-into the idc dict.
+selects holds the selects for the home table and joined tables.
 
-``
-        _dextend(idc, self.sidc(), sampleids)
-        _dextend(idc, self.pidc(pidc), patientids)
-``
-
-now idc holds all parameters queryable as idcontainers.
-
-read the lists from files and put them together with the lists passed.
-
-``
-        alllists = self._makealllists(lists, idc, files)
-``
-
-put all lists longer than 50 items into temporary tables.
-
-nontable holds the remaining lists, table holds the names of the created
-temporary tables, each distinguishing nonidc and idc.
-
-``
-        (nontable, table) = self._makemove(alllists, 50)
-``
-
-jselect holds statements for optional joins by key.
+the home-table selects are there to rename keys.
 
 rename the field of the main sample idcontainer to sampleid.
 
 `` #py
-        jselects = {
+        selects = {
+            "_": [
+              f"sample.amountrest as {restamount}",
+              f"sample.appointmentnumber as {appointment}",
+              f"sample.dtype as {category}",
+              f"sample.oid as {sampleoid}",
+              f"sample.parent as {parentoid}",
+              "sample.*"
+            ],
             self.sidc(): [f"idc_{self.sidc()}.psn as '{sampleid}'"],
             self.pidc(pidc): [f"idc_{self.pidc(pidc)}.psn as '{patientid}'"],                   
             cxxkitid: [f"samplekit.cxxkitid as '{cxxkitid}'"],
@@ -558,27 +490,6 @@ rename the field of the main sample idcontainer to sampleid.
             orga: [f"organisationunit.code as '{orga}'"],
             trial: [f"flexistudy.code as '{trial}'"],
         }
-``
-
-lselects holds the local selects for this table, to rename fields.
-
-put sample.* first, that it doesn't overwrite field of the renames?
-
-``
-        lselects = [
-          f"sample.amountrest as {restamount}",
-          f"sample.appointmentnumber as {appointment}",
-          f"sample.dtype as {category}",
-          f"sample.oid as {sampleoid}",
-          f"sample.parent as {parentoid}",
-          "sample.*"
-        ]
-``
-
-put together the select string.
-
-``
-        selectstr = self._selectstr(jselects, lselects, nontable, table, verbose)
 ``
 
 joins holds the join statements needed. if the same join is
@@ -610,45 +521,12 @@ _join_idc.
             joins[pidc] = self.jd["sample_to_patient"]
 ``
 
-put together the join string for the query.
 
-`` #py
-        joinstr = self._joinstr(joins, nontable, table, verbose, pidc=pidc)
-``
-
-get the where string.
-
-`` #py
-        (wherestr, whereargs) = self._where(nontable, table, like=like)
-``
-
-get the top string.
+build the query and get the result.
 
 ``
-        topstr = self._top(top)
-``
-
-stick together the query, get the result and return it.
-
-`` #py
-        query = f"select {topstr} {selectstr} from centraxx_sample sample \n{joinstr}"
-        if wherestr.strip() != "":
-            query += f"\nwhere {wherestr}"
-        if order_by is not None:
-            query += " " + self._order_by(order_by)
-            
-        if print_query:
-           print(query)
-           print(whereargs)
-
-        res = self.db.qfad(query, whereargs)
-``
-
-clear the temporary tables.
-
-``
-        self._cleartt(table["nonidc"])
-        self._cleartt(table["idc"])
+        #print("by before _query:" + by)
+        (res, bydict, missinglst, by) = self._query(tablename="sample", lists=lists, idc=idc, sampleids=sampleids, patientids=patientids, pidc=pidc, files=files, verbose=verbose, verbose_all=verbose_all, like=like, missing=missing, order_by=order_by, top=top, by=by, print_query=print_query, vaa=vaa, selects=selects, joins=joins)
 ``
 
 if raw is wished return the raw result.
@@ -658,21 +536,6 @@ if raw is wished return the raw result.
             return res
 ``
 
-if missing is passed, and no by, and there's only one query
-parameter, set by to that query parameter.
-
-``
-        if missing and by is None:
-            by = _byifone(alllists)
-``
-
-if a by is passed, return the samples keyed by that value.
-
-if missing is True alongside by, only return what's missing.
-
-``
-        bydict, missinglst = _prepby(alllists, by, missing)
-``
 
 turn the result to samples.
 
@@ -776,16 +639,17 @@ build the sample.
 
 buffer each fetch to r with dig, for keys that are not in r.
 
+if needed, fill in the reference to the primary parent.
 
+``
+            if primaryref:            
+                self._fill_in_primary(s)
+``
 
 if by was passed, put the sample in the bydict by the specified key.
 
-if missing was passed, just delete the by-key from the missing list.
-
 ``
             if by is not None:
-                if missing:
-                    _updatemissing(missinglst, by, r)
                 _fillby(bydict, by, r, s)
 ``
 
@@ -936,13 +800,6 @@ for subsequent joins that might need it.
             verbose.insert(0, self.pidc(pidc))
 ``
 
-replace traction constants patientid and sampleid with their idc.
-
-``
-        verbose = self._concrete_idcs(verbose, pidc=pidc)
-        files = self._concrete_idcs_dict(files, pidc=pidc)
-``
-
 put the arguments in a dict of lists.
 
 ``
@@ -952,55 +809,11 @@ put the arguments in a dict of lists.
         }
 ``
 
-resolve the sampleid and patientid shortcut by putting their lists
-into the idc dict.
-
-``
-        _dextend(idc, self.sidc(), sampleids)
-        _dextend(idc, self.pidc(pidc), patientids)
-``
-
-now idc holds all parameters queryable as idcontainers.
-
-read the lists from files and put them together with the lists passed.
-
-``
-        alllists = self._makealllists(lists, idc, files)
-``
-
-put all lists longer than 50 items into temporary tables.
-
-nontable holds the remaining lists, table holds the names of the created
-temporary tables, each distinguishing nonidc and idc.
-
-``
-        (nontable, table) = self._makemove(alllists, 50)
-``
-
-on verbose_all include all constants in the verbose array.
-
-`` #py
-        if verbose_all:
-            verbose = vaa
-``
-
-make sure that the verbose array only contains keys from the
-verbose-all-array.
-
-// what about?
-add the sampleid extra cause it strictly isn't allowed as a verbose
-flag, but if verbose is used to orchestrate all joins it needs to be
-in verbose for idc?
-
-``
-        if not _checkverbose(verbose, vaa):
-            return None # throw error?
-``
-
-the select statements for optional joins by key.
+selects holds the select statements for the home table (at "_") and the joined tables.
 
 `` #py
         selects = {
+            "_": ["patientcontainer.*"],
             self.pidc(pidc): [f"idc_{self.pidc(pidc)}.psn as '{patientid}'"],
             orga: [f"organisationunit.code as '{orga}'"],
             trial: [f"flexistudy.code as '{trial}'"],
@@ -1027,82 +840,19 @@ _join_idc.
             joins[sidc] = self.jd["patient_to_sample"]
 ``
 
-put together the select string for the query. always select
-patientcontainer.
-
-`` #py
-        selectstr = self._selectstr(selects, ["patientcontainer.*"], nontable, table, verbose, pidc=pidc)
-``
-
-put together the join string for the query. 
+build the query and return the results.
 
 ``
-        joinstr = self._joinstr(joins, nontable, table, verbose, pidc=pidc)  
+        (res, bydict, missinglst, by) = self._query(tablename="patientcontainer", lists=lists, sampleids=sampleids, patientids=patientids, pidc=pidc, files=files, verbose=verbose, verbose_all=verbose_all, like=like, order_by=order_by, top=top, by=by, missing=missing, print_query=print_query, vaa=vaa, selects=selects, joins=joins)
 ``
 
-get the where string.
-
-`` #py
-        (wherestr, whereargs) = self._where(nontable, table, like=like)
-        #print(whereargs)
-``
-
-get the top string.
-
-``
-        topstr = self._top(top)
-``
-
-stick together the query. select distinct so that sample joins for
-idcontainers etc don't result in a patient getting returned multiple
-times if there's multiple samples.
-
-
-`` #py
-        query = f"select distinct {topstr} {selectstr} from centraxx_patientcontainer patientcontainer \n{joinstr}"
-        if wherestr.strip() != "":
-            query += f"\nwhere {wherestr}"
-        if order_by is not None:
-            query += " " + self._order_by(order_by)
-        if print_query:
-           print(query)
-``
-
-get the result.
-
-``
-        res = self.db.qfad(query, whereargs)
-``
-
-remove the temporary tables.
-
-``
-        self._cleartt(table["nonidc"])
-        self._cleartt(table["idc"])        
-``
-
-if raw is wished, return raw.
+if raw is wished return the raw result.
 
 ``
         if raw:
             return res
 ``
 
-if missing is passed, and no by, and there's only one query
-parameter, set by to that query parameter.
-
-``
-        if missing and by is None:
-            by = _byifone(alllists)
-``
-
-if a by is passed, return the samples keyed by that value.
-
-if missing is True alongside by, only return what's missing.
-
-``
-        bydict, missinglst = _prepby(alllists, by, missing)
-``
 
 make patients from the result.
 
@@ -1136,8 +886,6 @@ if missing was passed, just delete the by-key from the missing list.
 
 ``
             if by is not None:
-                if missing:
-                    _updatemissing(missinglst, by, r)
                 _fillby(bydict, by, r, pat)
 ``
 
@@ -1285,7 +1033,7 @@ get the idc part of the select string.
             self.sidc(): [f"idc_{self.sidc()}.psn as '{sampleid}'"],
             self.pidc(pidc): [f"idc_{self.pidc(pidc)}.psn as '{patientid}'"],                   
         }
-        idcselectstr = self._selectstr(selects, [], nontable, table, verbose, pidc=pidc)  
+        idcselectstr = self._selectstr(selects, nontable, table, verbose, pidc=pidc)  
 ``
 
 for any patient idc, join in patientcontainer, which is needed by
@@ -1824,29 +1572,22 @@ temporary tables, each distinguishing nonidc and idc.
         (nontable, table) = self._makemove(alllists, 50)
 ``
 
-jselects holds the joined in selects.
+selects holds the selects.
+
+always select everything from participant.
 
 ``
-        jselects = {
+        selects = {
+            "_": [f"participant.*"],
             address: [f"address.*"],
             login: [f"credential.last_login_on as lastlogin"]
         }
 ``
 
-lselects holds the local selects for this table, to rename fields.
-
-put sample.* first, that it doesn't overwrite field of the renames?
-
-``
-        lselects = [
-            f"participant.*"
-        ]
-``
-
 put together the select string.
 
 ``
-        selectstr = self._selectstr(jselects, lselects, nontable, table, verbose)
+        selectstr = self._selectstr(selects, nontable, table, verbose)
 ``
 
 joins holds the join statements needed.
@@ -2118,10 +1859,18 @@ put all lists longer than 50 items into temporary tables.
         (nontable, table) = self._makemove(alllists, 50)
 ``
 
+there are no join selects, just the home select usageentry.code.
+
+``
+        selects = {
+            "_": ["usageentry.code"]
+        }
+``
+
 put together the select string.
 
 ``
-        selectstr = self._selectstr([], ["usageentry.code"], nontable, table, verbose=[])
+        selectstr = self._selectstr(selects, nontable, table, verbose=[])
 ``
 
 joins holds the join statements needed.
@@ -2631,14 +2380,23 @@ Idable.
 _selectstr gives the selects for idc keys and verbose array. unlike
 _joinstr, keys in lists and tmptables aren't included automatically,
 cause they may be needed in where but are not necessarily interesting
-for the output (is that true?). selecta is for fields that should be
-selected regardless if they're in the verbose array or not.
+for the output (is that true?).
+
+pass keys from the home-table that should be selected in any case in selects["_"].
 
 the idc argument assumes that the sample table is joined it. // todo is this still true?
 
 ``/_selectstr: #py
-    def _selectstr(self, selects, selecta, nontable, table, verbose, pidc:str=None):
+    def _selectstr(self, selects, nontable, table, verbose, pidc:str=None):
         ``.``
+``
+
+always select the home-table selects in selects["_"].
+
+``
+        selecta = []
+        if "_" in selects:
+            selecta.extend(selects["_"])
 ``
 
 split verbose into non-idc and idc.
@@ -4007,5 +3765,166 @@ write the csv. column names need not be passed, cause they are the same for each
     return dict_csv(rows, outfile=outfile, delim=delim)
 ``
 
+_query sticks together the query from the various lists and parameters and returns the result: (res, bydict, missinglst, by)
 
+tablename is the name of the table without 'centraxx_' prefix.
+
+list is the dict of query-parameter lists that were passed to the
+calling function.
             
+``/_query:
+    def _query(self, tablename:str=None, lists:dict=None, idc:dict=None, sampleids:list=None, patientids:list=None, pidc:str=None, files:dict=None, verbose:list=None, verbose_all:bool=False, like:list=None, missing:bool=False, order_by:str=None, top:int=None, by:str=None, print_query:bool=None, vaa:list=None, selects:dict=None, joins:dict=None):
+        ``_``
+``
+
+init arrays.  don't set them as mutable default parameters
+(e.g. verbose=[]), cause they would then retain their values across
+method calls. see
+https://www.geeksforgeeks.org/python/use-mutable-default-value-as-an-argument-in-python/
+
+``_:
+        if lists is None:
+            lists = {}
+        if idc is None:
+            idc = {}
+        if sampleids is None:
+            sampleids = []
+        if patientids is None:
+            patientids = []
+        if files is None:
+            files = {}
+        if verbose is None:
+            verbose = []
+        if like is None:
+            like = []
+        if vaa is None:
+            vaa = []
+        if selects is None:
+            selects = {}
+        if joins is None:
+            joins = {}
+``
+
+on verbose_all include all constants in the verbose array.
+
+`` #py
+        if verbose_all:
+            verbose = vaa
+``
+
+replace traction constants patientid and sampleid with their idc.
+
+``
+        verbose = self._concrete_idcs(verbose, pidc=pidc)
+        files = self._concrete_idcs_dict(files, pidc=pidc)        
+``
+
+make sure that the verbose array only contains keys from the verbose-all-array.
+
+``
+        if not _checkverbose(verbose, vaa): 
+            raise Exception(f"verbose keys {verbose} need to be in {vaa}.")
+``
+
+resolve the sampleid and patientid shortcut by putting their lists
+into the idc dict.
+
+``
+        _dextend(idc, self.sidc(), sampleids)
+        _dextend(idc, self.pidc(pidc), patientids)
+``
+
+now idc holds all parameters queryable as idcontainers.
+
+read the lists from files and put them together with the lists passed.
+
+``
+        alllists = self._makealllists(lists, idc, files)
+``
+
+put all lists longer than 50 items into temporary tables.
+
+nontable holds the remaining lists, table holds the names of the created
+temporary tables, each distinguishing nonidc and idc.
+
+``
+        (nontable, table) = self._makemove(alllists, 50)
+``
+
+put together the select string.
+
+``
+        selectstr = self._selectstr(selects, nontable, table, verbose)
+``
+
+put together the join string for the query.
+
+`` #py
+        joinstr = self._joinstr(joins, nontable, table, verbose, pidc=pidc)
+``
+
+get the where string.
+
+`` #py
+        (wherestr, whereargs) = self._where(nontable, table, like=like)
+``
+
+get the top string.
+
+``
+        topstr = self._top(top)
+``
+
+stick together the query, get the result and return it.
+
+`` #py
+        query = f"select {topstr} {selectstr} from centraxx_{tablename} {tablename} \n{joinstr}"
+        if wherestr.strip() != "":
+            query += f"\nwhere {wherestr}"
+        if order_by is not None:
+            query += " " + self._order_by(order_by)
+            
+        if print_query:
+           print(query)
+           print(whereargs)
+
+        res = self.db.qfad(query, whereargs)
+``
+
+clear the temporary tables.
+
+``
+        self._cleartt(table["nonidc"])
+        self._cleartt(table["idc"])
+``
+
+if missing is passed, and no by, and there's only one query
+parameter, set by to that query parameter.
+
+``
+        if missing and by is None:
+            by = _byifone(alllists)
+``
+
+if a by is passed, return the samples keyed by that value.
+
+if missing is True alongside by, only return what's missing.
+
+``
+        bydict, missinglst = _prepby(alllists, by, missing)
+``
+
+if missing was passed, delete the by-key from the missing list.
+
+``
+        for r in res:
+            if by is not None and missing:
+                _updatemissing(missinglst, by, r)
+``
+
+return the query result, the bydict, the missing list and `by`. return
+`by` cause it might have been changed above.
+
+``
+        return (res, bydict, missinglst, by)
+``

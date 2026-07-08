@@ -35,6 +35,22 @@ check the sample.
     assert sample.patient.id("LIMSPSN") == "fim-1"
 ``
 
+fetch an aliquot and include a reference to its primary parent.
+
+get the result keyed by sampleids.
+
+``
+    aqt = "LV9517349484"
+    res = trac.sample(sampleids=[aqt], primaryref=True, by=tr.sampleid)
+``
+
+check that both the aliquot and the primary are there.
+
+``
+    assert aqt in res
+    assert res[aqt][0].primary.id() == "1438540007"
+``
+
 get trials.
 
 ``
@@ -84,7 +100,7 @@ get users.
 
 ``
     res = trac.user(usernames=["hauboldm"], verbose_all=True)
-    assert res[0].email == "max.haubold@med.uni-greifswald.de"
+    assert res[0].address.email == "max.haubold@med.uni-greifswald.de"
 ``
 
 get a catalog.
