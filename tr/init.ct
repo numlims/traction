@@ -927,20 +927,30 @@ the joindict entries that patient needs.
 trial gives trials.
 
 ``/trial: #py
-    def trial(self, trial:str | None = None):
+    def trial(self, trials:list | None = None):
         ``.``
 ``
 
-return the trial codes for now.
+put the arguments in a dict of lists.
 
 ``
-        query = "select code, study_name as name from centraxx_flexistudy"
-        args = []
-        if trial is not None:
-            query += " where code = ?"
-            args.append(trial)
-        res = self.db.qfad(query, *args)
+        lists = {
+          trial: trials
+        }
+``
 
+selects holds the select statements for the home table (at "_") and the joined tables.
+
+`` #py
+        selects = {
+            "_": ["flexistudy.*"]
+        }
+``
+
+build the query and return the results.
+
+``
+        (res, bydict, missinglst, by) = self._query(tablename="flexistudy", lists=lists, selects=selects)
 ``
 
 iterate over the result, fetch users and orgas and bulid trial objects.
@@ -982,7 +992,7 @@ make the trial object from database results
 ``../make trial:
             t = Trial(
                 code=dig(r, "code"),
-                name=dig(r, "name"),
+                name=dig(r, "study_name"),
                 users=users,
                 orgas=orgas
             )
@@ -3227,7 +3237,7 @@ def _dextend(d:dict, key, lst:list|None):
 the list should hold values.
 
 ``
-    if lst is not None:
+    if lst is not None and len(lst) > 0:
         if key not in d:
             d[key] = []
         d[key].extend(lst)
@@ -3943,7 +3953,6 @@ stick together the query, get the result and return it.
         if print_query:
            print(query)
            print(whereargs)
-
         res = self.db.qfad(query, whereargs)
 ``
 
