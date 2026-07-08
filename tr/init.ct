@@ -1179,7 +1179,7 @@ the joindict entries that patient needs.
 trial gives trials.
 
 ``/trial: #py
-    def trial(self):
+    def trial(self, trial:str | None = None):
         ``.``
 ``
 
@@ -1187,8 +1187,64 @@ return the trial codes for now.
 
 ``
         query = "select code, study_name as name from centraxx_flexistudy"
-        res = self.db.qfad(query)
-        return res
+        args = []
+        if trial is not None:
+            query += " where code = ?"
+            args.append(trial)
+        res = self.db.qfad(query, *args)
+
+``
+
+iterate over the result, fetch users and orgas and bulid trial objects.
+
+``
+        trials = []
+        for r in res:
+            ``get users``
+            ``get orgas``
+            ``make trial``
+        return trials
+``
+
+fetch users for a trial.
+``./get users:
+            users = []
+            query = f"""SELECT participant.username from CENTRAXX_PARTICIPANT participant inner join CENTRAXX_USERENTRY as userentry on userentry.PARTICIPANT = participant.OID
+            inner join CENTRAXX_USERGROUP as usergroup on usergroup.OID = userentry.USERGROUP
+            inner join CENTRAXX_FLEXISTUDY as flexistudy on flexistudy.OID = usergroup.ENTITYOID where usergroup.ENTITYTYPE = 'FlexiStudy' and flexistudy.CODE = ?"""
+            res_users = self.db.qfad(query, dig(r, "code"))
+            for u in res_users:
+                users.append(dig(u, "username"))
+`` 
+
+fetch orgas for a trial.
+``../get orgas:
+            orgas = []
+            query = f"""SELECT organisationunit.code from CENTRAXX_ORGANISATIONUNIT as organisationunit
+            inner join CENTRAXX_USERENTRY as userentry on userentry.ORGANISATION = organisationunit.OID
+            inner join CENTRAXX_USERGROUP as usergroup on usergroup.OID = userentry.USERGROUP
+            inner join CENTRAXX_FLEXISTUDY as flexistudy on flexistudy.OID = usergroup.ENTITYOID where usergroup.ENTITYTYPE = 'FlexiStudy' and flexistudy.CODE = ?"""
+            res_orgas = self.db.qfad(query, dig(r, "code"))
+            for o in res_orgas:
+                orgas.append(dig(o, "code"))
+``
+
+make the trial object from database results
+
+``../make trial:
+            t = Trial(
+                code=dig(r, "code"),
+                name=dig(r, "name"),
+                users=users,
+                orgas=orgas
+            )
+            trials.append(t)
+``
+
+import Trial.
+
+``/import
+from tram import Trial
 ``
 
 finding gets the laborfindings ("messbefund" / "begleitschein") for
