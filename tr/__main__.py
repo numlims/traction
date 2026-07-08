@@ -283,7 +283,7 @@ def main():
         else:        
             print(jsonpickle.encode(res, unpicklable=False, indent=4))        
     elif args.what == "method":
-        res = traction.method(methods=methods, files=filemap)
+        res = traction.method(methods=methods, files=filemap, print_query=args.query)
         if args.csv is not None:
             if args.csv is True:
                 #file = sys.stdout # todo fix

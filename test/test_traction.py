@@ -18,7 +18,7 @@ def test_run():
     res = trac.trial()
     hassnid = False
     for r in res:
-        if r["code"] == "NUM S-SNID":
+        if r.code == "NUM S-SNID":
             hassnid = True
     assert hassnid == True
     res = trac.patient(sampleids=[sampleid])
