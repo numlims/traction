@@ -4,6 +4,7 @@ import cnf
 from dip import dig
 from tram import Sample, Idable, Amount, Identifier
 from tram import Patient
+from tram import Trial
 from tram import Finding
 from tram import Rec, BooleanRec, NumberRec, StringRec, DateRec, MultiRec, CatalogRec
 from tram import User
@@ -746,13 +747,42 @@ class traction:
                 return bydict
         else:
             return pats
-    def trial(self):
+    def trial(self, trial:str | None = None):
         """
          trial gives trials.
         """
         query = "select code, study_name as name from centraxx_flexistudy"
-        res = self.db.qfad(query)
-        return res
+        args = []
+        if trial is not None:
+            query += " where code = ?"
+            args.append(trial)
+        res = self.db.qfad(query, *args)
+
+        trials = []
+        for r in res:
+            users = []
+            query = f"""SELECT participant.username from CENTRAXX_PARTICIPANT participant inner join CENTRAXX_USERENTRY as userentry on userentry.PARTICIPANT = participant.OID
+            inner join CENTRAXX_USERGROUP as usergroup on usergroup.OID = userentry.USERGROUP
+            inner join CENTRAXX_FLEXISTUDY as flexistudy on flexistudy.OID = usergroup.ENTITYOID where usergroup.ENTITYTYPE = 'FlexiStudy' and flexistudy.CODE = ?"""
+            res_users = self.db.qfad(query, dig(r, "code"))
+            for u in res_users:
+                users.append(dig(u, "username"))
+            orgas = []
+            query = f"""SELECT organisationunit.code from CENTRAXX_ORGANISATIONUNIT as organisationunit
+            inner join CENTRAXX_USERENTRY as userentry on userentry.ORGANISATION = organisationunit.OID
+            inner join CENTRAXX_USERGROUP as usergroup on usergroup.OID = userentry.USERGROUP
+            inner join CENTRAXX_FLEXISTUDY as flexistudy on flexistudy.OID = usergroup.ENTITYOID where usergroup.ENTITYTYPE = 'FlexiStudy' and flexistudy.CODE = ?"""
+            res_orgas = self.db.qfad(query, dig(r, "code"))
+            for o in res_orgas:
+                orgas.append(dig(o, "code"))
+            t = Trial(
+                code=dig(r, "code"),
+                name=dig(r, "name"),
+                users=users,
+                orgas=orgas
+            )
+            trials.append(t)
+        return trials
     def finding(self, sampleids:list|None=None, patientids:list|None=None, pidc:str|None=None, idc:dict|None=None, methods:list|None=None, trials:list|None=None, values:bool=True, verbose:list|None=None, files:dict|None=None, verbose_all:bool=False, names:bool=False, top:int|None=None, print_query:bool=False, raw:bool=False):
         """
          finding gets the laborfindings ("messbefund" / "begleitschein") for

@@ -278,7 +278,7 @@ get trial(s).
 
 ``
     elif args.what == "trial":
-        res = traction.trial()
+        res = traction.trial(trial=args.trial)
         if args.csv is not None:
             if args.csv is True:
                 #file = sys.stdout # todo fix
