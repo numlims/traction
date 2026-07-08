@@ -11,6 +11,10 @@ def test_run():
     assert sample.locationpath == "NUM --> HGW Greifswald --> PP Lager RT SNID"
     assert sample.id("EXTSAMPLEID") == "asdf4"
     assert sample.patient.id("LIMSPSN") == "fim-1"
+    aqt = "LV9517349484"
+    res = trac.sample(sampleids=[aqt], primaryref=True, by=tr.sampleid)
+    assert aqt in res
+    assert res[aqt][0].primary.id() == "1438540007"
     res = trac.trial()
     hassnid = False
     for r in res:
@@ -27,7 +31,7 @@ def test_run():
     assert "DENGUE" in finding.recs["PATHOGEN2"].rec
     res = trac.method()
     res = trac.user(usernames=["hauboldm"], verbose_all=True)
-    assert res[0].email == "max.haubold@med.uni-greifswald.de"
+    assert res[0].address.email == "max.haubold@med.uni-greifswald.de"
     res = trac.catalog(catalogs=["PATHOGEN"])
     assert res["PATHOGEN"]["entries"]["CHIKUNGUNYA"]["name_de"] == "Chikungunya"
     res = trac.usageentry()

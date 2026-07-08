@@ -430,28 +430,14 @@ class traction:
             files = {}
         if idc is None:
             idc = {}
-        vaa = [cxxkitid, kitid, locationname, locationpath, orga, parentid, patientid,
-               project, receptacle, type,
-               secondprocessing, stockprocessing, trial]
-        vaa.extend(self._pidcs(pidc))
-        vaa.extend(self._sidcs())                
-        if self.sidc() not in verbose:
-            verbose.insert(0, self.sidc())
-        if verbose_all:
-            verbose = vaa
-        verbose = self._concrete_idcs(verbose, pidc=pidc)
-        files = self._concrete_idcs_dict(files, pidc=pidc)        
-        if not _checkverbose(verbose, vaa): 
-            raise Exception(f"verbose keys {verbose} need to be in {vaa}.")
-        if incl_parents or incl_childs or incl_tree or primaryref:
-            verbosepass = []
+        if incl_parents or incl_childs or incl_tree:
+            print("IN INCL")
+            verbosepass = []  # TODO rm all
+            bypass = None
             if primaryref:
                 verbosepass = verbose
-            res = self.sample(sampleids=sampleids, idc=idc, parentids=parentids, parentoids=parentoids, patientids=patientids, pidc=pidc, trials=trials, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, categories=categories, samplingdates=samplingdates, receiptdates=receiptdates, derivaldates=derivaldates, first_repositiondates=first_repositiondates, repositiondates=repositiondates, stockprocessingdates=stockprocessingdates, secondprocessingdates=secondprocessingdates, verbose=verbosepass, verbose_all=False, like=like, missing=missing, order_by=order_by, top=top, print_query=print_query)
-            if primaryref:
-                for sample in res:
-                    self._fill_in_primary(sample)
-                return res
+                bypass = by
+            res = self.sample(sampleids=sampleids, idc=idc, parentids=parentids, parentoids=parentoids, patientids=patientids, pidc=pidc, trials=trials, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, categories=categories, samplingdates=samplingdates, receiptdates=receiptdates, derivaldates=derivaldates, first_repositiondates=first_repositiondates, repositiondates=repositiondates, stockprocessingdates=stockprocessingdates, secondprocessingdates=secondprocessingdates, verbose=verbosepass, verbose_all=verbose_all, like=like, missing=missing, order_by=order_by, top=top, print_query=print_query)  
             
             s_oids = get_ids(res, "oid")
             withincl = []
@@ -479,6 +465,13 @@ class traction:
                    withincl.extend(c_oids)
             withincl = list(dict.fromkeys(withincl))
             return self.sample(oids=withincl, verbose=verbose, print_query=print_query, raw=raw) # todo pass verbose_all?
+        vaa = [cxxkitid, kitid, locationname, locationpath, orga, parentid,
+	       patientid, project, receptacle, type,
+               secondprocessing, stockprocessing, trial]
+        vaa.extend(self._pidcs(pidc))
+        vaa.extend(self._sidcs())                
+        if self.sidc() not in verbose:
+            verbose.insert(0, self.sidc())
         lists = {
           sampleoid: oids,
           parentid: parentids,
@@ -499,11 +492,15 @@ class traction:
           secondprocessingdate: secondprocessingdates,
           type: types
         }
-        _dextend(idc, self.sidc(), sampleids)
-        _dextend(idc, self.pidc(pidc), patientids)
-        alllists = self._makealllists(lists, idc, files)
-        (nontable, table) = self._makemove(alllists, 50)
-        jselects = {
+        selects = {
+            "_": [
+              f"sample.amountrest as {restamount}",
+              f"sample.appointmentnumber as {appointment}",
+              f"sample.dtype as {category}",
+              f"sample.oid as {sampleoid}",
+              f"sample.parent as {parentoid}",
+              "sample.*"
+            ],
             self.sidc(): [f"idc_{self.sidc()}.psn as '{sampleid}'"],
             self.pidc(pidc): [f"idc_{self.pidc(pidc)}.psn as '{patientid}'"],                   
             cxxkitid: [f"samplekit.cxxkitid as '{cxxkitid}'"],
@@ -521,15 +518,6 @@ class traction:
             orga: [f"organisationunit.code as '{orga}'"],
             trial: [f"flexistudy.code as '{trial}'"],
         }
-        lselects = [
-          f"sample.amountrest as {restamount}",
-          f"sample.appointmentnumber as {appointment}",
-          f"sample.dtype as {category}",
-          f"sample.oid as {sampleoid}",
-          f"sample.parent as {parentoid}",
-          "sample.*"
-        ]
-        selectstr = self._selectstr(jselects, lselects, nontable, table, verbose)
         joins = {
             cxxkitid: self.jd["sample_to_samplekit"],
             parentid: self.jd["sample_to_parentid"],
@@ -546,27 +534,10 @@ class traction:
         }
         for pidc in self._pidcs(pidc):
             joins[pidc] = self.jd["sample_to_patient"]
-        joinstr = self._joinstr(joins, nontable, table, verbose, pidc=pidc)
-        (wherestr, whereargs) = self._where(nontable, table, like=like)
-        topstr = self._top(top)
-        query = f"select {topstr} {selectstr} from centraxx_sample sample \n{joinstr}"
-        if wherestr.strip() != "":
-            query += f"\nwhere {wherestr}"
-        if order_by is not None:
-            query += " " + self._order_by(order_by)
-            
-        if print_query:
-           print(query)
-           print(whereargs)
-
-        res = self.db.qfad(query, whereargs)
-        self._cleartt(table["nonidc"])
-        self._cleartt(table["idc"])
+        #print("by before _query:" + by)
+        (res, bydict, missinglst, by) = self._query(tablename="sample", lists=lists, idc=idc, sampleids=sampleids, patientids=patientids, pidc=pidc, files=files, verbose=verbose, verbose_all=verbose_all, like=like, missing=missing, order_by=order_by, top=top, by=by, print_query=print_query, vaa=vaa, selects=selects, joins=joins)
         if raw:
             return res
-        if missing and by is None:
-            by = _byifone(alllists)
-        bydict, missinglst = _prepby(alllists, by, missing)
         sarr = []
         for r in res:
             ids = []
@@ -628,9 +599,10 @@ class traction:
                 xposition=dig(r, xposition), 
                 yposition=dig(r, yposition)
             )
+            if primaryref:            
+                self._fill_in_primary(s)
+            #print("by:" + by)
             if by is not None:
-                if missing:
-                    _updatemissing(missinglst, by, r)
                 _fillby(bydict, by, r, s)
             else:
                 sarr.append(s)
@@ -679,21 +651,12 @@ class traction:
         vaa.extend(self._pidcs(pidc))        
         if self.pidc(pidc) not in verbose:
             verbose.insert(0, self.pidc(pidc))
-        verbose = self._concrete_idcs(verbose, pidc=pidc)
-        files = self._concrete_idcs_dict(files, pidc=pidc)
         lists = {
           trial: trials,
           orga: orgas
         }
-        _dextend(idc, self.sidc(), sampleids)
-        _dextend(idc, self.pidc(pidc), patientids)
-        alllists = self._makealllists(lists, idc, files)
-        (nontable, table) = self._makemove(alllists, 50)
-        if verbose_all:
-            verbose = vaa
-        if not _checkverbose(verbose, vaa):
-            return None # throw error?
         selects = {
+            "_": ["patientcontainer.*"],
             self.pidc(pidc): [f"idc_{self.pidc(pidc)}.psn as '{patientid}'"],
             orga: [f"organisationunit.code as '{orga}'"],
             trial: [f"flexistudy.code as '{trial}'"],
@@ -704,26 +667,9 @@ class traction:
         }
         for sidc in self._sidcs():
             joins[sidc] = self.jd["patient_to_sample"]
-        selectstr = self._selectstr(selects, ["patientcontainer.*"], nontable, table, verbose, pidc=pidc)
-        joinstr = self._joinstr(joins, nontable, table, verbose, pidc=pidc)  
-        (wherestr, whereargs) = self._where(nontable, table, like=like)
-        #print(whereargs)
-        topstr = self._top(top)
-        query = f"select distinct {topstr} {selectstr} from centraxx_patientcontainer patientcontainer \n{joinstr}"
-        if wherestr.strip() != "":
-            query += f"\nwhere {wherestr}"
-        if order_by is not None:
-            query += " " + self._order_by(order_by)
-        if print_query:
-           print(query)
-        res = self.db.qfad(query, whereargs)
-        self._cleartt(table["nonidc"])
-        self._cleartt(table["idc"])        
+        (res, bydict, missinglst, by) = self._query(tablename="patientcontainer", lists=lists, sampleids=sampleids, patientids=patientids, pidc=pidc, files=files, verbose=verbose, verbose_all=verbose_all, like=like, order_by=order_by, top=top, by=by, missing=missing, print_query=print_query, vaa=vaa, selects=selects, joins=joins)
         if raw:
             return res
-        if missing and by is None:
-            by = _byifone(alllists)
-        bydict, missinglst = _prepby(alllists, by, missing)
         pats = []
         for r in res:
             ids = []
@@ -735,8 +681,6 @@ class traction:
               orga=dig(r, orga)
             )
             if by is not None:
-                if missing:
-                    _updatemissing(missinglst, by, r)
                 _fillby(bydict, by, r, pat)
             else:
                 pats.append(pat)
@@ -815,7 +759,7 @@ class traction:
             self.sidc(): [f"idc_{self.sidc()}.psn as '{sampleid}'"],
             self.pidc(pidc): [f"idc_{self.pidc(pidc)}.psn as '{patientid}'"],                   
         }
-        idcselectstr = self._selectstr(selects, [], nontable, table, verbose, pidc=pidc)  
+        idcselectstr = self._selectstr(selects, nontable, table, verbose, pidc=pidc)  
         joins = {
             trial: self.jd["sample_to_trial"]
         }
@@ -969,14 +913,12 @@ left join centraxx_catalog catalog
         }
         alllists = self._makealllists(lists, {}, files)
         (nontable, table) = self._makemove(alllists, 50)
-        jselects = {
+        selects = {
+            "_": [f"participant.*"],
             address: [f"address.*"],
             login: [f"credential.last_login_on as lastlogin"]
         }
-        lselects = [
-            f"participant.*"
-        ]
-        selectstr = self._selectstr(jselects, lselects, nontable, table, verbose)
+        selectstr = self._selectstr(selects, nontable, table, verbose)
         joins = {
             address: self.jd["participant_to_address"],
             login: self.jd["participant_to_credential"]
@@ -1080,7 +1022,10 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
         }
         alllists = self._makealllists(lists, {}, files)
         (nontable, table) = self._makemove(alllists, 50)
-        selectstr = self._selectstr([], ["usageentry.code"], nontable, table, verbose=[])
+        selects = {
+            "_": ["usageentry.code"]
+        }
+        selectstr = self._selectstr(selects, nontable, table, verbose=[])
         joins = {
                 labval: self.jd["usageentry_to_labval"]
         }
@@ -1197,16 +1142,20 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
         return out
 
     # query
-    def _selectstr(self, selects, selecta, nontable, table, verbose, pidc:str=None):
+    def _selectstr(self, selects, nontable, table, verbose, pidc:str=None):
         """
          _selectstr gives the selects for idc keys and verbose array. unlike
          _joinstr, keys in lists and tmptables aren't included automatically,
          cause they may be needed in where but are not necessarily interesting
-         for the output (is that true?). selecta is for fields that should be
-         selected regardless if they're in the verbose array or not.
+         for the output (is that true?).
+         
+         pass keys from the home-table that should be selected in any case in selects["_"].
          
          the idc argument assumes that the sample table is joined it. // todo is this still true?
         """
+        selecta = []
+        if "_" in selects:
+            selecta.extend(selects["_"])
         (vnonidc, vidc) = self._splitidc(verbose, pidc=pidc)
         nonidc = self._collkeys(nontable["nonidc"], table["nonidc"], vnonidc)
         idc = self._collkeys(nontable["idc"], table["idc"], vidc)
@@ -1507,6 +1456,69 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
         else:
             raise Exception(f"no record class for laborvalue of type {recval['laborvalue_type']}")
         return out
+    def _query(self, tablename:str=None, lists:dict=None, idc:dict=None, sampleids:list=None, patientids:list=None, pidc:str=None, files:dict=None, verbose:list=None, verbose_all:bool=False, like:list=None, missing:bool=False, order_by:str=None, top:int=None, by:str=None, print_query:bool=None, vaa:list=None, selects:dict=None, joins:dict=None):
+        """
+         _query sticks together the query from the various lists and parameters and returns the result: (res, bydict, missinglst, by)
+         
+         tablename is the name of the table without 'centraxx_' prefix.
+         
+         list is the dict of query-parameter lists that were passed to the
+         calling function.
+        """
+        if lists is None:
+            lists = {}
+        if idc is None:
+            idc = {}
+        if sampleids is None:
+            sampleids = []
+        if patientids is None:
+            patientids = []
+        if files is None:
+            files = {}
+        if verbose is None:
+            verbose = []
+        if like is None:
+            like = []
+        if vaa is None:
+            vaa = []
+        if selects is None:
+            selects = {}
+        if joins is None:
+            joins = {}
+        if verbose_all:
+            verbose = vaa
+        verbose = self._concrete_idcs(verbose, pidc=pidc)
+        files = self._concrete_idcs_dict(files, pidc=pidc)        
+        if not _checkverbose(verbose, vaa): 
+            raise Exception(f"verbose keys {verbose} need to be in {vaa}.")
+        _dextend(idc, self.sidc(), sampleids)
+        _dextend(idc, self.pidc(pidc), patientids)
+        alllists = self._makealllists(lists, idc, files)
+        (nontable, table) = self._makemove(alllists, 50)
+        selectstr = self._selectstr(selects, nontable, table, verbose)
+        joinstr = self._joinstr(joins, nontable, table, verbose, pidc=pidc)
+        (wherestr, whereargs) = self._where(nontable, table, like=like)
+        topstr = self._top(top)
+        query = f"select {topstr} {selectstr} from centraxx_{tablename} {tablename} \n{joinstr}"
+        if wherestr.strip() != "":
+            query += f"\nwhere {wherestr}"
+        if order_by is not None:
+            query += " " + self._order_by(order_by)
+            
+        if print_query:
+           print(query)
+           print(whereargs)
+
+        res = self.db.qfad(query, whereargs)
+        self._cleartt(table["nonidc"])
+        self._cleartt(table["idc"])
+        if missing and by is None:
+            by = _byifone(alllists)
+        bydict, missinglst = _prepby(alllists, by, missing)
+        for r in res:
+            if by is not None and missing:
+                _updatemissing(missinglst, by, r)
+        return (res, bydict, missinglst, by)
     
     def _fill_in_primary(self, sample:Sample):
         """
