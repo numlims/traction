@@ -116,7 +116,7 @@ def _dextend(d:dict, key, lst:list|None):
      _dextends extends an array in a dictionary at the given key with the
      values in the passed list.
     """
-    if lst is not None:
+    if lst is not None and len(lst) > 0:
         if key not in d:
             d[key] = []
         d[key].extend(lst)
@@ -431,13 +431,7 @@ class traction:
         if idc is None:
             idc = {}
         if incl_parents or incl_childs or incl_tree:
-            print("IN INCL")
-            verbosepass = []  # TODO rm all
-            bypass = None
-            if primaryref:
-                verbosepass = verbose
-                bypass = by
-            res = self.sample(sampleids=sampleids, idc=idc, parentids=parentids, parentoids=parentoids, patientids=patientids, pidc=pidc, trials=trials, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, categories=categories, samplingdates=samplingdates, receiptdates=receiptdates, derivaldates=derivaldates, first_repositiondates=first_repositiondates, repositiondates=repositiondates, stockprocessingdates=stockprocessingdates, secondprocessingdates=secondprocessingdates, verbose=verbosepass, verbose_all=verbose_all, like=like, missing=missing, order_by=order_by, top=top, print_query=print_query)  
+            res = self.sample(sampleids=sampleids, idc=idc, parentids=parentids, parentoids=parentoids, patientids=patientids, pidc=pidc, trials=trials, locationpaths=locationpaths, kitids=kitids, cxxkitids=cxxkitids, categories=categories, samplingdates=samplingdates, receiptdates=receiptdates, derivaldates=derivaldates, first_repositiondates=first_repositiondates, repositiondates=repositiondates, stockprocessingdates=stockprocessingdates, secondprocessingdates=secondprocessingdates, verbose=[], verbose_all=False, like=like, missing=missing, order_by=order_by, top=top, print_query=print_query)  
             
             s_oids = get_ids(res, "oid")
             withincl = []
@@ -601,7 +595,6 @@ class traction:
             )
             if primaryref:            
                 self._fill_in_primary(s)
-            #print("by:" + by)
             if by is not None:
                 _fillby(bydict, by, r, s)
             else:
@@ -691,17 +684,17 @@ class traction:
                 return bydict
         else:
             return pats
-    def trial(self, trial:str | None = None):
+    def trial(self, trials:list | None = None):
         """
          trial gives trials.
         """
-        query = "select code, study_name as name from centraxx_flexistudy"
-        args = []
-        if trial is not None:
-            query += " where code = ?"
-            args.append(trial)
-        res = self.db.qfad(query, *args)
-
+        lists = {
+          trial: trials
+        }
+        selects = {
+            "_": ["flexistudy.*"]
+        }
+        (res, bydict, missinglst, by) = self._query(tablename="flexistudy", lists=lists, selects=selects)
         trials = []
         for r in res:
             users = []
@@ -721,7 +714,7 @@ class traction:
                 orgas.append(dig(o, "code"))
             t = Trial(
                 code=dig(r, "code"),
-                name=dig(r, "name"),
+                name=dig(r, "study_name"),
                 users=users,
                 orgas=orgas
             )
@@ -1508,7 +1501,6 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
         if print_query:
            print(query)
            print(whereargs)
-
         res = self.db.qfad(query, whereargs)
         self._cleartt(table["nonidc"])
         self._cleartt(table["idc"])

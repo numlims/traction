@@ -1,3 +1,4 @@
+# automatically generated, DON'T EDIT. please edit main.ct from where this file stems.
 import argparse
 import cnf
 from dbcq import TargetException
@@ -11,9 +12,15 @@ import os.path
 import re
 from datetime import datetime
 def add_args(parser, settings):
+    """
+     add_args adds idc args from settings.
+    """
     for item in settings["idc"]:
         parser.add_argument(f"--{item.lower()}", required=False, help=f"{item} idcontainer")
 def getidc(args:dict, settings):
+    """
+     getidc filters the arg flags according to the idcs given in settings.
+    """
     out = {}
     for item in settings["idc"]:
 
@@ -21,6 +28,14 @@ def getidc(args:dict, settings):
         out[item] = args[item.lower()].split(",")
     return out
 def datespan(datestr:str, format:str="%Y-%m-%d"):
+    """
+     datespan turns a passed date argument like
+     `%YYYY-%mm-%dd:%YYY-%mm-%dd` to a tuple of two dates. also just one
+     date can be passed, it needs to be preceeded by `=`, `>=` or `<=`,
+     then just the first or second element of the tuple is set.  also
+     'NULL' can be passed, in this case not a tuple is retuned, but just
+     the 'NULL' string.
+    """
     if datestr is None:
         return None
     if datestr == 'NULL':
@@ -46,6 +61,15 @@ def datespan(datestr:str, format:str="%Y-%m-%d"):
     dto = datetime.strptime(a[1], format)
     return (dfrom, dto)
 def lof(name:str, passed, files:list=None, filemap:dict=None):
+    """
+     lof (list or file) either reads arguments passed to a flag as comma
+     seperated list or collects them in filemap if the argument is
+     proceeded with f:.  if the files array is passed (from the --files
+     flag), all params given in it are collected as file, and all others
+     are read as comma seperated list, irrespective of f:.
+     
+     if the flag was not set, None is returned.
+    """
     if passed is None:
         if files is not None and name in files:
             raise Exception(f"error: {name} is listed in --files, please pass a file path to --{name}")
@@ -65,6 +89,10 @@ def lof(name:str, passed, files:list=None, filemap:dict=None):
             return passed.split(",")
 
 def main():
+    """
+     main holds a cli for traction. it takes a database target and
+     various search flags. see `traction -h`.
+    """
     try:
         settings = cnf.makeload(path=".traction/settings.yaml", root=cnf.home, fmt="yaml", make=tr.cnftemplate)        
     except cnf.MakeCnfException as e:
@@ -242,7 +270,7 @@ def main():
         else:        
             print(jsonpickle.encode(patients, unpicklable=False, indent=4))
     elif args.what == "trial":
-        res = traction.trial(trial=args.trial)
+        res = traction.trial(trials=trials)
         if args.csv is not None:
             if args.csv is True:
                 #file = sys.stdout # todo fix
