@@ -394,10 +394,29 @@ class traction:
             "patient_to_trial": ["left join centraxx_patientstudy as patientstudy on patientstudy.patientcontainer = patientcontainer.oid", "left join centraxx_flexistudy as flexistudy on flexistudy.oid = patientstudy.flexistudy"],
             "patient_to_sample": ["left join centraxx_sample sample on sample.patientcontainer = patientcontainer.oid"]
             ,
+            "finding_to_sample": [
+                "left join centraxx_labormethod as labormethod on laborfinding.labormethod = labormethod.oid",
+                "left join centraxx_labormapping as labormapping on labormapping.laborfinding = laborfinding.oid",
+                "left join centraxx_sample sample on labormapping.relatedoid = sample.oid"
+            ]
+            ,
             "participant_to_address": ["left join centraxx_participantaddress participantaddress on participantaddress.participant = participant.oid", "left join centraxx_address address on address.oid = participantaddress.oid"],
             "participant_to_credential": ["left join centraxx_credential credential on credential.participant = participant.oid"]
             ,
             "usageentry_to_labval": [ "left join centraxx_labvalenum_usageentry labvalenum_usageentry on labvalenum_usageentry.usageentry = usageentry.oid", "left join centraxx_laborvalue labval on labvalenum_usageentry.labvalueenum = labval.oid" ]
+            ,
+            "catalogentry_to_catalog": ["join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"]
+            ,
+            "method_to_labval": [
+                "inner join centraxx_crftemplate crf_t on labormethod.crf_template=crf_t.oid",
+                "inner join centraxx_crftempsection crf_ts on crf_t.oid=crf_ts.crftemplate",
+                "inner join centraxx_crftempsection_fields crf_tsf on crf_ts.oid=crf_tsf.crftempsection_oid",
+                "inner join centraxx_crftempfield crf_tf on crf_tsf.crftempfield_oid=crf_tf.oid",
+                "inner join centraxx_laborvalue laborvalue on crf_tf.laborvalue=laborvalue.oid"
+            ],
+            "labval_to_catalog": [
+                "left join centraxx_catalog catalog on catalog.oid = laborvalue.custom_catalog"
+            ]
         }
         self.names_labval = None
         self.names_catalogentry = None
@@ -440,23 +459,23 @@ class traction:
             for s_oid in s_oids:
                if incl_parents:
                    p_oids = []
-                   self._get_parents(s_oid, p_oids)
+                   self._get_parents(s_oid, p_oids, table="sample", field="parent")
                    withincl.extend(p_oids)
                    withincl.append(s_oid)
                if incl_childs:
                    c_oids = []
-                   self._get_childs(s_oid, c_oids)
+                   self._get_childs(s_oid, c_oids, table="sample", field="parent")
                    withincl.append(s_oid)
                    withincl.extend(c_oids)
                if incl_tree:
                    p_oids = []
-                   self._get_parents(s_oid, p_oids)
+                   self._get_parents(s_oid, p_oids, table="sample", field="parent")
                    if len(p_oids) > 0:
                        root = p_oids[0]
                    else:
                        root = s_oid
                    c_oids = []
-                   self._get_childs(root, c_oids)
+                   self._get_childs(root, c_oids, table="sample", field="parent")
                    withincl.append(root)
                    withincl.extend(c_oids)
             withincl = list(dict.fromkeys(withincl))
@@ -530,7 +549,6 @@ class traction:
         }
         for pidc in self._pidcs(pidc):
             joins[pidc] = self.jd["sample_to_patient"]
-        #print("by before _query:" + by)
         (res, bydict, missinglst, by) = self._query(tablename="sample", lists=lists, idc=idc, sampleids=sampleids, patientids=patientids, pidc=pidc, files=files, verbose=verbose, verbose_all=verbose_all, like=like, missing=missing, order_by=order_by, top=top, by=by, print_query=print_query, vaa=vaa, selects=selects, joins=joins)
         if raw:
             return res
@@ -608,26 +626,27 @@ class traction:
                 return bydict
         else:
             return sarr
-    def _get_parents(self, oid, out):
+    def _get_parents(self, oid:int, out:list, table:str, field:str):
         """
-         _get_parents collects the parent sample oids of a sample in the `out`
-         list, in order from root to leaf. take oids to include aliquotgroups,
-         they don't necessarily have an idcontainer attached to them.
+         _get_parents collects the parent oids starting from an oid into the
+         `out` list, in order from root to leaf. it can be run on any table
+         with a parent field that references an oid in the same table.
         """
-        res = self.db.qfad("select parent from centraxx_sample where oid = ?", oid)
-        pid = dig(res[0], "parent")
+        res = self.db.qfad(f"select {field} from centraxx_{table} where oid = ?", oid)
+        pid = dig(res[0], field)
         if pid is not None:
             out.insert(0, pid)
-            self._get_parents(pid, out)
-    def _get_childs(self, oid, out):
+            self._get_parents(pid, out, table=table, field=field)
+    def _get_childs(self, oid:int, out:list, table:str, field:str):
         """
-         _get_childs collects the oids of the sample's children in the `out`
-         list, in order from root-to-leaf. take oids to include aliquotgroups.
+         _get_childs collects the oids of children into the `out` list, in
+         order from parent-to-child.  it can be run on any table with a parent
+         field.
         """
-        res = self.db.qfad("select oid from centraxx_sample where parent = ?", oid)
+        res = self.db.qfad(f"select oid from centraxx_{table} where {field} = ?", oid)
         for child in res:
             out.append(child["oid"])
-            self._get_childs(child["oid"], out)
+            self._get_childs(child["oid"], out, table=table, field=field)
     def patient(self, patientids:list|None=None, pidc:str|None=None, sampleids:list|None=None, idc:dict|None=None, trials:list|None=None, orgas:list|None=None, files:dict|None=None, verbose:list|None=None, verbose_all:bool=False, like:list|None=None, order_by:str|None=None, top:int|None=None, by:str=None, missing:bool=False, print_query:bool=False, raw:bool=False):
         """
          patient gets patients and returns them as a list of Patient instances.
@@ -722,32 +741,7 @@ class traction:
             )
             trials.append(t)
         return trials
-    def location(self, locations:list|None=None):
-        """
-         location gives locations.
-        """
-        lists = {
-          location: locations
-        }
-
-        selects = {
-            "_": ["samplelocationschema.code as 'code'", "samplelocation.locationpath as 'locationpath'"]
-        }
-
-        joins = {
-            location: ["left join centraxx_samplelocationschema samplelocationschema on samplelocationschema.oid = samplelocation.locationschema"]
-        }
-
-        (res, bydict, missinglst, by) = self._query(tablename="samplelocation", lists=lists, selects=selects, joins=joins)
-        out = []
-        for r in res:
-            l = Location(
-                code=dig(r, "code"),
-                path=dig(r, "locationpath")
-            )
-            out.append(l)
-        return out
-    def finding(self, sampleids:list|None=None, patientids:list|None=None, pidc:str|None=None, idc:dict|None=None, methods:list|None=None, trials:list|None=None, values:bool=True, verbose:list|None=None, files:dict|None=None, verbose_all:bool=False, names:bool=False, top:int|None=None, print_query:bool=False, raw:bool=False):
+    def finding(self, sampleids:list|None=None, patientids:list|None=None, pidc:str|None=None, idc:dict|None=None, methods:list|None=None, trials:list|None=None, values:bool=True, verbose:list|None=None, files:dict|None=None, verbose_all:bool=False, names:bool=False, like:list=None, order_by:str=None, top:int|None=None, by:str=None, missing:bool=False, print_query:bool=False, raw:bool=False):
         """
          finding gets the laborfindings ("messbefund" / "begleitschein") for
          sampleids or method.  it returns a list of Finding instances.
@@ -760,51 +754,25 @@ class traction:
             files = {}
         if idc is None:
             idc = {}
-        vaa = [patientid] # include trial?
-        if verbose_all:
-            verbose = vaa
-        if self.sidc() not in verbose:
-            verbose.append(self.sidc())
-        verbose = self._concrete_idcs(verbose, pidc=pidc)
-        files = self._concrete_idcs_dict(files, pidc=pidc)
+        vaa = [patientid, self.sidc()] # include trial?
         lists = {
           method: methods,
           trial: trials
         }
-        _dextend(idc, self.sidc(), sampleids)
-        _dextend(idc, self.pidc(pidc), patientids)
-        alllists = self._makealllists(lists, idc, files)
-        (nontable, table) = self._makemove(alllists, 50)
+        if self.sidc() not in verbose:
+            verbose.append(self.sidc())
         selects = {
+            "_": ["laborfinding.oid as laborfinding_oid", "laborfinding.*", f"labormethod.code as {method}"], 
             self.sidc(): [f"idc_{self.sidc()}.psn as '{sampleid}'"],
-            self.pidc(pidc): [f"idc_{self.pidc(pidc)}.psn as '{patientid}'"],                   
+            self.pidc(pidc): [f"idc_{self.pidc(pidc)}.psn as '{patientid}'"],
         }
-        idcselectstr = self._selectstr(selects, nontable, table, verbose, pidc=pidc)  
         joins = {
-            trial: self.jd["sample_to_trial"]
+            trial: self.jd["sample_to_trial"],
+            self.sidc(): self.jd["finding_to_sample"]
         }
         for pidc in self._pidcs(pidc):
             joins[pidc] = self.jd["sample_to_patient"]
-        idcjoinstr = self._joinstr(joins, nontable, table, verbose, pidc=pidc)
-        topstr = self._top(top)
-        query = f"""select {topstr} laborfinding.oid as "laborfinding_oid", laborfinding.*, labormethod.code as {method}, {idcselectstr}
-        from centraxx_laborfinding as laborfinding
-
-        -- go from laborfinding to sample
-        left join centraxx_labormethod as labormethod on laborfinding.labormethod = labormethod.oid
-        left join centraxx_labormapping as labormapping on labormapping.laborfinding = laborfinding.oid
-        left join centraxx_sample sample on labormapping.relatedoid = sample.oid
-        {idcjoinstr}"""
-        (wherestr, whereargs) = self._where(nontable, table)
-        if wherestr.strip() != "":
-            query += f"\nwhere {wherestr}"
-            
-        if print_query:
-            print(query)
-            print(whereargs)
-        results = self.db.qfad(query, whereargs)
-        self._cleartt(table["nonidc"])
-        self._cleartt(table["idc"])        
+        (results, bydict, missinglst, by) = self._query(tablename="laborfinding", lists=lists, sampleids=sampleids, patientids=patientids, pidc=pidc, files=files, verbose=verbose, verbose_all=verbose_all, like=like, order_by=order_by, top=top, by=by, missing=missing, print_query=print_query, vaa=vaa, selects=selects, joins=joins)
         if names is True:
             self.names_laborvalue = self.name(table="laborvalue")
         for i, finding in enumerate(results):
@@ -859,39 +827,30 @@ class traction:
             )
             findings.append(finding)
         return findings
-    def method(self, methods:list|None=None, files:dict|None=None):
+    def method(self, methods:list|None=None, files:dict|None=None, print_query:bool=False):
         """
          method (messprofil) gets method(s) and their labvals (messparameter).
         """
         if files is None:
             files = {}
         lists = {
-          method: methods
+            method: methods
         }
-        alllists = self._makealllists(lists, {}, files)
-        (nontable, table) = self._makemove(alllists, 50)
-        query = """select laborvalue.code as labval, labormethod.code as "method", laborvalue.dtype as labval_type, catalog.code as catalog
-from centraxx_labormethod labormethod
-inner join centraxx_crftemplate crf_t
-    on labormethod.crf_template=crf_t.oid
-inner join centraxx_crftempsection crf_ts
-    on crf_t.oid=crf_ts.crftemplate
-inner join centraxx_crftempsection_fields crf_tsf
-    on crf_ts.oid=crf_tsf.crftempsection_oid
-inner join centraxx_crftempfield crf_tf
-    on crf_tsf.crftempfield_oid=crf_tf.oid
-inner join centraxx_laborvalue laborvalue
-    on crf_tf.laborvalue=laborvalue.oid
-left join centraxx_catalog catalog
-    on catalog.oid = laborvalue.custom_catalog"""
-        (wherestr, whereargs) = self._where(nontable, table)
-
-        if wherestr and wherestr.strip != "()":
-          query += " where " + wherestr
-        # print(query)
-        res = self.db.qfad(query, whereargs)
-        self._cleartt(table["nonidc"])
-        self._cleartt(table["idc"])
+        selects = {
+          "_": [
+            "laborvalue.code as labval",
+            f"labormethod.code as {method}",
+            "laborvalue.dtype as labval_type",
+            "catalog.code as catalog"
+          ]
+        }
+        homejoins = []
+        homejoins.extend(self.jd["method_to_labval"])
+        homejoins.extend(self.jd["labval_to_catalog"])
+        joins = {
+            "_": homejoins
+        }
+        (res, bydict, missinglist, by) = self._query(tablename="labormethod", lists=lists, selects=selects, joins=joins, print_query=print_query)
         methodnames = self.name(table="labormethod")
         labvalnames = self.name(table="laborvalue")
         out = {}
@@ -916,45 +875,30 @@ left join centraxx_catalog catalog
                 labval["usageentry"] = self.usageentry(labvals=[labval["code"]])
             out[methodcode]["labvals"][labvalcode] = labval
         return out
-    def user(self, usernames:list|None=None, emails:list|None=None, lastlogins:list|None=None, files:dict|None=None, verbose:list|None=None, top:int|None=None, verbose_all:bool=False, print_query:bool=False):
+    def user(self, usernames:list|None=None, emails:list|None=None, lastlogins:list|None=None, files:dict|None=None, verbose:list|None=None, like:list=None, missing:bool=False, order_by:str=None, top:int|None=None, verbose_all:bool=False, by:str=None, print_query:bool=False):
         """
+         user fetches users with address or login info.
         """
         if verbose is None:
             verbose = []
         if files is None:
             files = {}
         vaa = [address, login]
-        if verbose_all:
-            verbose = vaa
         lists = {
           username: usernames,
           address: emails,
           login: lastlogins
         }
-        alllists = self._makealllists(lists, {}, files)
-        (nontable, table) = self._makemove(alllists, 50)
         selects = {
             "_": [f"participant.*"],
             address: [f"address.*"],
             login: [f"credential.last_login_on as lastlogin"]
         }
-        selectstr = self._selectstr(selects, nontable, table, verbose)
         joins = {
             address: self.jd["participant_to_address"],
             login: self.jd["participant_to_credential"]
         }
-        joinstr = self._joinstr(joins, nontable, table, verbose)
-        (wherestr, whereargs) = self._where(nontable, table, like=[])
-        topstr = self._top(top)
-        query = f"select {topstr} {selectstr} from centraxx_participant participant\n{joinstr}"
-        if wherestr.strip() != "":
-            query += f"\nwhere {wherestr}"
-        if print_query:
-            print(query)
-            print(whereargs)
-        res = self.db.qfad(query, whereargs)
-        self._cleartt(table["nonidc"])
-        self._cleartt(table["idc"])        
+        (res, bydict, missinglst, by) = self._query(tablename="participant", lists=lists, files=files, verbose=verbose, verbose_all=verbose_all, like=like, order_by=order_by, top=top, missing=missing, print_query=print_query, vaa=vaa, selects=selects, joins=joins)  # TODO arguments there?
         out = []
         for r in res:
             my_address = Address(
@@ -1003,16 +947,16 @@ left join centraxx_catalog catalog
         lists = {
             catalog: catalogs
         }
-        alllists = self._makealllists(lists, {}, files)
-        (nontable, table) = self._makemove(alllists, 50)
-        query = """select catalogentry.code as 'entry_code', catalog.code as 'catalog_code' from centraxx_catalogentry catalogentry
-join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
-        (wherestr, whereargs) = self._where(nontable, table) 
-        if wherestr and wherestr.strip() != "()":
-            query += f"\nwhere {wherestr}"
-        res = self.db.qfad(query, whereargs)
-        self._cleartt(table["nonidc"])
-        self._cleartt(table["idc"])
+        selects = {
+            "_": [
+               "catalogentry.code as entry_code",
+               "catalog.code as catalog_code"
+            ]
+        }
+        joins = {
+          "_": self.jd["catalogentry_to_catalog"]
+        }
+        (res, bydict, missinglst, by) = self._query(tablename="catalogentry", lists=lists, files=files, selects=selects, joins=joins)
         catnames = self.name(table="catalog")
         entrynames = self.name(table="catalogentry")
         out = {}
@@ -1040,26 +984,13 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
         lists = {
            labval: labvals
         }
-        alllists = self._makealllists(lists, {}, files)
-        (nontable, table) = self._makemove(alllists, 50)
         selects = {
             "_": ["usageentry.code"]
         }
-        selectstr = self._selectstr(selects, nontable, table, verbose=[])
         joins = {
                 labval: self.jd["usageentry_to_labval"]
         }
-        joinstr = self._joinstr(joins, nontable, table, [])
-        (wherestr, whereargs) = self._where(nontable, table, like=[])
-        query = f"select {selectstr} from centraxx_usageentry usageentry \n{joinstr}"
-        if wherestr.strip() != "":
-            query += f"\nwhere {wherestr}"
-        #if print_query:
-        #    print(query)
-        #    print(whereargs)
-        res = self.db.qfad(query, whereargs)
-        self._cleartt(table["nonidc"])
-        self._cleartt(table["idc"])
+        (res, bydict, missinglst, by) = self._query(tablename="usageentry", lists=lists, selects=selects, joins=joins)
         names = self.name(table="usageentry")
         out = {}
         for row in res:
@@ -1119,7 +1050,6 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
             # join where clauses by and
             query += " and ".join(wherestrings)
 
-        # print(query)
         res = self.db.qfad(query, *args)
         out = {}
         for line in res:
@@ -1202,11 +1132,14 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
          tables of non-idc and idc keys, and verbose. it returns the sql join
          string.
         """
+        joina = []
+        if "_" in joins:
+            joina.extend(joins["_"])
+            del joins["_"]
         (vnonidc, vidc) = self._splitidc(verbose, pidc=pidc)
         nonidc = self._collkeys(nontable["nonidc"], table["nonidc"], vnonidc)
         idc = self._collkeys(nontable["idc"], table["idc"], vidc)
-        joina = []
-        joina = self._join_idc(joina, idc, joins)
+        self._join_idc(joina, idc, joins)
         for key in nonidc: 
             if key not in joins:
                 continue
@@ -1546,7 +1479,7 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
          if there is one.
         """
         poids = []
-        self._get_parents(sample.id("oid"), poids)
+        self._get_parents(sample.id("oid"), poids, table="sample", field="parent")
         if len(poids) > 0:
             primary_oid = poids[0]
             primary = self.sample(oids=[primary_oid])[0]
@@ -1726,11 +1659,9 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
         """
         out = {}
         for key, val in d.items():
-            #print("key: " + key)
             if key == patientid:
                 out[self.pidc(pidc)] = val
             elif key == sampleid:
-                #print("here: " + self.sidc())
                 out[self.sidc()] = val
             else:
                 out[key] = val
