@@ -47,13 +47,14 @@ parse the arguments.
     # in any case take the database target
     parser.add_argument("db", help="db target")
 
-    parser.add_argument("what", help="sample|patient|trial|finding|method|user|orga|catalog|usageentry|name. finding: messbefund; method: messprofil; name: get display names for a table.") # labval: messparameter
+    parser.add_argument("what", help="sample|patient|trial|location|finding|method|user|orga|catalog|usageentry|name. finding: messbefund; method: messprofil; name: get display names for a table.") # labval: messparameter
     parser.add_argument("--sampleid", help="sampleid(s)")
     parser.add_argument("--patientid", help="patientid(s)")
     parser.add_argument("--sidc", help="patient idcontainer. overrides sampleid in settings.yaml")    
     parser.add_argument("--pidc", help="patient idcontainer. overrides patientid in settings.yaml")
     parser.add_argument("--parentid", help="sampleid(s) of parent samples")    
     parser.add_argument("--trial", help="trial code(s)")
+    parser.add_argument("--location", help="location(s)")
     parser.add_argument("--locationpath", help="locationpath(s)")
     parser.add_argument("--locationname", help="locationname(s) (rackids)")    
     parser.add_argument("--kitid", help="kitid(s)")
@@ -154,6 +155,7 @@ them in filemap.
     parentids = lof(tr.parentid, args.parentid, files, filemap)
     patientids = lof(tr.patientid, args.patientid, files, filemap)
     trials = lof(tr.trial, args.trial, files, filemap)
+    locations = lof(tr.location, args.location, files, filemap)
     locationpaths = lof(tr.locationpath, args.locationpath, files, filemap)
     locationnames = lof(tr.locationname, args.locationname, files, filemap)    
     methods = lof(tr.method, args.method, files, filemap)
@@ -279,6 +281,24 @@ get trial(s).
 ``
     elif args.what == "trial":
         res = traction.trial(trials=trials)
+        if args.csv is not None:
+            if args.csv is True:
+                #file = sys.stdout # todo fix
+                file = True
+            else:
+                file = args.csv
+            outfile = tr.dict_csv(res, outfile=file, delim=args.D) # rename csv?
+            if isinstance(outfile, str):
+                print(outfile)
+        else:        
+            print(jsonpickle.encode(res, unpicklable=False, indent=4))        
+``
+
+get location(s).
+
+``
+    elif args.what == "location":
+        res = traction.location(locations=locations)
         if args.csv is not None:
             if args.csv is True:
                 #file = sys.stdout # todo fix

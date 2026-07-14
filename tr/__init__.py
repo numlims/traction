@@ -5,6 +5,7 @@ from dip import dig
 from tram import Sample, Idable, Amount, Identifier
 from tram import Patient
 from tram import Trial
+from tram import Location
 from tram import Finding
 from tram import Rec, BooleanRec, NumberRec, StringRec, DateRec, MultiRec, CatalogRec
 from tram import User
@@ -29,6 +30,7 @@ kitid = "kitid"
 labval = "labval"
 lastlogin = "lastlogin"
 login = "login"
+location = "location"
 locationname = "locationname"
 locationpath = "locationpath"
 orga = "orga"
@@ -501,7 +503,7 @@ class traction:
             #sampleid: [f"sidc.psn as '{sampleid}'"],
             parentid: [f"parentidc.psn as '{parentid}'"],
             kitid: [f"samplekit.kitid as '{kitid}'"],
-            locationname: [f"samplelocation.locationid as '{locationname}'"], 
+            locationname: [f"samplelocation.locationschema as '{locationname}'"], 
             locationpath: [f"samplelocation.locationpath as '{locationpath}'"],
             type: [f"sampletype.code as '{type}'"], # is there a type field already?
             stockprocessing: [f"stockprocessing.code as '{stockprocessing}'"],
@@ -720,6 +722,31 @@ class traction:
             )
             trials.append(t)
         return trials
+    def location(self, locations:list|None=None):
+        """
+         location gives locations.
+        """
+        lists = {
+          location: locations
+        }
+
+        selects = {
+            "_": ["samplelocationschema.code as 'code'", "samplelocation.locationpath as 'locationpath'"]
+        }
+
+        joins = {
+            location: ["left join centraxx_samplelocationschema samplelocationschema on samplelocationschema.oid = samplelocation.locationschema"]
+        }
+
+        (res, bydict, missinglst, by) = self._query(tablename="samplelocation", lists=lists, selects=selects, joins=joins)
+        out = []
+        for r in res:
+            l = Location(
+                code=dig(r, "code"),
+                path=dig(r, "locationpath")
+            )
+            out.append(l)
+        return out
     def finding(self, sampleids:list|None=None, patientids:list|None=None, pidc:str|None=None, idc:dict|None=None, methods:list|None=None, trials:list|None=None, values:bool=True, verbose:list|None=None, files:dict|None=None, verbose_all:bool=False, names:bool=False, top:int|None=None, print_query:bool=False, raw:bool=False):
         """
          finding gets the laborfindings ("messbefund" / "begleitschein") for
@@ -1228,6 +1255,7 @@ join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"""
             like = []
         wheredict = { 
           trial: { "field": "flexistudy.code" },
+          location: { "field": "samplelocation.locationid" },
           locationpath: { "field": "samplelocation.locationpath" },
           locationname: { "field": "samplelocation.locationid" },          
           method: { "field": "labormethod.code" },

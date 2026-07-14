@@ -34,6 +34,7 @@ class traction:
     ``_get_childs``
     ``patient``
     ``trial``
+    ``location``
     ``finding``
     ``method``
     ``user``
@@ -111,6 +112,7 @@ kitid = "kitid"
 labval = "labval"
 lastlogin = "lastlogin"
 login = "login"
+location = "location"
 locationname = "locationname"
 locationpath = "locationpath"
 orga = "orga"
@@ -479,7 +481,7 @@ rename the field of the main sample idcontainer to sampleid.
             #sampleid: [f"sidc.psn as '{sampleid}'"],
             parentid: [f"parentidc.psn as '{parentid}'"],
             kitid: [f"samplekit.kitid as '{kitid}'"],
-            locationname: [f"samplelocation.locationid as '{locationname}'"], 
+            locationname: [f"samplelocation.locationschema as '{locationname}'"], 
             locationpath: [f"samplelocation.locationpath as '{locationpath}'"],
             type: [f"sampletype.code as '{type}'"], # is there a type field already?
             stockprocessing: [f"stockprocessing.code as '{stockprocessing}'"],
@@ -1004,6 +1006,44 @@ import Trial.
 ``/import
 from tram import Trial
 ``
+
+location gives locations.
+
+``/location: #py
+    def location(self, locations:list|None=None):
+        ``get locations``
+``
+
+``./get locations:
+        lists = {
+          location: locations
+        }
+
+        selects = {
+            "_": ["samplelocationschema.code as 'code'", "samplelocation.locationpath as 'locationpath'"]
+        }
+
+        joins = {
+            location: ["left join centraxx_samplelocationschema samplelocationschema on samplelocationschema.oid = samplelocation.locationschema"]
+        }
+
+        (res, bydict, missinglst, by) = self._query(tablename="samplelocation", lists=lists, selects=selects, joins=joins)
+        out = []
+        for r in res:
+            l = Location(
+                code=dig(r, "code"),
+                path=dig(r, "locationpath")
+            )
+            out.append(l)
+        return out
+``
+
+import Location.
+
+``/import
+from tram import Location
+``
+
 
 finding gets the laborfindings ("messbefund" / "begleitschein") for
 sampleids or method.  it returns a list of Finding instances.
@@ -2691,6 +2731,7 @@ for now mark dates with type date.
 ``
         wheredict = { 
           trial: { "field": "flexistudy.code" },
+          location: { "field": "samplelocation.locationid" },
           locationpath: { "field": "samplelocation.locationpath" },
           locationname: { "field": "samplelocation.locationid" },          
           method: { "field": "labormethod.code" },
