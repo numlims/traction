@@ -1582,7 +1582,7 @@ turn the result into user instances.
             )
             user = User(
                 address= my_address,
-                divisional_admin=dig(r, "divisional_admin"),
+                divisional_admin=True if dig(r, "divisional_admin") == 1 else False,
                 lastlogin=dig(r, lastlogin),
                 username=dig(r, username),
                 firstname=dig(r, "firstname"),
