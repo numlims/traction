@@ -503,7 +503,7 @@ class traction:
             #sampleid: [f"sidc.psn as '{sampleid}'"],
             parentid: [f"parentidc.psn as '{parentid}'"],
             kitid: [f"samplekit.kitid as '{kitid}'"],
-            locationname: [f"samplelocation.locationschema as '{locationname}'"], 
+            locationname: [f"samplelocation.locationid as '{locationname}'"], 
             locationpath: [f"samplelocation.locationpath as '{locationpath}'"],
             type: [f"sampletype.code as '{type}'"], # is there a type field already?
             stockprocessing: [f"stockprocessing.code as '{stockprocessing}'"],
