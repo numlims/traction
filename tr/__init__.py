@@ -750,7 +750,7 @@ class traction:
         }
 
         selects = {
-            "_": ["samplelocationschema.code as 'code'", "samplelocation.locationpath as 'locationpath'"]
+            "_": ["samplelocationschema.code as 'location_schema'", "samplelocation.locationpath as 'location_path'"]
         }
 
         joins = {
@@ -761,8 +761,8 @@ class traction:
         out = []
         for r in res:
             l = Location(
-                code=dig(r, "code"),
-                path=dig(r, "locationpath")
+                schema=dig(r, "location_schema"),
+                path=dig(r, "location_path")
             )
             out.append(l)
         return out
