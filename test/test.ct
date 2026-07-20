@@ -117,6 +117,13 @@ get usageentries.
     assert res["YES"]["name_de"] == "ja"
 ``
 
+get locations.
+
+``
+    res = trac.location(locationids=["NUM"])
+    assert res[0].path == "NUM"
+``
+
 import.
 
 ``/import:

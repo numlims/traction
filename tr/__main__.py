@@ -105,7 +105,7 @@ def main():
     # in any case take the database target
     parser.add_argument("db", help="db target")
 
-    parser.add_argument("what", help="sample|patient|trial|finding|method|user|orga|catalog|usageentry|name. finding: messbefund; method: messprofil; name: get display names for a table.") # labval: messparameter
+    parser.add_argument("what", help="sample|patient|trial|location|finding|method|user|orga|catalog|usageentry|name. finding: messbefund; method: messprofil; name: get display names for a table.") # labval: messparameter
     parser.add_argument("--sampleid", help="sampleid(s)")
     parser.add_argument("--patientid", help="patientid(s)")
     parser.add_argument("--sidc", help="patient idcontainer. overrides sampleid in settings.yaml")    
@@ -113,7 +113,7 @@ def main():
     parser.add_argument("--parentid", help="sampleid(s) of parent samples")    
     parser.add_argument("--trial", help="trial code(s)")
     parser.add_argument("--locationpath", help="locationpath(s)")
-    parser.add_argument("--locationname", help="locationname(s) (rackids)")    
+    parser.add_argument("--locationid", help="locationid(s) (rackids)")    
     parser.add_argument("--kitid", help="kitid(s)")
     parser.add_argument("--cxxkitid", help="cxxkitid(s)")
     parser.add_argument("--category", help="MASTER|DERIVED|ALIQUOTGROUP")
@@ -176,7 +176,7 @@ def main():
     patientids = lof(tr.patientid, args.patientid, files, filemap)
     trials = lof(tr.trial, args.trial, files, filemap)
     locationpaths = lof(tr.locationpath, args.locationpath, files, filemap)
-    locationnames = lof(tr.locationname, args.locationname, files, filemap)    
+    locationids = lof(tr.locationid, args.locationid, files, filemap)
     methods = lof(tr.method, args.method, files, filemap)
     catalogs = lof(tr.catalog, args.catalog, files, filemap)    
     kitids = lof(tr.kitid, args.method, files, filemap)
@@ -199,7 +199,7 @@ def main():
                pidc=args.pidc,
                trials=trials,
                locationpaths=locationpaths,
-               locationnames=locationnames,               
+               locationids=locationids,               
                kitids=kitids,
                cxxkitids=cxxkitids,
                categories=categories,
@@ -271,6 +271,19 @@ def main():
             print(jsonpickle.encode(patients, unpicklable=False, indent=4))
     elif args.what == "trial":
         res = traction.trial(trials=trials)
+        if args.csv is not None:
+            if args.csv is True:
+                #file = sys.stdout # todo fix
+                file = True
+            else:
+                file = args.csv
+            outfile = tr.dict_csv(res, outfile=file, delim=args.D) # rename csv?
+            if isinstance(outfile, str):
+                print(outfile)
+        else:        
+            print(jsonpickle.encode(res, unpicklable=False, indent=4))        
+    elif args.what == "location":
+        res = traction.location(locationids=locationids)
         if args.csv is not None:
             if args.csv is True:
                 #file = sys.stdout # todo fix
