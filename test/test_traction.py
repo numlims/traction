@@ -33,5 +33,12 @@ def test_run():
     assert res["PATHOGEN"]["entries"]["CHIKUNGUNYA"]["name_de"] == "Chikungunya"
     res = trac.usageentry()
     assert res["YES"]["name_de"] == "ja"
+    kt = "RAPID_ELAPSE_STD_STUDYSET"
+    res = trac.kittemplate(kittemplates=[kt])
+    assert kt in res    
+    st = "RAPID_ELAPSE_HEP_POOL_PL"
+    assert st in res[kt]["sampletemplates"]
+    sample = res[kt]["sampletemplates"][st]["sample"]
+    assert sample.type == "NUM_HEP_POOL_PL"
     res = trac.location(locationids=["NUM"])
     assert res[0].path == "NUM"

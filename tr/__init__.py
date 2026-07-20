@@ -27,6 +27,7 @@ initialunit = "initialunit"
 first_repositiondate = "first_repositiondate" # datum der ersten einlagerung / date of first storage (not in fhir). is identical to derivaldate. first_repositiondate in db.
 method = "method"
 kitid = "kitid"
+kittemplate = "kittemplate"
 labval = "labval"
 lastlogin = "lastlogin"
 login = "login"
@@ -1023,6 +1024,51 @@ class traction:
             out[code]["name_en"] = dig(names, code + "/en")
             out[code]["code"] = code
         return out
+    def kittemplate(self, kittemplates:list|None=None, files:dict|None=None, print_query:bool=False):
+        """
+         kittemplate gives sample kit templates and the samples they contain.
+        """
+        if files is None:
+            files = {}
+        lists = {
+            kittemplate: kittemplates
+        }
+        selects = {
+          "_": [
+            "samplekittemplate.code as kittemplate_code",
+            "samplekittemplate.skt_name as kittemplate_name",
+            "samplekittemplateitem.samplecount as samplecount",
+            "samplekittemplateitem.skti_name as skti_name",
+            "samplekittemplateitem.code as skti_code",            
+            "template.sample as sample_oid"
+          ]
+        }
+        joins = {
+            "_": [
+                "join centraxx_samplekittemplateitem samplekittemplateitem on samplekittemplateitem.samplekittemplate = samplekittemplate.oid",
+                "join centraxx_template template on samplekittemplateitem.sampletemplate = template.oid"
+            ]
+        }
+        (res, bydict, missinglist, by) = self._query(tablename="samplekittemplate", lists=lists, selects=selects, joins=joins, print_query=print_query)
+        out = {}
+        for row in res:
+            kittemplate_code = row["kittemplate_code"]
+            if kittemplate_code not in out:
+                out[kittemplate_code] = {}
+                out[kittemplate_code]["code"] = kittemplate_code
+                out[kittemplate_code]["name"] = dig(row, "kittemplate_name")
+                out[kittemplate_code]["sampletemplates"] = {}
+            sampletemplate_code = row["skti_code"]
+
+            sampletemplate = {}
+            sampletemplate["code"] = sampletemplate_code
+            sampletemplate["name"] = dig(row, "skti_name")
+            sampletemplate["samplecount"] = dig(row, "samplecount")
+            sampleres = self.sample(oids=[dig(row, "sample_oid")], verbose_all=True)
+            sample = sampleres[0]
+            sampletemplate["sample"] = sample
+            out[kittemplate_code]["sampletemplates"][sampletemplate_code] = sampletemplate
+        return out
     def name(self, table:str, code:str=None, lang:str=None, ml_table:str=None):
         """
          name gives the multilingual names for a code or all codes in a table.
@@ -1233,7 +1279,8 @@ class traction:
           username: { "field": "participant.username" },
           address: { "field": "address.email" },
           login: { "field": "credential.last_login_on", "type": "date" },
-          labval: { "field": "labval.code" }
+          labval: { "field": "labval.code" },
+          kittemplate: { "field": "samplekittemplate.code" }
         }
         wherestrs = []
         whereargs = []

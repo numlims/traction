@@ -105,7 +105,7 @@ def main():
     # in any case take the database target
     parser.add_argument("db", help="db target")
 
-    parser.add_argument("what", help="sample|patient|trial|location|finding|method|user|orga|catalog|usageentry|name. finding: messbefund; method: messprofil; name: get display names for a table.") # labval: messparameter
+    parser.add_argument("what", help="sample|patient|trial|location|finding|method|user|orga|catalog|usageentry|kittemplate|name. finding: messbefund; method: messprofil; name: get display names for a table.") # labval: messparameter
     parser.add_argument("--sampleid", help="sampleid(s)")
     parser.add_argument("--patientid", help="patientid(s)")
     parser.add_argument("--sidc", help="patient idcontainer. overrides sampleid in settings.yaml")    
@@ -115,6 +115,7 @@ def main():
     parser.add_argument("--locationpath", help="locationpath(s)")
     parser.add_argument("--locationid", help="locationid(s) (rackids)")    
     parser.add_argument("--kitid", help="kitid(s)")
+    parser.add_argument("--kittemplate", help="kittemplate code(s)")    
     parser.add_argument("--cxxkitid", help="cxxkitid(s)")
     parser.add_argument("--category", help="MASTER|DERIVED|ALIQUOTGROUP")
     parser.add_argument("--type", help="sample type (material)")
@@ -179,7 +180,8 @@ def main():
     locationids = lof(tr.locationid, args.locationid, files, filemap)
     methods = lof(tr.method, args.method, files, filemap)
     catalogs = lof(tr.catalog, args.catalog, files, filemap)    
-    kitids = lof(tr.kitid, args.method, files, filemap)
+    kitids = lof(tr.kitid, args.kitid, files, filemap)
+    kittemplates = lof(tr.kittemplate, args.kittemplate, files, filemap)    
     cxxkitids = lof(tr.cxxkitid, args.cxxkitid, files, filemap)
     categories = lof(tr.category, args.category, files, filemap)
     types = lof(tr.type, args.type, files, filemap)    
@@ -375,6 +377,19 @@ def main():
             print(jsonpickle.encode(res, unpicklable=False, indent=4))
     elif args.what == "usageentry":
         res = traction.usageentry()    
+        if args.csv is not None:
+            if args.csv is True:
+                #file = sys.stdout # todo fix
+                file = True
+            else:
+                file = args.csv
+            outfile = tr.dict_csv(list(res.values()), outfile=file, delim=args.D) # res.values() because res is dict keyed by code
+            if isinstance(outfile, str):
+                print(outfile)
+        else:        
+            print(jsonpickle.encode(res, unpicklable=False, indent=4))
+    elif args.what == "kittemplate":
+        res = traction.kittemplate(kittemplates=kittemplates, print_query=args.query)    
         if args.csv is not None:
             if args.csv is True:
                 #file = sys.stdout # todo fix

@@ -117,6 +117,24 @@ get usageentries.
     assert res["YES"]["name_de"] == "ja"
 ``
 
+fetch a kittemplate and its sampletemplates.
+
+``
+    kt = "RAPID_ELAPSE_STD_STUDYSET"
+    res = trac.kittemplate(kittemplates=[kt])
+    assert kt in res    
+``
+
+make sure that one of the sampletemplates is there, and that it comes with the right info.
+
+``
+    st = "RAPID_ELAPSE_HEP_POOL_PL"
+    assert st in res[kt]["sampletemplates"]
+    sample = res[kt]["sampletemplates"][st]["sample"]
+    assert sample.type == "NUM_HEP_POOL_PL"
+``
+    
+
 get locations.
 
 ``
