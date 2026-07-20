@@ -30,8 +30,7 @@ kitid = "kitid"
 labval = "labval"
 lastlogin = "lastlogin"
 login = "login"
-location = "location"
-locationname = "locationname"
+locationid = "locationid"
 locationpath = "locationpath"
 orga = "orga"
 parentid = "parentid"
@@ -422,7 +421,7 @@ class traction:
         self.names_catalogentry = None
         self.names_usageentry = None
 
-    def sample(self, sampleids:list|None=None, oids:list|None=None, idc:dict|None=None, patientids:list|None=None, pidc:str|None=None, parentids:list|None=None, parentoids:list|None=None, locationpaths:list|None=None, locationnames:list|None=None, trials:list|None=None, kitids:list|None=None, cxxkitids:list|None=None, categories:list|None=None, types:list|None=None, orgas:list|None=None, samplingdates:list|None=None, receiptdates:list|None=None, derivaldates:list|None=None, first_repositiondates:list|None=None, repositiondates:list|None=None, stockprocessingdates:list|None=None, secondprocessingdates:list|None=None, files:dict|None=None, verbose:list|None=None, verbose_all:bool=False, primaryref:bool=False, incl_parents:bool=False, incl_childs:bool=False, incl_tree:bool=False, like:list|None=None, missing=False, order_by:str|None=None, top:int|None=None, by=None, print_query:bool=False, raw:bool=False):
+    def sample(self, sampleids:list|None=None, oids:list|None=None, idc:dict|None=None, patientids:list|None=None, pidc:str|None=None, parentids:list|None=None, parentoids:list|None=None, locationpaths:list|None=None, locationids:list|None=None, trials:list|None=None, kitids:list|None=None, cxxkitids:list|None=None, categories:list|None=None, types:list|None=None, orgas:list|None=None, samplingdates:list|None=None, receiptdates:list|None=None, derivaldates:list|None=None, first_repositiondates:list|None=None, repositiondates:list|None=None, stockprocessingdates:list|None=None, secondprocessingdates:list|None=None, files:dict|None=None, verbose:list|None=None, verbose_all:bool=False, primaryref:bool=False, incl_parents:bool=False, incl_childs:bool=False, incl_tree:bool=False, like:list|None=None, missing=False, order_by:str|None=None, top:int|None=None, by=None, print_query:bool=False, raw:bool=False):
         """
          sample gets sample(s) and returns them as a list of Sample instances.
          
@@ -480,7 +479,7 @@ class traction:
                    withincl.extend(c_oids)
             withincl = list(dict.fromkeys(withincl))
             return self.sample(oids=withincl, verbose=verbose, print_query=print_query, raw=raw) # todo pass verbose_all?
-        vaa = [cxxkitid, kitid, locationname, locationpath, orga, parentid,
+        vaa = [cxxkitid, kitid, locationid, locationpath, orga, parentid,
 	       patientid, project, receptacle, type,
                secondprocessing, stockprocessing, trial]
         vaa.extend(self._pidcs(pidc))
@@ -492,7 +491,7 @@ class traction:
           parentid: parentids,
           parentoid: parentoids,
           locationpath: locationpaths,
-          locationname: locationnames,
+          locationid: locationids,
           trial: trials,
           kitid: kitids,
           cxxkitid: cxxkitids,
@@ -522,7 +521,7 @@ class traction:
             #sampleid: [f"sidc.psn as '{sampleid}'"],
             parentid: [f"parentidc.psn as '{parentid}'"],
             kitid: [f"samplekit.kitid as '{kitid}'"],
-            locationname: [f"samplelocation.locationid as '{locationname}'"], 
+            locationid: [f"samplelocation.locationid as '{locationid}'"],
             locationpath: [f"samplelocation.locationpath as '{locationpath}'"],
             type: [f"sampletype.code as '{type}'"], # is there a type field already?
             stockprocessing: [f"stockprocessing.code as '{stockprocessing}'"],
@@ -537,7 +536,7 @@ class traction:
             cxxkitid: self.jd["sample_to_samplekit"],
             parentid: self.jd["sample_to_parentid"],
             kitid: self.jd["sample_to_samplekit"],
-            locationname: self.jd["sample_to_samplelocation"],
+            locationid: self.jd["sample_to_samplelocation"],
             locationpath: self.jd["sample_to_samplelocation"],
             type: self.jd["sample_to_sampletype"],
             stockprocessing: self.jd["sample_to_stockprocessing"],
@@ -594,7 +593,7 @@ class traction:
                 initialamount=Amount(floatornull(dig(r, initialamount)), dig(r, initialunit)), # apparently the cast to float is explicitly needed
                 kitid=dig(r, kitid),
                 locationpath=dig(r, locationpath),
-                locationname=dig(r, locationname),
+                locationid=dig(r, locationid),
                 orga=dig(r, orga),
                 parent=parent,
                 patient=patient,
@@ -741,12 +740,12 @@ class traction:
             )
             trials.append(t)
         return trials
-    def location(self, locations:list|None=None):
+    def location(self, locationids:list|None=None):
         """
          location gives locations.
         """
         lists = {
-          location: locations
+          locationid: locationids
         }
 
         selects = {
@@ -754,9 +753,8 @@ class traction:
         }
 
         joins = {
-            location: ["left join centraxx_samplelocationschema samplelocationschema on samplelocationschema.oid = samplelocation.locationschema"]
+            locationid: ["left join centraxx_samplelocationschema samplelocationschema on samplelocationschema.oid = samplelocation.locationschema"]
         }
-
         (res, bydict, missinglst, by) = self._query(tablename="samplelocation", lists=lists, selects=selects, joins=joins)
         out = []
         for r in res:
@@ -1213,9 +1211,8 @@ class traction:
             like = []
         wheredict = { 
           trial: { "field": "flexistudy.code" },
-          location: { "field": "samplelocation.locationid" },
-          locationpath: { "field": "samplelocation.locationpath" },
-          locationname: { "field": "samplelocation.locationid" },          
+          locationid: { "field": "samplelocation.locationid" },
+          locationpath: { "field": "samplelocation.locationpath" },       
           method: { "field": "labormethod.code" },
           kitid: { "field": "samplekit.kitid" },
           cxxkitid: { "field": "samplekit.cxxkitid" },

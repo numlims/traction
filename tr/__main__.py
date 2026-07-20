@@ -112,9 +112,8 @@ def main():
     parser.add_argument("--pidc", help="patient idcontainer. overrides patientid in settings.yaml")
     parser.add_argument("--parentid", help="sampleid(s) of parent samples")    
     parser.add_argument("--trial", help="trial code(s)")
-    parser.add_argument("--location", help="location(s)")
     parser.add_argument("--locationpath", help="locationpath(s)")
-    parser.add_argument("--locationname", help="locationname(s) (rackids)")    
+    parser.add_argument("--locationid", help="locationid(s) (rackids)")    
     parser.add_argument("--kitid", help="kitid(s)")
     parser.add_argument("--cxxkitid", help="cxxkitid(s)")
     parser.add_argument("--category", help="MASTER|DERIVED|ALIQUOTGROUP")
@@ -176,9 +175,8 @@ def main():
     parentids = lof(tr.parentid, args.parentid, files, filemap)
     patientids = lof(tr.patientid, args.patientid, files, filemap)
     trials = lof(tr.trial, args.trial, files, filemap)
-    locations = lof(tr.location, args.location, files, filemap)
     locationpaths = lof(tr.locationpath, args.locationpath, files, filemap)
-    locationnames = lof(tr.locationname, args.locationname, files, filemap)    
+    locationids = lof(tr.locationid, args.locationid, files, filemap)
     methods = lof(tr.method, args.method, files, filemap)
     catalogs = lof(tr.catalog, args.catalog, files, filemap)    
     kitids = lof(tr.kitid, args.method, files, filemap)
@@ -201,7 +199,7 @@ def main():
                pidc=args.pidc,
                trials=trials,
                locationpaths=locationpaths,
-               locationnames=locationnames,               
+               locationids=locationids,               
                kitids=kitids,
                cxxkitids=cxxkitids,
                categories=categories,
@@ -285,7 +283,7 @@ def main():
         else:        
             print(jsonpickle.encode(res, unpicklable=False, indent=4))        
     elif args.what == "location":
-        res = traction.location(locations=locations)
+        res = traction.location(locationids=locationids)
         if args.csv is not None:
             if args.csv is True:
                 #file = sys.stdout # todo fix
