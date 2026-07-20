@@ -135,6 +135,13 @@ make sure that one of the sampletemplates is there, and that it comes with the r
 ``
     
 
+get locations.
+
+``
+    res = trac.location(locationids=["NUM"])
+    assert res[0].path == "NUM"
+``
+
 import.
 
 ``/import:
