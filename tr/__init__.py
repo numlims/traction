@@ -945,7 +945,9 @@ class traction:
                 lastlogin=dig(r, lastlogin),
                 username=dig(r, username),
                 firstname=dig(r, "firstname"),
-                lastname=dig(r, "lastname")
+                lastname=dig(r, "lastname"),
+                entitystatus=dig(r, "entitystatus"),
+                active_until=dig(r, "active_until"),
             )
             out.append(user)
         return out
