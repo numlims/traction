@@ -2102,7 +2102,7 @@ the field name is exactly as the table name, except for organisationunit.
 the query.
 
 ``
-        query = f"select lang, ml_name as name, {table}.code from centraxx_multilingual multilingual join centraxx_{table} {table} on {table}.oid = multilingual.{table} where multilingual.{fieldname} is not null"
+        query = f"select lang, ml_name as name, {table}.code from centraxx_multilingual multilingual join centraxx_{table} {table} on {table}.oid = multilingual.{fieldname} where multilingual.{fieldname} is not null"
 ``
 
 the following is actually the same as for cxx 3, scrape the seperate

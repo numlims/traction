@@ -1139,7 +1139,7 @@ class traction:
         fieldname = table
         if table == "organisationunit":
             fieldname = "organizationunit"
-        query = f"select lang, ml_name as name, {table}.code from centraxx_multilingual multilingual join centraxx_{table} {table} on {table}.oid = multilingual.{table} where multilingual.{fieldname} is not null"
+        query = f"select lang, ml_name as name, {table}.code from centraxx_multilingual multilingual join centraxx_{table} {table} on {table}.oid = multilingual.{fieldname} where multilingual.{fieldname} is not null"
         wherestrings = []
         args = []
         if code is not None:
