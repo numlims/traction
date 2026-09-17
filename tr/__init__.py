@@ -741,27 +741,28 @@ class traction:
             )
             trials.append(t)
         return trials
-    def location(self, locationids:list|None=None):
+    def location(self, locationids:list|None=None, locationpaths:list|None=None, print_query:bool=False):
         """
          location gives locations.
         """
         lists = {
-          locationid: locationids
+          locationid: locationids,
+          locationpath: locationpaths
         }
 
         selects = {
-            "_": ["samplelocationschema.code as 'location_schema'", "samplelocation.locationpath as 'location_path'"]
+            "_": ["samplelocationschema.code as 'locationschema'", "samplelocation.locationpath as 'locationpath'"]
         }
 
         joins = {
-            locationid: ["left join centraxx_samplelocationschema samplelocationschema on samplelocationschema.oid = samplelocation.locationschema"]
+            "_": ["left join centraxx_samplelocationschema samplelocationschema on samplelocationschema.oid = samplelocation.locationschema"]
         }
-        (res, bydict, missinglst, by) = self._query(tablename="samplelocation", lists=lists, selects=selects, joins=joins)
+        (res, bydict, missinglst, by) = self._query(tablename="samplelocation", lists=lists, selects=selects, joins=joins, print_query=print_query)
         out = []
         for r in res:
             l = Location(
-                schema=dig(r, "location_schema"),
-                path=dig(r, "location_path")
+                schema=dig(r, "locationschema"),
+                path=dig(r, "locationpath")
             )
             out.append(l)
         return out
