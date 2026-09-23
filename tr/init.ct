@@ -1189,6 +1189,8 @@ join the laborvalue (messparameter) differently in cxx 3 and cxx 4.
                 join centraxx_crftempfield as crftempfield on labfindinglabval.crftempfield = crftempfield.oid
                 join centraxx_laborvalue as laborvalue on crftempfield.laborvalue = laborvalue.oid
                 """
+            else:
+                raise Exception(f"please provide a cxx version (3 or 4) for db target {self.db.target} in setting.yaml, see example in readme.md.")
 ``
 
 continue the query the same.
@@ -1196,7 +1198,7 @@ continue the query the same.
 ``
             query += """
                 --go from laborvalue to unit
-                left join centraxx_unity unit on laborvalue.unit = unit.oid
+                left join centraxx_unity as unit on laborvalue.unit = unit.oid
 
                 where laborfinding.oid = ?
             """

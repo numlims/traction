@@ -85,6 +85,10 @@ patientid:
 idc:
  - <an idcontainertype code>
  - <another idcontainertype code>
+
+# cxx holds the centraxx version for db target
+cxx:
+  <db target>: 3|4
 ```
 
 the db target(s) you enter in `settings.yaml` should correspond to
