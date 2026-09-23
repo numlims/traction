@@ -825,6 +825,10 @@ class traction:
                 where laborfinding.oid = ?
             """
             recvals = self.db.qfad(query, finding['laborfinding_oid'])
+            if print_query:
+                print(query)
+                print(finding['laborfinding_oid'])
+
             valsbycode = {}
             for recval in recvals:
               valsbycode[recval["laborvalue_code"]] = self._make_rec(recval, finding, names)
@@ -1558,7 +1562,7 @@ class traction:
             sample.primary = Idable(ids=primary.ids, mainidc=primary.mainidc)
 
     # lists and tmp tables
-    def _makemove(self, alllists:dict, cutoff:int): # -> (dict, dict)#bm
+    def _makemove(self, alllists:dict, cutoff:int): # -> (dict, dict)
         """
          _makemove makes temporary tables from the given lists that are longer
          than cutoff. it returns one dict holding the remaining, non-table
