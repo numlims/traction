@@ -403,16 +403,16 @@ class traction:
             "participant_to_address": ["left join centraxx_participantaddress participantaddress on participantaddress.participant = participant.oid", "left join centraxx_address address on address.oid = participantaddress.oid"],
             "participant_to_credential": ["left join centraxx_credential credential on credential.participant = participant.oid"]
             ,
-            "usageentry_to_labval": [ "left join centraxx_labvalenum_usageentry labvalenum_usageentry on labvalenum_usageentry.usageentry = usageentry.oid", "left join centraxx_laborvalue labval on labvalenum_usageentry.labvalueenum = labval.oid" ]
+            "usageentry_to_labval": [ "left join centraxx_labvalenum_usageentry labvalenum_usageentry on labvalenum_usageentry.usageentry = usageentry.oid", "left join centraxx_laborvalue as labval on labvalenum_usageentry.labvalueenum = labval.oid" ]
             ,
             "catalogentry_to_catalog": ["join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"]
             ,
             "method_to_labval": [
-                "inner join centraxx_crftemplate crf_t on labormethod.crf_template=crf_t.oid",
-                "inner join centraxx_crftempsection crf_ts on crf_t.oid=crf_ts.crftemplate",
-                "inner join centraxx_crftempsection_fields crf_tsf on crf_ts.oid=crf_tsf.crftempsection_oid",
-                "inner join centraxx_crftempfield crf_tf on crf_tsf.crftempfield_oid=crf_tf.oid",
-                "inner join centraxx_laborvalue laborvalue on crf_tf.laborvalue=laborvalue.oid"
+                "inner join centraxx_crftemplate as crf_t on labormethod.crf_template=crf_t.oid",
+                "inner join centraxx_crftempsection as crf_ts on crf_t.oid=crf_ts.crftemplate",
+                "inner join centraxx_crftempsection_fields as crf_tsf on crf_ts.oid=crf_tsf.crftempsection_oid",
+                "inner join centraxx_crftempfield as crf_tf on crf_tsf.crftempfield_oid=crf_tf.oid",
+                "inner join centraxx_laborvalue as laborvalue on crf_tf.laborvalue=laborvalue.oid"
             ],
             "labval_to_catalog": [
                 "left join centraxx_catalog catalog on catalog.oid = laborvalue.custom_catalog"
@@ -741,27 +741,28 @@ class traction:
             )
             trials.append(t)
         return trials
-    def location(self, locationids:list|None=None):
+    def location(self, locationids:list|None=None, locationpaths:list|None=None, print_query:bool=False):
         """
          location gives locations.
         """
         lists = {
-          locationid: locationids
+          locationid: locationids,
+          locationpath: locationpaths
         }
 
         selects = {
-            "_": ["samplelocationschema.code as 'location_schema'", "samplelocation.locationpath as 'location_path'"]
+            "_": ["samplelocationschema.code as 'locationschema'", "samplelocation.locationpath as 'locationpath'"]
         }
 
         joins = {
-            locationid: ["left join centraxx_samplelocationschema samplelocationschema on samplelocationschema.oid = samplelocation.locationschema"]
+            "_": ["left join centraxx_samplelocationschema samplelocationschema on samplelocationschema.oid = samplelocation.locationschema"]
         }
-        (res, bydict, missinglst, by) = self._query(tablename="samplelocation", lists=lists, selects=selects, joins=joins)
+        (res, bydict, missinglst, by) = self._query(tablename="samplelocation", lists=lists, selects=selects, joins=joins, print_query=print_query)
         out = []
         for r in res:
             l = Location(
-                schema=dig(r, "location_schema"),
-                path=dig(r, "location_path")
+                schema=dig(r, "locationschema"),
+                path=dig(r, "locationpath")
             )
             out.append(l)
         return out
@@ -810,20 +811,25 @@ class traction:
                 join centraxx_recordedvalue as recordedvalue on labfindinglabval.oid = recordedvalue.oid"""
             if self.cxx() == "3":
                 query += """--go directly to laborvalue
-                join centraxx_laborvalue laborvalue on labfindinglabval.laborvalue = laborvalue.oid"""
+                join centraxx_laborvalue as laborvalue on labfindinglabval.laborvalue = laborvalue.oid"""
             elif self.cxx() == "4":
                 query += """                
                 -- go to laborvalue via crftempfield
-                join centraxx_crftempfield crftempfield on labfindinglabval.crftempfield = crftempfield.oid
-                join centraxx_laborvalue laborvalue on crftempfield.laborvalue = laborvalue.oid
+                join centraxx_crftempfield as crftempfield on labfindinglabval.crftempfield = crftempfield.oid
+                join centraxx_laborvalue as laborvalue on crftempfield.laborvalue = laborvalue.oid
                 """
             query += """
                 --go from laborvalue to unit
-                left join centraxx_unity unit on laborvalue.unit = unit.oid
+                left join centraxx_unity as unit on laborvalue.unit = unit.oid
 
                 where laborfinding.oid = ?
             """
+            if print_query:
+                print(query)
+                print(finding['laborfinding_oid'])
+
             recvals = self.db.qfad(query, finding['laborfinding_oid'])
+
             valsbycode = {}
             for recval in recvals:
               valsbycode[recval["laborvalue_code"]] = self._make_rec(recval, finding, names)
@@ -1139,7 +1145,7 @@ class traction:
         fieldname = table
         if table == "organisationunit":
             fieldname = "organizationunit"
-        query = f"select lang, ml_name as name, {table}.code from centraxx_multilingual multilingual join centraxx_{table} {table} on {table}.oid = multilingual.{table} where multilingual.{fieldname} is not null"
+        query = f"select lang, ml_name as name, {table}.code from centraxx_multilingual multilingual join centraxx_{table} {table} on {table}.oid = multilingual.{fieldname} where multilingual.{fieldname} is not null"
         wherestrings = []
         args = []
         if code is not None:
@@ -1557,7 +1563,7 @@ class traction:
             sample.primary = Idable(ids=primary.ids, mainidc=primary.mainidc)
 
     # lists and tmp tables
-    def _makemove(self, alllists:dict, cutoff:int): # -> (dict, dict)#bm
+    def _makemove(self, alllists:dict, cutoff:int): # -> (dict, dict)
         """
          _makemove makes temporary tables from the given lists that are longer
          than cutoff. it returns one dict holding the remaining, non-table

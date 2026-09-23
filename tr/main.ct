@@ -298,7 +298,7 @@ get location(s).
 
 ``
     elif args.what == "location":
-        res = traction.location(locationids=locationids)
+        res = traction.location(locationids=locationids, locationpaths=locationpaths, print_query=args.query)
         if args.csv is not None:
             if args.csv is True:
                 #file = sys.stdout # todo fix

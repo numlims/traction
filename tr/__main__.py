@@ -285,7 +285,7 @@ def main():
         else:        
             print(jsonpickle.encode(res, unpicklable=False, indent=4))        
     elif args.what == "location":
-        res = traction.location(locationids=locationids)
+        res = traction.location(locationids=locationids, locationpaths=locationpaths, print_query=args.query)
         if args.csv is not None:
             if args.csv is True:
                 #file = sys.stdout # todo fix
