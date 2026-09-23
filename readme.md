@@ -37,13 +37,13 @@ pip install traction-<version>.whl
 ```
 
 dbcq handles the db connection. run dbcq once to create its config
-file, `~/.dbc`:
+file.
 
 ```
 dbcq
 ```
 
-put your connection info into the `.dbc` config file like this:
+this creates `~/.dbc`. put your connection info into `~/.dbc` like this:
 
 ```
 [mycxx]
@@ -60,17 +60,16 @@ driver = {ODBC Driver 18 for SQL Server}
 
 in this example, the db target `mycxx` would later be used in traction calls.
 
-after setting up dbcq, run traction once to create the traction config file,
-`~/.traction/settings.yaml`:
+after setting up dbcq, run traction once to create the traction config file.
 
 ```
 traction
 ```
 
-put your idcontainer types for sample and patient into `~/.traction/settings.yaml`.
-
-set which additional idcontainer types should be queryable as command
-line flags.
+this creates `~/.traction/settings.yaml`.  edit
+`~/.traction/settings.yaml` and put in your your default idcontainer
+types for sample and patient. also, set which idcontainer types should
+be queryable as command line flags.
 
 ```
 # sampleid sets the idcontainertype code that is used when searching for sampleid.
