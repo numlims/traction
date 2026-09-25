@@ -76,6 +76,7 @@ parse the arguments.
     parser.add_argument("--tree", help="include the whole tree for each sample", action="store_true")
     parser.add_argument("--ausgabe-safe", help="exclude samples that are in aufgaben or probenlisten or that have a kooperationspartner")
     parser.add_argument("--method", help="labormethod(s) (messprofil)")
+    parser.add_argument("--labval", help="labvals(s) (messparameter)")    
     parser.add_argument("--catalog", help="catalog(s))")    
     parser.add_argument("--table", help="the table to get names for codes for")
     parser.add_argument("--ml-table", help="if the table mapping from codes to in mytable to names is not called centraxx_mytable_ml_name, give its name here.")
@@ -158,6 +159,7 @@ them in filemap.
     locationpaths = lof(tr.locationpath, args.locationpath, files, filemap)
     locationids = lof(tr.locationid, args.locationid, files, filemap)
     methods = lof(tr.method, args.method, files, filemap)
+    labvals = lof(tr.labval, args.labval, files, filemap)    
     catalogs = lof(tr.catalog, args.catalog, files, filemap)    
     kitids = lof(tr.kitid, args.kitid, files, filemap)
     kittemplates = lof(tr.kittemplate, args.kittemplate, files, filemap)    
@@ -329,6 +331,25 @@ get method(s) and their labvals.
         else:          
             print(jsonpickle.encode(res, unpicklable=False, indent=4))                
 ``
+
+get labval(s).
+
+``
+    elif args.what == "labval":
+        res = traction.labval(labvals=labvals, files=filemap, print_query=args.query)
+        #if args.csv is not None:
+        #    if args.csv is True:
+        #        #file = sys.stdout # todo fix
+        #        file = True
+        #    else:
+        #        file = args.csv
+        #    outfile = tr.method_csv(list(res.values()), file, delim=args.D) # .values() because keyed by code
+        #    if isinstance(outfile, str):
+        #        print(outfile)
+        #else:          
+        print(jsonpickle.encode(res, unpicklable=False, indent=4))                
+``
+
 
 get finding(s) and their recorded values.
 

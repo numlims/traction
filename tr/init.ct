@@ -37,6 +37,7 @@ class traction:
     ``location``
     ``finding``
     ``method``
+    ``labval``
     ``user``
     ``orga``
     ``catalog``
@@ -81,6 +82,7 @@ class traction:
     ``_concrete_idcs``
     ``_concrete_idcs_dict``
     ``cxx``
+    ``target``
 
     ``_is_idc``
     ``_splitidc``
@@ -140,6 +142,9 @@ values = "values"
 xposition = "xposition"
 yposition = "yposition"
 ``
+
+
+## init
 
 __init__ takes the db target either as string or dbcq object.
 
@@ -243,6 +248,9 @@ cxx:
   <db target>: 3|4
 """
 ``
+
+
+## sample
 
 sample gets sample(s) and returns them as a list of Sample instances.
 
@@ -707,6 +715,10 @@ the joindict entries that sample needs.
             "sample_to_trial": ["left join centraxx_flexistudy as flexistudy on sample.flexistudy = flexistudy.oid"]
 ``
 
+
+
+## _get_parents
+
 _get_parents collects the parent oids starting from an oid into the
 `out` list, in order from root to leaf. it can be run on any table
 with a parent field that references an oid in the same table.
@@ -739,6 +751,10 @@ recurse to get the parent's parent.
             self._get_parents(pid, out, table=table, field=field)
 ``
 
+
+
+## _get_childs
+
 _get_childs collects the oids of children into the `out` list, in
 order from parent-to-child.  it can be run on any table with a parent
 field.
@@ -767,6 +783,10 @@ recurse to get the children of the children.
 ``
             self._get_childs(child["oid"], out, table=table, field=field)
 ``
+
+
+
+## patient
 
 patient gets patients and returns them as a list of Patient instances.
 
@@ -937,6 +957,9 @@ the joindict entries that patient needs.
 ``
 
 
+
+## trial
+
 trial gives trials.
 
 ``/trial: #py
@@ -1018,6 +1041,10 @@ import Trial.
 from tram import Trial
 ``
 
+
+
+## location
+
 location gives locations.
 
 ``/location: #py
@@ -1062,6 +1089,9 @@ import Location.
 from tram import Location
 ``
 
+
+
+## finding
 
 finding gets the laborfindings ("messbefund" / "begleitschein") for
 sampleids or method.  it returns a list of Finding instances.
@@ -1290,6 +1320,10 @@ import.
 from tram import Finding
 from tram import Rec, BooleanRec, NumberRec, StringRec, DateRec, MultiRec, CatalogRec
 ``
+
+
+
+## _make_rec
 
 _make_rec makes a recorded value instance for finding from db results with display names if wished.
 
@@ -1553,6 +1587,130 @@ the join-dict entries for method.
             ]
 ``
 
+
+## labval
+
+labval (messparameter) gets labval(s).  this is an extra function next
+to the labvals fetched in method, cause iit might be handy to fetch
+labvals directly if you don't know their method, for example in
+fhirbuild.
+        
+``/labval:
+    def labval(self, labvals:list|None=None, files:dict|None=None, bycode:bool=False, print_query:bool=False):
+        ``_``
+``
+
+init files.
+
+``_:
+        if files is None:
+            files = {}
+``
+
+put the arguments in a dict of lists.
+
+``
+        lists = {
+            labval: labvals
+        }
+``
+
+selects holds the selects.
+
+``
+        selects = {
+          "_": [
+            "laborvalue.code as labval",
+            "laborvalue.dtype as labval_type",
+            "catalog.code as catalog"
+          ]
+        }
+``
+
+the joins should always be made, so use the underscore "_" key.
+
+``
+        homejoins = []
+        homejoins.extend(self.jd["labval_to_catalog"])
+        joins = {
+            "_": homejoins
+        }
+``
+
+build the query and get the results.
+
+``
+        (res, bydict, missinglist, by) = self._query(tablename="laborvalue", lists=lists, selects=selects, joins=joins, print_query=print_query)#bm
+``
+
+if raw, return result as is.
+
+`
+        if raw:
+            return res
+`
+
+get the names.  todo cache?
+
+``
+        labvalnames = self.name(table="laborvalue")
+``
+
+build the labvals.
+
+``
+        labvals = []
+        for row in res:
+            ``.``
+``
+
+add labvals.
+
+``
+            labvalcode = row["labval"]
+
+            lv = {}
+            lv["code"] = labvalcode
+            lv["name_de"] = dig(labvalnames, labvalcode + "/de")
+            lv["name_en"] = dig(labvalnames, labvalcode + "/en")
+            if dig(row, "catalog") is not None:
+                lv["catalog"] = dig(row, "catalog")
+            lv["type"] = row["labval_type"]
+``
+
+for optiongroups and enumerations, add the allowed controlled vocabulary for this labval.
+
+``
+            if lv["type"] == "OPTIONGROUP" or lv["type"] == "ENUMERATION":
+                lv["usageentry"] = self.usageentry(labvals=[lv["code"]])
+``
+
+if bycode was passed, put the labval in the bydict at the code.
+
+maybe for now only allow bycode.  for sample or patient, a dynamic by
+that can say which idcontainer makes sense, but this isn't really the
+case here, right?
+
+``
+            if bycode is True:
+                _fillby(bydict, "labval", row, lv)
+            else:
+                labvals.append(lv)
+``
+
+after building the labvals, return by-dict or array.
+
+``/labval/_
+        if bycode:
+            return bydict
+        else:
+            return labvals
+``
+
+
+
+## user
+
 user fetches users with address or login info.
 
 ``/user:
@@ -1668,6 +1826,10 @@ from tram import User
 from tram import Address
 ``
 
+
+
+## orga
+
 orga returns organisationunits.
 
 ``/orga:
@@ -1702,6 +1864,10 @@ return.
 ``
         return res
 ``
+
+
+
+## catalog
 
 catalog gives the catalogentries per catalog.
 
@@ -1791,6 +1957,10 @@ the join dict entries.
           "catalogentry_to_catalog": ["join centraxx_catalog catalog on catalogentry.catalog = catalog.oid"]
 ``
 
+
+
+## usageentry
+
 usageentry gives the usageentries.
 
 ``/usageentry:
@@ -1858,6 +2028,9 @@ the joindict entries that usageentry needs.
             "usageentry_to_labval": [ "left join centraxx_labvalenum_usageentry labvalenum_usageentry on labvalenum_usageentry.usageentry = usageentry.oid", "left join centraxx_laborvalue as labval on labvalenum_usageentry.labvalueenum = labval.oid" ]
 ``
 
+
+
+## kittemplate
 
 kittemplate gives sample kit templates and the samples they contain.
         
@@ -1973,6 +2146,9 @@ return.
 ``
 
 
+
+## name
+
 name gives the multilingual names for a code or all codes in a table.
 
 the result is keyed by code and language like this:
@@ -2003,6 +2179,10 @@ the db queries differ for cxx3 and cxx4.
         elif self.cxx() == "4":
             return self._name_cxx4(table, code, lang)
 ``
+
+
+
+## _name_cxx3
 
 _name_cxx3 gives display names for cxx 3.
 
@@ -2085,6 +2265,9 @@ structure by code and lang and return.
         return out
 ``
 
+
+## _name_cxx4
+
 _name_cxx4 gives display names for cxx 4.
 
 ``/_name_cxx4:
@@ -2159,6 +2342,8 @@ structure by code and lang and return.
 
 
 
+## sidc
+
 sidc returns the main idc code by which samples are referenced as
 specified in the settings. 
 
@@ -2169,7 +2354,10 @@ specified in the settings.
         return self.settings['sampleid'][self.db.target]
 ``
 
-sidc returns the main idc code by which patients are referenced as
+
+## pidc
+
+pidc returns the main idc code by which patients are referenced as
 specified in the settings. if a pidc argument is given, it is returned
 instead of the settings' pidc.
 
@@ -2182,6 +2370,9 @@ instead of the settings' pidc.
         return self.settings['patientid'][self.db.target]
 ``
 
+
+## cxx
+
 cxx gives the centraxx version for db target from settings.
 
 ``/cxx:
@@ -2191,6 +2382,19 @@ cxx gives the centraxx version for db target from settings.
             return None
         return str(v)
 ``
+
+
+## target
+
+target gives the db target.
+
+``/target:
+    def target(self) -> str:
+        return self.db.target
+``
+
+
+## _sidcs
 
 _sidcs returns the idcs from settings that are specific for sample.
 
@@ -2230,6 +2434,9 @@ include the main sample idcontainer. it could already be in out.
         return out
 ``
 
+
+## _pidcs
+
 _pidcs returns the idcs from settings that are specific for
 sample.
 
@@ -2256,6 +2463,9 @@ include the main patient idcontainer. it could be already in the array.
         return out
 ``
 
+
+## _concrete_idcs
+
 _concrete_idcs replaces traction constants patientid and sampleid with their
 respective idc for array.
 
@@ -2277,6 +2487,10 @@ fill in the concrete idcs when encountering patientid or sampleid.
                 out.append(verb)
         return out
 ``
+
+
+
+## _concrete_idcs_dict
 
 _concrete_idcs_dict replaces traction constants patientid and sampleid with their
 respective idc for dict.
@@ -2300,6 +2514,10 @@ fill in the concrete idcs when encountering patientid or sampleid.
         return out
 ``
 
+
+
+## _is_idc
+
 _is_idc says whether a string is an idcontainer mentioned in
 settings.yaml or passed as sidc or pidc argument.
 
@@ -2307,6 +2525,9 @@ settings.yaml or passed as sidc or pidc argument.
     def _is_idc(self, key:str, sidc:str=None, pidc:str=None): # -> bool
         return key in self.settings["idc"] or key == self.sidc() or key == self.pidc(pidc)
 ``
+
+
+## _splitidc
 
 _splitidc splits an array of tr constants and idc keys into non-idc
 (tr constants) and idc keys.
@@ -2328,6 +2549,9 @@ is the verbose key idc?
                 nonidc.append(k)
         return (nonidc, idc)
 ``
+
+
+## _collkeys
 
 _collkeys collects the keys join needs from lists, temporary tables
 and verbose. preserves order and ensures uniqueness.
@@ -2369,6 +2593,9 @@ append the items of the verbose list and return.
         return out
 ``
 
+
+## _fill_in_primary
+
 _fill_in_primary adds a reference to the given sample's primary sample,
 if there is one.
 
@@ -2399,6 +2626,10 @@ Idable.
             primary = self.sample(oids=[primary_oid])[0]
             sample.primary = Idable(ids=primary.ids, mainidc=primary.mainidc)
 ``
+
+
+
+## _selectstr
 
 _selectstr gives the selects for idc keys and verbose array. unlike
 _joinstr, keys in lists and tmptables aren't included automatically,
@@ -2468,6 +2699,9 @@ get the selections and joins as string.
         return selectstr
 ``
 
+
+## _select_idc
+
 _select_idc adds the sql select statements for a list of idc keys.
 
 ``/_select_idc:
@@ -2489,6 +2723,10 @@ return the selecta with appended strings.
 ``
   return selecta
 ``
+
+
+
+## _joinstr
 
 _joinstr puts together the joins needed for the lists and temporary
 tables of non-idc and idc keys, and verbose. it returns the sql join
@@ -2558,6 +2796,10 @@ get the joins as string.
         return joinstr
 ``
 
+
+
+## _join_idc
+
 _join_idc adds the sql join statements for the idc keys of the query.
 
 ``/_join_idc: #py
@@ -2624,6 +2866,7 @@ return the selecta with appended strings.
 
 
 
+## _where
 
 _where returns the wherestring and args array for the provided
 lists and temporary tables.
@@ -2679,7 +2922,7 @@ for now mark dates with type date.
           username: { "field": "participant.username" },
           address: { "field": "address.email" },
           login: { "field": "credential.last_login_on", "type": "date" },
-          labval: { "field": "labval.code" },
+          labval: { "field": "laborvalue.code" },
           kittemplate: { "field": "samplekittemplate.code" }
         }
 ``
@@ -2733,6 +2976,10 @@ return the where string and its arguments.
         return (wherestr, whereargs)
 ``
 
+
+
+## _wheredate
+
 _wheredate makes a date check. for now only check that it's between
 the two values of the array passed as date parameter.
 
@@ -2772,6 +3019,8 @@ return where clause and args.
         return (wstr, wargs)
 ``
 
+
+## _whereexact
 
 _whereexact returns a where clause and argument list for exact
 matching of items in list and temporary table. NULL string is list is
@@ -2835,6 +3084,9 @@ close the where string, return with the arg list.
 ``
 
 
+
+## _sqlinplaceholder
+
 _sqlinplaceholder returns a string like (?, ?, ?, ? ...) with n question marks for sql in.
 
 ``/_sqlinplaceholder:
@@ -2851,6 +3103,9 @@ _sqlinplaceholder returns a string like (?, ?, ?, ? ...) with n question marks f
         return out
 ``
 
+
+## _whereparam
+
 _whereparam gives a ?-parameterized sql where expression for name
 equal or like parameter for use in queries.
 
@@ -2862,6 +3117,9 @@ equal or like parameter for use in queries.
             return name + " like '%' + ? + '%'"
 ``
 
+
+## _wherelike
+
 _wherelike gives a ?-parameterized sql where like expression.
 
 ``/_wherelike:
@@ -2869,6 +3127,9 @@ _wherelike gives a ?-parameterized sql where like expression.
         return name + " like '%' + ? + '%'"
 
 ``
+
+
+## _wherelikes
 
 _wherelikes gives a ?-parameterized sql of or-joined where-like
 expressions, as many as given n.
@@ -2880,6 +3141,9 @@ expressions, as many as given n.
             a.append(field + " like '%' + ? + '%'") # the sql takes literal plusses like here
         return " or ".join(a)
 ``
+
+
+## _top
 
 _top returns an injection-safe top string, for, e.g. `select top 100 * from table`, if
 top is None return an empty string.
@@ -2899,6 +3163,9 @@ exit if the top param isn't a number. better use a sql building library for that
         return ""
 ``
 
+
+## _order_by
+
 _order_by returns an injection safe order by string.
 
 ``/_order_by:
@@ -2913,6 +3180,9 @@ exit if the order by parameter isn't an identifier.
             raise Exception(f"order_by param {order_by} needs to be an sql identifier.")
         return f"order by {order_by}"
 ``
+
+
+## _idcinit
 
 _idcinit makes a mapping of idcontainers from their code (lower-case)
 to respective oid and kind, and makes a list containing all idcs
@@ -2950,6 +3220,9 @@ make a list of all idcontainers that makes sure to include sidc and pidc.
 ``
 
 
+
+## _checkverbose
+
 _checkverbose makes shure that only allowed keys are in the verbose array. 
 
 ``/_checkverbose:
@@ -2960,6 +3233,10 @@ def _checkverbose(verbose, possible):
             return False
     return True
 ``
+
+
+
+## _cleartt
 
 _cleartt drops the temporary tables tables that were created with
 _maketables after the query using their data was run. it takes the
@@ -2984,6 +3261,9 @@ go over the tables and drop them.
             #print(q)
             self.db.query(q)  # todo is kairos_spring used again after this?
 ``
+
+
+## _makemove
 
 _makemove makes temporary tables from the given lists that are longer
 than cutoff. it returns one dict holding the remaining, non-table
@@ -3019,6 +3299,7 @@ return nontable lists and table names.
 
 
 
+# _makealllists
 
 _makealllists reads the lists from files, puts them together with the
 lists passed as lists, and returns them all in one dict,
@@ -3072,6 +3353,9 @@ return.
         return alllists
 ``
 
+
+## _readfiles
+
 _readfiles reads the files from which tmp tables should be build into
 lists.  it returns a tuple of one dict holding the non-idc lists and
 one dict holding the idc lists.
@@ -3122,6 +3406,9 @@ return non-idc and idc as tuple.
         return (nonidc, idc)
 ``
 
+
+## _maketables
+
 _maketables makes temporary tables for each key in the given dict,
 inserts the list of values belonging to that key, and returns a dict
 the table names by key.
@@ -3153,6 +3440,8 @@ return the created table names.
 ``
                 
 
+## floatornull
+
 floatornull casts to float or returns None. somehow the values passed
 to Amount need float casts, and float casts don't accept None.
 
@@ -3163,6 +3452,9 @@ def floatornull(x):
     return float(x)
 ``
 
+
+## get_ids
+
 get_ids returns a list of string ids from a list of Idables (Sample or
 Patient).
 
@@ -3171,6 +3463,9 @@ def get_ids(idables:list, code:str|None=None) -> list:
     return [ x.id(code) for x in idables ]
 ``
 
+
+## isnumber
+
 isnumber returns if a string is a number to prevent sql injection.  is
 this handled better by an existing library function?
 
@@ -3178,6 +3473,9 @@ this handled better by an existing library function?
 def isnumber(a) -> bool:
     return re.match(r"^[0-9](.[0-9]*)?$", a) is not None
 ``
+
+
+## isidentifier
 
 isidentifier returns whether a string is a sql identifier to prevent
 sql injection.  like isnumber, could this be handled better by a library?
@@ -3192,6 +3490,9 @@ import re.
 ``/import
 import re
 ``
+
+
+## _dextends
 
 _dextends extends an array in a dictionary at the given key with the
 values in the passed list.
@@ -3209,6 +3510,9 @@ the list should hold values.
             d[key] = []
         d[key].extend(lst)
 ``
+
+
+## _tablelists
 
 _tablelists returns a dict of the lists smaller than cutoff and a
 second dict of the lists larger than cutoff that go into temporary
@@ -3245,6 +3549,8 @@ return.
 ``
 
 
+## _uniq
+
 _uniq returns a new list containing the unique items of the list passed, preserving order.
 
 ``/_uniq:
@@ -3256,6 +3562,9 @@ def _uniq(lst): # -> list
     return out
 ``
 
+
+
+## _byifone
 
 _byifone sets by to the only passed query parameter, if missing is
 true and there is only one query parameter.
@@ -3269,6 +3578,8 @@ def _byifone(alllists):
         raise Exception("--missing needs a tr constant or idc passed to --by")
 ``
 
+
+## _prepby
 
 _prepby returns a bydict that holds the query params for the by as key
 (if there are any), and a second list, missinglst, that holds these
@@ -3323,6 +3634,9 @@ return.
     return bydict, missinglst
 ``
 
+
+## _fillby
+
 _fillby puts a value into the bydict at the key of the by-field.
 
 ``/_fillby:
@@ -3342,6 +3656,9 @@ constants and idcs.
         bydict[bykey].append(what)
 ``
 
+
+## _updatemissing
+
 _updatemissing removes the value at the by-field from the missing list.
 
 ``/_updatemissing:
@@ -3358,6 +3675,9 @@ constants and idcs.
     if bykey in missinglst:
         missinglst.remove(bykey)
 ``
+
+
+## dict_csv
 
 dict_csv writes a list of dicts to csv file. if no column names are
 given, the fields in the first dict are used as column names.
@@ -3415,6 +3735,9 @@ close and return the out file.
     return outfile
 ``
 
+
+## flat_csv
+
 flat_csv writes a list of 'flat' tram objects like User (that don't
 need to pull in nested data into their dict root) to csv file.
 
@@ -3451,7 +3774,11 @@ send the rows to dict_csv and return the written filename, if any.
 ``
     return dict_csv(rows, outfile=outfile, delim=delim)    
 ``
-       
+
+
+
+## idable_csv
+
 idable_csv writes a list of Idables to the given csv file. the given
 idcontainers become columns in the csv. if no idcontainers are given,
 all are included. if True is passed as file, the output is
@@ -3510,6 +3837,9 @@ import csv and sys.
 import csv
 import sys
 ``
+
+
+## finding_csv
 
 finding_csv writes a list of Findings along their recorded values to
 the given csv file, the recorded values in the same row as their
@@ -3644,6 +3974,9 @@ send the ficts to dict_csv and return the written filename, if any.
     return dict_csv(fdicts, colnames=colnames, outfile=outfile, delim=delim)    
 ``
 
+
+## method_csv
+
 method_csv writes a list of Methods to the given csv file, one row per labval in the method. if True is passed as file the output is printed. todo use sys.stdout instead of True.
 
 ``/method_csv:
@@ -3731,6 +4064,9 @@ write the csv.
 ``
 
 
+
+## catalog_csv
+
 catalog_csv writes a list of catalog dicts to the given csv file, one
 row per entry in the catalog. if True is passed as file the output is
 printed. todo use sys.stdout instead of True.
@@ -3797,6 +4133,10 @@ write the csv. column names need not be passed, cause they are the same for each
 ``/catalog_csv/_
     return dict_csv(rows, outfile=outfile, delim=delim)
 ``
+
+
+
+## _query
 
 _query sticks together the query from the various lists and parameters and returns the result: (res, bydict, missinglst, by)
 

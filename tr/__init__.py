@@ -818,6 +818,8 @@ class traction:
                 join centraxx_crftempfield as crftempfield on labfindinglabval.crftempfield = crftempfield.oid
                 join centraxx_laborvalue as laborvalue on crftempfield.laborvalue = laborvalue.oid
                 """
+            else:
+                raise Exception(f"please provide a cxx version (3 or 4) for db target {self.db.target} in setting.yaml, see example in readme.md.")
             query += """
                 --go from laborvalue to unit
                 left join centraxx_unity as unit on laborvalue.unit = unit.oid
@@ -905,6 +907,53 @@ class traction:
                 labval["usageentry"] = self.usageentry(labvals=[labval["code"]])
             out[methodcode]["labvals"][labvalcode] = labval
         return out
+    def labval(self, labvals:list|None=None, files:dict|None=None, bycode:bool=False, print_query:bool=False):
+        """
+         labval (messparameter) gets labval(s).  this is an extra function next
+         to the labvals fetched in method, cause iit might be handy to fetch
+         labvals directly if you don't know their method, for example in
+         fhirbuild.
+        """
+        if files is None:
+            files = {}
+        lists = {
+            labval: labvals
+        }
+        selects = {
+          "_": [
+            "laborvalue.code as labval",
+            "laborvalue.dtype as labval_type",
+            "catalog.code as catalog"
+          ]
+        }
+        homejoins = []
+        homejoins.extend(self.jd["labval_to_catalog"])
+        joins = {
+            "_": homejoins
+        }
+        (res, bydict, missinglist, by) = self._query(tablename="laborvalue", lists=lists, selects=selects, joins=joins, print_query=print_query)#bm
+        labvalnames = self.name(table="laborvalue")
+        labvals = []
+        for row in res:
+            labvalcode = row["labval"]
+
+            lv = {}
+            lv["code"] = labvalcode
+            lv["name_de"] = dig(labvalnames, labvalcode + "/de")
+            lv["name_en"] = dig(labvalnames, labvalcode + "/en")
+            if dig(row, "catalog") is not None:
+                lv["catalog"] = dig(row, "catalog")
+            lv["type"] = row["labval_type"]
+            if lv["type"] == "OPTIONGROUP" or lv["type"] == "ENUMERATION":
+                lv["usageentry"] = self.usageentry(labvals=[lv["code"]])
+            if bycode is True:
+                _fillby(bydict, "labval", row, lv)
+            else:
+                labvals.append(lv)
+        if bycode:
+            return bydict
+        else:
+            return labvals
     def user(self, usernames:list|None=None, emails:list|None=None, lastlogins:list|None=None, files:dict|None=None, verbose:list|None=None, like:list=None, missing:bool=False, order_by:str=None, top:int|None=None, verbose_all:bool=False, by:str=None, print_query:bool=False):
         """
          user fetches users with address or login info.
@@ -1287,7 +1336,7 @@ class traction:
           username: { "field": "participant.username" },
           address: { "field": "address.email" },
           login: { "field": "credential.last_login_on", "type": "date" },
-          labval: { "field": "labval.code" },
+          labval: { "field": "laborvalue.code" },
           kittemplate: { "field": "samplekittemplate.code" }
         }
         wherestrs = []
@@ -1673,6 +1722,9 @@ class traction:
         return self.settings['sampleid'][self.db.target]
     def pidc(self, pidc:str|None=None) -> str:
         """
+         pidc returns the main idc code by which patients are referenced as
+         specified in the settings. if a pidc argument is given, it is returned
+         instead of the settings' pidc.
         """
         if pidc is not None:
             return pidc
@@ -1751,6 +1803,11 @@ class traction:
         if v is None:
             return None
         return str(v)
+    def target(self) -> str:
+        """
+         target gives the db target.
+        """
+        return self.db.target
 
     def _is_idc(self, key:str, sidc:str=None, pidc:str=None): # -> bool
         """
